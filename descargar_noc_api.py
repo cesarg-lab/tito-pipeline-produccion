@@ -210,20 +210,20 @@ TP_FIELDS = [
 
 
 def formato_fecha(valor):
+    """
+    Convierte timestamp Arauco → 'dd-mm-yyyy'.
+
+    Decisión 2026-05-22 noche: NO convertir naive datetimes. Probamos asumir
+    naive=UTC y empeoró (Selenium toma el valor tal cual sin convertir).
+    """
     if not valor:
         return ""
     try:
         s = str(valor)
-        # Soporte 'Z' suffix (UTC) que fromisoformat<3.11 no acepta
-        if s.endswith("Z"):
-            s = s[:-1] + "+00:00"
+        # Si viene con "T", me quedo solo con la parte de fecha (igual que Selenium)
         if "T" in s:
-            dt = datetime.fromisoformat(s)
-            # Si Arauco devuelve datetime timezone-aware (UTC u otro offset),
-            # convertir a hora Chile antes de formatear el día — sino el último
-            # turno del día se desplaza al día siguiente UTC
-            if dt.tzinfo is not None:
-                dt = dt.astimezone(CHILE_TZ)
+            fecha_str = s.split("T")[0]  # "2026-04-30"
+            dt = datetime.strptime(fecha_str, "%Y-%m-%d")
         else:
             dt = datetime.strptime(s, "%Y-%m-%d")
         return dt.strftime("%d-%m-%Y")
@@ -295,17 +295,15 @@ def _minutos_a_hmm(valor):
 
 
 def _fecha_registro(valor):
-    """Convierte ISO '2026-05-01T08:49:26' → 'dd-mm-yyyy HH:MM:SS' en hora Chile."""
+    """Convierte ISO '2026-05-01T08:49:26' → 'dd-mm-yyyy HH:MM:SS' tal cual sin conversión TZ."""
     if not valor:
         return ""
     try:
         s = str(valor)
         if s.endswith("Z"):
-            s = s[:-1] + "+00:00"
+            s = s[:-1]
         if "T" in s:
-            dt = datetime.fromisoformat(s)
-            if dt.tzinfo is not None:
-                dt = dt.astimezone(CHILE_TZ)
+            dt = datetime.fromisoformat(s.split("+")[0])
             return dt.strftime("%d-%m-%Y %H:%M:%S")
     except Exception:
         pass
