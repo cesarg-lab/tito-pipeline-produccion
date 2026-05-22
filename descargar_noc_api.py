@@ -24,6 +24,14 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+try:
+    from zoneinfo import ZoneInfo
+    CHILE_TZ = ZoneInfo("America/Santiago")
+except Exception:
+    # Fallback Python < 3.9 o sin tzdata: offset fijo UTC-4 (Chile verano)
+    from datetime import timezone, timedelta
+    CHILE_TZ = timezone(timedelta(hours=-4))
+
 import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -199,10 +207,19 @@ def formato_fecha(valor):
     if not valor:
         return ""
     try:
-        if "T" in str(valor):
-            dt = datetime.fromisoformat(str(valor))
+        s = str(valor)
+        # Soporte 'Z' suffix (UTC) que fromisoformat<3.11 no acepta
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        if "T" in s:
+            dt = datetime.fromisoformat(s)
+            # Si Arauco devuelve datetime timezone-aware (UTC u otro offset),
+            # convertir a hora Chile antes de formatear el día — sino el último
+            # turno del día se desplaza al día siguiente UTC
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(CHILE_TZ)
         else:
-            dt = datetime.strptime(str(valor), "%Y-%m-%d")
+            dt = datetime.strptime(s, "%Y-%m-%d")
         return dt.strftime("%d-%m-%Y")
     except Exception:
         return str(valor) if valor else ""
@@ -223,8 +240,13 @@ def valor_a_segundos(valor):
         return str(int(valor))
     val_str = str(valor)
     try:
+        if val_str.endswith("Z"):
+            val_str = val_str[:-1] + "+00:00"
         if "T" in val_str:
             dt = datetime.fromisoformat(val_str)
+            # Misma conversión timezone: si viene aware, convertir a hora Chile
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(CHILE_TZ)
             return str(dt.hour * 3600 + dt.minute * 60 + dt.second)
         if ":" in val_str:
             parts = val_str.split(":")
