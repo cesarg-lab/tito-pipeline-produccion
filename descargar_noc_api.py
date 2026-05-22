@@ -408,6 +408,23 @@ def main():
     datos_bn = descargar_reporte(session, token, "BN", fecha_ini, fecha_fin)
     bn_ok = False
     if datos_bn:
+        # Filtro post-API: descartar registros con `fecha` fuera del rango pedido.
+        # Arauco API devuelve registros adicionales con fecha previa al rango
+        # (probable: filtra por otro campo internamente). Selenium ya viene filtrado.
+        fecha_ini_only = fecha_ini  # "YYYY-MM-DD"
+        fecha_fin_only = fecha_fin
+        total_original = len(datos_bn)
+        datos_bn_filtrados = []
+        for r in datos_bn:
+            fecha_str = str(r.get('fecha', ''))
+            if 'T' in fecha_str:
+                fecha_str = fecha_str.split('T')[0]
+            if fecha_ini_only <= fecha_str <= fecha_fin_only:
+                datos_bn_filtrados.append(r)
+        descartados = total_original - len(datos_bn_filtrados)
+        if descartados > 0:
+            log.info(f"  🧹 Filtro fecha: descartados {descartados} registros fuera del rango {fecha_ini} → {fecha_fin}")
+        datos_bn = datos_bn_filtrados
         guardar_csv(datos_bn, "BN", BASE_DIR)
         bn_ok = True
     else:
