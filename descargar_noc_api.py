@@ -167,28 +167,34 @@ def descargar_reporte(session: requests.Session, token: str,
 
 
 # ── Conversión JSON → CSV ─────────────────────────────────────────────────
-PG_HEADERS = (
-    "Número Noc;Fecha NOC;Intervención;Unidad Operativa;Rut Empresario;"
-    "Nombre Empresario;Equipo;Tipo Equipo;Código Calibrador;Nombre Calibrador;"
-    "Código Predio;Origen;Id Especie;Desc Especie;Fecha Inicio;Fecha Fin;"
-    "Hora Inicio;Hora Fin;Horómetro;Tiempo Colacion;Tiempo Efectivo;"
-    "Número Ciclos;Número Personas;Árboles Madereados;Volumen SSC PU;Volumen SSC AS;"
-    + ";".join(str(i) for i in range(1, 72)) + ";"
-    "Id Zona;Zona;NOC Completa;Zona Predio;Zona Movil;Zona Cosecha;"
-    "Número Acta;Secuencia Acta"
+# Base 2 NOC (REPORTE=BN) — 49 columnas, mismo header que el CSV que descarga Selenium
+BN_HEADERS = (
+    "FOLIO;FECHA;CODIGO_PREDIO;NOMBRE_PREDIO;EQUIPO;UNIDAD_OPERATIVA;INTERVENCION;"
+    "HORA_INICIO;HORA_TERMINO;TIEMPO_EFECTIVO;HORAS_COLACION;NUMERO_CICLOS;NUMERO_PERSONAS;"
+    "RUT_EMPRESA;NOMBRE_EMPRESA;NUMERO_ACTA;SECUENCIA;RUT_CALIBRADOR;NOMBRE_CALIBRADOR;"
+    "DIAMETRO;CODIGO_PRODUCTO;FACTOR_CORTEZA;ESPECIE;TROZOS;CODIGO_DESTINO;"
+    "LARGO;LARGO_REAL;M3SSC;M3SSC_CABEZAL;STOCK;TIEMPOS_MUERTOS;TOTAL_HR_TMP_MUERTOS;"
+    "TIPO_NOC;ESTADO_MADERA;FECHA_REGISTRO;FECHA_CORTE;ID_DETALLE_NOC;OBSERVACION;"
+    "TIPO_EQUIPO;BIOMASA;PRODUCTO;NOMBRE_DESTINO;TEMPORADA;COMPLETA;"
+    "ZONA_FORESTAL_PREDIO;ZONA_FORESTAL_MOVIL;ZONA_COSECHA;FSC_PRODUCCION;CERTFOR_PRODUCCION"
 )
 
-PG_FIELDS = [
-    "numero_noc", "fecha_noc", "intervencion", "unidad_operativa",
-    "rut_empresario", "nombre_empresario", "equipo", "tipo_equipo",
-    "rut_calibrador", "nombre_calibrador", "codigo_predio", "origen",
-    "id_epecie", "desc_especie", "fecha", "fecha",
-    "hora_inicio", "hora_fin", "horometro", "horas_colacion",
-    "tiempo_efectivo", "numero_ciclos", "numero_personas",
-    "arboles_madereados", "m3ssc_pu", "m3ssc_as",
-] + [str(i) for i in range(1, 72)] + [
-    "id_zona", "zona", "noc_completa", "zona_predio", "zona_movil",
-    "zona_cosecha", "Numero_Acta", "secuencia_acta"
+# Mapeo de columnas CSV → claves del JSON de Arauco
+# Notar: API usa snake_case minúsculas mezclado con UPPERCASE en algunos campos
+# y typo "ZONA_COCECHA" (que en CSV se llama ZONA_COSECHA)
+BN_FIELDS = [
+    "folio", "fecha", "codigo_predio", "nombre_predio", "equipo",
+    "unidad_operativa", "intervencion", "hora_inicio", "hora_termino",
+    "tiempo_efectivo", "horas_colacion", "numero_ciclos", "numero_personas",
+    "rut_empresa", "nombre_empresa", "Numero_Acta", "secuencia",
+    "rut_calibrador", "nombre_calibrador", "diametro", "codigo_producto",
+    "factor_corteza", "especie", "trozos", "codigo_destino",
+    "largo", "largo_real", "m3ssc", "m3ssc_cabezal", "stock",
+    "tiempos_muertos", "TOTAL_HR_TMP_MUERTOS", "TIPO_NOC", "estado_madera",
+    "FECHA_REGISTRO", "FECHA_CORTE", "ID_DETALLE_NOC", "OBSERVACION",
+    "tipo_equipo", "BIOMASA", "PRODUCTO", "NOMBRE_DESTINO", "TEMPORADA",
+    "completa", "ZONA_FORESTAL_PREDIO", "ZONA_FORESTAL_MOVIL", "ZONA_COCECHA",
+    "FSC_PRODUCCION", "CERTFOR_PRODUCCION"
 ]
 
 TP_HEADERS = (
@@ -258,19 +264,79 @@ def valor_a_segundos(valor):
     return str(valor) if valor else ""
 
 
-def registro_pg_a_csv(rec: dict) -> str:
+def _iso_a_hhmm(valor):
+    """Convierte ISO timestamp '2026-04-29T11:00:00' → 'HH:MM' en hora Chile."""
+    if not valor:
+        return ""
+    try:
+        s = str(valor)
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        if "T" in s:
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(CHILE_TZ)
+            return dt.strftime("%H:%M")
+    except Exception:
+        pass
+    return str(valor) if valor else ""
+
+
+def _minutos_a_hmm(valor):
+    """Convierte número de minutos (ej. 60) → formato 'H:MM' (1:00)."""
+    if valor is None or valor == "":
+        return ""
+    try:
+        mins = int(valor)
+        h, m = divmod(mins, 60)
+        return f"{h}:{m:02d}"
+    except Exception:
+        return str(valor) if valor else ""
+
+
+def _fecha_registro(valor):
+    """Convierte ISO '2026-05-01T08:49:26' → 'dd-mm-yyyy HH:MM:SS' en hora Chile."""
+    if not valor:
+        return ""
+    try:
+        s = str(valor)
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        if "T" in s:
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(CHILE_TZ)
+            return dt.strftime("%d-%m-%Y %H:%M:%S")
+    except Exception:
+        pass
+    return str(valor) if valor else ""
+
+
+def registro_bn_a_csv(rec: dict) -> str:
+    """Convierte 1 registro JSON Base 2 NOC → 1 línea CSV con formato Selenium."""
     valores = []
-    for i, campo in enumerate(PG_FIELDS):
+    for campo in BN_FIELDS:
         val = rec.get(campo)
-        if campo in ("fecha_noc", "fecha") and i in (1, 14, 15):
+        # Campos fecha solo (dd-mm-yyyy)
+        if campo in ("fecha", "FECHA_CORTE"):
             val = formato_fecha(val)
-        elif campo in ("hora_inicio", "hora_fin"):
-            val = valor_a_segundos(val)
-        elif campo in ("m3ssc_pu", "m3ssc_as", "horometro", "tiempo_efectivo",
-                       "horas_colacion") or campo.isdigit():
-            val = formato_numero(val)
-        elif campo in ("rut_empresario", "rut_calibrador"):
+        # Campo fecha con hora (FECHA_REGISTRO)
+        elif campo == "FECHA_REGISTRO":
+            val = _fecha_registro(val)
+        # Campos hora HH:MM
+        elif campo in ("hora_inicio", "hora_termino"):
+            val = _iso_a_hhmm(val)
+        # Tiempos en minutos → H:MM
+        elif campo in ("tiempo_efectivo", "horas_colacion"):
+            val = _minutos_a_hmm(val)
+        # RUTs sin guión
+        elif campo in ("rut_empresa", "rut_calibrador"):
             val = str(val).replace("-", "") if val else ""
+        # Decimales con coma (largo, largo_real ya vienen así desde API
+        # pero por seguridad convierto floats)
+        elif campo in ("m3ssc", "m3ssc_cabezal", "largo"):
+            val = formato_numero(val)
+        # Resto: string sin transformar
         else:
             val = str(val) if val is not None else ""
         valores.append(val)
@@ -292,10 +358,10 @@ def registro_tp_a_csv(rec: dict, indice: int) -> str:
 
 
 def guardar_csv(datos: list, reporte: str, destino: Path):
-    if reporte == "PG":
-        nombre = "ProductividadGenerico.csv"
-        headers = PG_HEADERS
-        parse_fn = lambda rec, i: registro_pg_a_csv(rec)
+    if reporte == "BN":
+        nombre = "Base2NOC.csv"
+        headers = BN_HEADERS
+        parse_fn = lambda rec, i: registro_bn_a_csv(rec)
     else:
         nombre = "TiemposPerdidos.csv"
         headers = TP_HEADERS
@@ -325,7 +391,7 @@ def main():
     fecha_fin = hoy.strftime("%Y-%m-%d")
     log.info(f"📅 Rango: {fecha_ini} → {fecha_fin}")
 
-    for fname in ["ProductividadGenerico.csv", "TiemposPerdidos.csv"]:
+    for fname in ["Base2NOC.csv", "TiemposPerdidos.csv", "ProductividadGenerico.csv"]:
         fpath = BASE_DIR / fname
         if fpath.exists():
             fpath.unlink()
@@ -341,13 +407,13 @@ def main():
 
     token = obtener_token_arcgis(session)
 
-    datos_pg = descargar_reporte(session, token, "PG", fecha_ini, fecha_fin)
-    pg_ok = False
-    if datos_pg:
-        guardar_csv(datos_pg, "PG", BASE_DIR)
-        pg_ok = True
+    datos_bn = descargar_reporte(session, token, "BN", fecha_ini, fecha_fin)
+    bn_ok = False
+    if datos_bn:
+        guardar_csv(datos_bn, "BN", BASE_DIR)
+        bn_ok = True
     else:
-        log.warning("⚠️  Sin datos de Productividad Genérico")
+        log.warning("⚠️  Sin datos de Base 2 NOC")
 
     datos_tp = descargar_reporte(session, token, "TP", fecha_ini, fecha_fin)
     tp_ok = False
@@ -357,9 +423,9 @@ def main():
     else:
         log.warning("⚠️  Sin datos de Tiempos Perdidos")
 
-    if pg_ok and tp_ok:
+    if bn_ok and tp_ok:
         log.info("✅ Ambos archivos descargados correctamente")
-    elif pg_ok or tp_ok:
+    elif bn_ok or tp_ok:
         log.info("⚠️  Solo se descargó un archivo")
     else:
         log.error("❌ No se descargó ningún archivo")

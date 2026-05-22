@@ -35,14 +35,15 @@ echo ""
 echo "▶️  [1/9] Descargando NOC desde Arauco..."
 python3 descargar_noc_api.py 2>&1 | tee -a "$LOG_PIPELINE"
 
-# ── 2. Alias Base2NOC.csv (GENERAR_IMAGEN/RESUMEN esperan ese nombre) ────
+# ── 2. Verificar Base2NOC.csv (descargado por descargar_noc_api.py paso 1) ──
 echo ""
-echo "▶️  [2/9] Aliasing ProductividadGenerico.csv → Base2NOC.csv..."
-if [ -f "ProductividadGenerico.csv" ]; then
-    cp ProductividadGenerico.csv Base2NOC.csv
-    echo "✅ Base2NOC.csv listo (normalizar.py detecta formato y lo procesa transparente)"
+echo "▶️  [2/9] Verificando Base2NOC.csv..."
+if [ -f "Base2NOC.csv" ]; then
+    SIZE=$(wc -c < Base2NOC.csv)
+    echo "✅ Base2NOC.csv presente ($SIZE bytes)"
 else
-    echo "⚠️  ProductividadGenerico.csv no encontrado, saltando alias"
+    echo "❌ Base2NOC.csv NO encontrado — paso 1 falló"
+    exit 1
 fi
 
 # ── 3. Generar HTML ───────────────────────────────────────────────────────
