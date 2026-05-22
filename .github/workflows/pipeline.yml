@@ -1,0 +1,84 @@
+name: Pipeline Producción Diaria
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Pipeline diario Forestal Millalemu
+# Descarga NOC Arauco → Genera HTML → Sube FTP → Notifica Telegram
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Triggers:
+#   - cron diario 02:00 UTC = 23:00 Chile (horario verano) / 22:00 Chile (invierno)
+#   - manual desde la UI de GitHub Actions (botón "Run workflow")
+#
+# Secrets requeridos (Settings → Secrets and variables → Actions):
+#   ARAUCO_USER, ARAUCO_PASS
+#   FTP_HOST, FTP_USER, FTP_PASS
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+# ══════════════════════════════════════════════════════════════════════════════
+
+on:
+  schedule:
+    - cron: '0 2 * * *'    # 02:00 UTC todos los días = 23:00 Chile horario verano
+  workflow_dispatch:        # botón manual "Run workflow" en la UI de GitHub
+
+jobs:
+  run-pipeline:
+    name: Descarga + HTML + FTP + Telegram
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Hacer ejecutable el orquestador
+        run: chmod +x run_pipeline.sh
+
+      - name: Correr pipeline
+        env:
+          ARAUCO_USER:        ${{ secrets.ARAUCO_USER }}
+          ARAUCO_PASS:        ${{ secrets.ARAUCO_PASS }}
+          FTP_HOST:           ${{ secrets.FTP_HOST }}
+          FTP_USER:           ${{ secrets.FTP_USER }}
+          FTP_PASS:           ${{ secrets.FTP_PASS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: bash run_pipeline.sh
+
+      - name: Subir logs como artefacto (solo si falla)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs-${{ github.run_id }}
+          path: |
+            descarga_log.txt
+            pipeline_*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Notificar fallo a Telegram (solo si falla)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MENSAJE="❌ <b>Pipeline Producción FALLÓ</b>
+          🕐 $(date '+%Y-%m-%d %H:%M:%S UTC')
+
+          Revisa el log en GitHub Actions:
+          ${RUN_URL}"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            --data-urlencode "text=${MENSAJE}" > /dev/null || true
