@@ -1,0 +1,351 @@
+#!/usr/bin/env python3
+"""
+descargar_noc_api.py — Descarga GeoNOC vía API REST (sin Selenium)
+═══════════════════════════════════════════════════════════════════════════════
+Versión cloud-ready validada al peso 2026-05-21:
+  - Auth: POST /portal/sharing/rest/generateToken (form-urlencoded)
+  - API:  POST /geonocAPI/informevistanoc con header `Authorization: Bearer {token}`
+
+Diferencias vs versión Mac:
+  - Lee credenciales desde ENV vars (ARAUCO_USER, ARAUCO_PASS) — no .noc_config.json
+  - Eliminados los 3 métodos de auth fallidos del intento anterior
+  - Eliminada la sub-rutina establecer_sesion (innecesaria con Bearer)
+  - Eliminada llamada a ACTUALIZAR_DASHBOARD.py (Mac/Excel only)
+  - Eliminado subprocess osascript (Mac only)
+
+Uso (Render cron job):
+  ARAUCO_USER=<RUT_empresa> ARAUCO_PASS=<password> python3 descargar_noc_api.py
+"""
+
+import os
+import sys
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+
+import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# ── Configuración ──────────────────────────────────────────────────────────
+BASE_DIR = Path(__file__).parent
+LOG_FILE = BASE_DIR / "descarga_log.txt"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(LOG_FILE, encoding="utf-8")
+    ]
+)
+log = logging.getLogger(__name__)
+
+# ── Credenciales desde ENV (con fallback a .noc_config.json para dev local) ──
+USUARIO = os.environ.get("ARAUCO_USER")
+PASSWORD = os.environ.get("ARAUCO_PASS")
+
+if not USUARIO or not PASSWORD:
+    CONFIG_FILE = BASE_DIR / ".noc_config.json"
+    if CONFIG_FILE.exists():
+        log.info("ENV vars no presentes — usando .noc_config.json (modo dev local)")
+        with open(CONFIG_FILE, encoding="utf-8") as f:
+            cfg = json.load(f)
+        USUARIO = cfg["username"]
+        PASSWORD = cfg["password"]
+    else:
+        log.error("Faltan credenciales: definir ENV vars ARAUCO_USER y ARAUCO_PASS")
+        sys.exit(1)
+
+EMSEFOR = USUARIO  # mismo RUT empresa
+
+# URLs ArcGIS Enterprise + GeoNOC
+PORTAL_URL = "https://araucaria.arauco.com/portal"
+TOKEN_URL = f"{PORTAL_URL}/sharing/rest/generateToken"
+GEONOC_API = "https://geonoc.arauco.com/geonocAPI/informevistanoc"
+GEONOC_BASE = "https://geonoc.arauco.com"
+
+
+# ── Autenticación ──────────────────────────────────────────────────────────
+def obtener_token_arcgis(session: requests.Session) -> str:
+    """Obtiene token ArcGIS via POST form-urlencoded a generateToken.
+
+    Validado al peso 2026-05-21 — devuelve token con expiración 14 días.
+    """
+    log.info("Obteniendo token de ArcGIS Enterprise...")
+
+    data = {
+        "username": USUARIO,
+        "password": PASSWORD,
+        "client": "referer",
+        "referer": GEONOC_BASE,
+        "f": "json",
+        "expiration": 20160,  # 14 días en minutos
+    }
+
+    resp = session.post(TOKEN_URL, data=data, verify=False, timeout=30)
+    resp.raise_for_status()
+    result = resp.json()
+
+    if "token" in result:
+        token = result["token"]
+        expires_ms = result.get("expires", 0)
+        expires = datetime.fromtimestamp(expires_ms / 1000) if expires_ms else None
+        log.info(f"Token obtenido — expira: {expires.strftime('%d/%m/%Y %H:%M') if expires else 'desconocido'}")
+        return token
+
+    err = result.get("error", {})
+    log.error(f"Error de autenticación: {err.get('message', err) if err else result}")
+    sys.exit(1)
+
+
+# ── Descarga de reportes ───────────────────────────────────────────────────
+def descargar_reporte(session: requests.Session, token: str,
+                      reporte: str, fecha_ini: str, fecha_fin: str) -> list:
+    """Descarga un reporte de GeoNOC con Authorization Bearer.
+
+    Método validado al peso 2026-05-21: 199 registros TP bajados en ~2 seg.
+
+    Args:
+        reporte: "PG" (Productividad Genérico) o "TP" (Tiempos Perdidos)
+        fecha_ini: "YYYY-MM-DD"
+        fecha_fin: "YYYY-MM-DD"
+    """
+    nombre = "Productividad Genérico" if reporte == "PG" else "Tiempos Perdidos"
+    log.info(f"Descargando {nombre} ({fecha_ini} → {fecha_fin})...")
+
+    payload = [{
+        "EMSEFOR": EMSEFOR,
+        "FECHA_INI": fecha_ini,
+        "FECHA_FIN": fecha_fin,
+        "ZONA": None,
+        "REPORTE": reporte,
+    }]
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{GEONOC_BASE}/planificacion/",
+    }
+
+    try:
+        resp = session.post(
+            GEONOC_API,
+            json=payload,
+            headers=headers,
+            verify=False,
+            timeout=120,
+        )
+
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list):
+                log.info(f"  ✅ {nombre}: {len(data)} registros")
+                return data
+            if isinstance(data, dict) and "error" in data:
+                log.warning(f"  Error API: {data['error']}")
+                return []
+            log.info(f"  {nombre}: respuesta vacía o inesperada")
+            return []
+
+        log.warning(f"  HTTP {resp.status_code} — body: {resp.text[:300]}")
+        return []
+
+    except Exception as e:
+        log.error(f"  ❌ Excepción: {e}")
+        return []
+
+
+# ── Conversión JSON → CSV ─────────────────────────────────────────────────
+PG_HEADERS = (
+    "Número Noc;Fecha NOC;Intervención;Unidad Operativa;Rut Empresario;"
+    "Nombre Empresario;Equipo;Tipo Equipo;Código Calibrador;Nombre Calibrador;"
+    "Código Predio;Origen;Id Especie;Desc Especie;Fecha Inicio;Fecha Fin;"
+    "Hora Inicio;Hora Fin;Horómetro;Tiempo Colacion;Tiempo Efectivo;"
+    "Número Ciclos;Número Personas;Árboles Madereados;Volumen SSC PU;Volumen SSC AS;"
+    + ";".join(str(i) for i in range(1, 72)) + ";"
+    "Id Zona;Zona;NOC Completa;Zona Predio;Zona Movil;Zona Cosecha;"
+    "Número Acta;Secuencia Acta"
+)
+
+PG_FIELDS = [
+    "numero_noc", "fecha_noc", "intervencion", "unidad_operativa",
+    "rut_empresario", "nombre_empresario", "equipo", "tipo_equipo",
+    "rut_calibrador", "nombre_calibrador", "codigo_predio", "origen",
+    "id_epecie", "desc_especie", "fecha", "fecha",
+    "hora_inicio", "hora_fin", "horometro", "horas_colacion",
+    "tiempo_efectivo", "numero_ciclos", "numero_personas",
+    "arboles_madereados", "m3ssc_pu", "m3ssc_as",
+] + [str(i) for i in range(1, 72)] + [
+    "id_zona", "zona", "noc_completa", "zona_predio", "zona_movil",
+    "zona_cosecha", "Numero_Acta", "secuencia_acta"
+]
+
+TP_HEADERS = (
+    "N°;Empresario;Fecha;Número Noc;Estado Noc;Código Equipo;"
+    "Código Tiempo Perdido;Descripción;Tiempo (Min);Observación"
+)
+
+TP_FIELDS = [
+    "N", "Empresario", "Fecha", "Numero_noc", "estado_noc",
+    "codigo_equipo", "codigo_tiempo_perdido", "descripcion",
+    "tiempo", "observacion"
+]
+
+
+def formato_fecha(valor):
+    if not valor:
+        return ""
+    try:
+        if "T" in str(valor):
+            dt = datetime.fromisoformat(str(valor))
+        else:
+            dt = datetime.strptime(str(valor), "%Y-%m-%d")
+        return dt.strftime("%d-%m-%Y")
+    except Exception:
+        return str(valor) if valor else ""
+
+
+def formato_numero(valor):
+    if valor is None:
+        return ""
+    if isinstance(valor, float):
+        return str(valor).replace(".", ",")
+    return str(valor)
+
+
+def valor_a_segundos(valor):
+    if valor is None:
+        return ""
+    if isinstance(valor, (int, float)):
+        return str(int(valor))
+    val_str = str(valor)
+    try:
+        if "T" in val_str:
+            dt = datetime.fromisoformat(val_str)
+            return str(dt.hour * 3600 + dt.minute * 60 + dt.second)
+        if ":" in val_str:
+            parts = val_str.split(":")
+            h, m = int(parts[0]), int(parts[1])
+            s = int(parts[2]) if len(parts) > 2 else 0
+            return str(h * 3600 + m * 60 + s)
+    except Exception:
+        pass
+    return str(valor) if valor else ""
+
+
+def registro_pg_a_csv(rec: dict) -> str:
+    valores = []
+    for i, campo in enumerate(PG_FIELDS):
+        val = rec.get(campo)
+        if campo in ("fecha_noc", "fecha") and i in (1, 14, 15):
+            val = formato_fecha(val)
+        elif campo in ("hora_inicio", "hora_fin"):
+            val = valor_a_segundos(val)
+        elif campo in ("m3ssc_pu", "m3ssc_as", "horometro", "tiempo_efectivo",
+                       "horas_colacion") or campo.isdigit():
+            val = formato_numero(val)
+        elif campo in ("rut_empresario", "rut_calibrador"):
+            val = str(val).replace("-", "") if val else ""
+        else:
+            val = str(val) if val is not None else ""
+        valores.append(val)
+    return ";".join(valores)
+
+
+def registro_tp_a_csv(rec: dict, indice: int) -> str:
+    valores = []
+    for campo in TP_FIELDS:
+        val = rec.get(campo)
+        if campo == "Fecha":
+            val = formato_fecha(val)
+        elif campo == "N":
+            val = str(indice) if val is None else str(val)
+        else:
+            val = str(val) if val is not None else ""
+        valores.append(val)
+    return ";".join(valores)
+
+
+def guardar_csv(datos: list, reporte: str, destino: Path):
+    if reporte == "PG":
+        nombre = "ProductividadGenerico.csv"
+        headers = PG_HEADERS
+        parse_fn = lambda rec, i: registro_pg_a_csv(rec)
+    else:
+        nombre = "TiemposPerdidos.csv"
+        headers = TP_HEADERS
+        parse_fn = lambda rec, i: registro_tp_a_csv(rec, i)
+
+    filepath = destino / nombre
+    with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
+        f.write(headers + "\r\n")
+        for i, rec in enumerate(datos, 1):
+            f.write(parse_fn(rec, i) + "\r\n")
+
+    size_kb = filepath.stat().st_size / 1024
+    log.info(f"  💾 {nombre}: {len(datos)} registros, {size_kb:.1f} KB")
+    return filepath
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FLUJO PRINCIPAL
+# ══════════════════════════════════════════════════════════════════════════════
+def main():
+    log.info("=" * 60)
+    log.info(f"Descarga NOC vía API — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+    hoy = datetime.now()
+    primer_dia = hoy.replace(day=1)
+    fecha_ini = primer_dia.strftime("%Y-%m-%d")
+    fecha_fin = hoy.strftime("%Y-%m-%d")
+    log.info(f"📅 Rango: {fecha_ini} → {fecha_fin}")
+
+    for fname in ["ProductividadGenerico.csv", "TiemposPerdidos.csv"]:
+        fpath = BASE_DIR / fname
+        if fpath.exists():
+            fpath.unlink()
+            log.info(f"  🗑️  Eliminado: {fname}")
+
+    session = requests.Session()
+    session.verify = False
+    session.headers.update({
+        "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/131.0.0.0 Safari/537.36"),
+    })
+
+    token = obtener_token_arcgis(session)
+
+    datos_pg = descargar_reporte(session, token, "PG", fecha_ini, fecha_fin)
+    pg_ok = False
+    if datos_pg:
+        guardar_csv(datos_pg, "PG", BASE_DIR)
+        pg_ok = True
+    else:
+        log.warning("⚠️  Sin datos de Productividad Genérico")
+
+    datos_tp = descargar_reporte(session, token, "TP", fecha_ini, fecha_fin)
+    tp_ok = False
+    if datos_tp:
+        guardar_csv(datos_tp, "TP", BASE_DIR)
+        tp_ok = True
+    else:
+        log.warning("⚠️  Sin datos de Tiempos Perdidos")
+
+    if pg_ok and tp_ok:
+        log.info("✅ Ambos archivos descargados correctamente")
+    elif pg_ok or tp_ok:
+        log.info("⚠️  Solo se descargó un archivo")
+    else:
+        log.error("❌ No se descargó ningún archivo")
+        sys.exit(1)
+
+    log.info("🎯 Proceso finalizado")
+    log.info("=" * 60)
+
+
+if __name__ == "__main__":
+    main()

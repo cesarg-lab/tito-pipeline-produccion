@@ -1,0 +1,44 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# .gitignore — Tito Pipeline Produccion (Render bundle)
+# ══════════════════════════════════════════════════════════════════════════════
+# CRÍTICO: este repo es público. Todo lo que sea credencial, log o data temporal
+# NO debe subirse.
+
+# Credenciales (NUNCA commitear)
+.env
+.env.*
+.noc_config.json
+
+# CSVs generados por la corrida (se regeneran cada noche)
+ProductividadGenerico.csv
+TiemposPerdidos.csv
+
+# Dashboard HTML generado (se sube por FTP, no a Git)
+Dashboard_Cosecha.html
+Dashboard_Cosecha_*.html
+
+# JSON generado
+data.json
+
+# Logs
+*.log
+descarga_log.txt
+pipeline_*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
