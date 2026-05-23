@@ -290,13 +290,39 @@ def dominant(s):
     m = s.dropna().mode()
     return m.iloc[0] if len(m) > 0 else ''
 
-daily = prod.groupby(['Dia','Team']).agg(
-    Vol=('Vol','sum'), HrsEf=('HrsEf','sum'),
-    Turno_seg=('Turno_seg','sum'),
-    Arb=('Arb','sum'), Ciclos=('Ciclos','sum'),
-    Especie=('Desc Especie', dominant),
-    Predio=('Origen', dominant)
-).reset_index()
+# FIX 2026-05-23: HrsEf y Turno_seg son del folio completo, no del
+# producto. Cada folio aparece N veces en el CSV (una por producto) con
+# el MISMO HrsEf. Sumar por fila los multiplica por N → bug que infla
+# horas 3-6x. Solucion: dedup por folio (Numero Noc) tomando first,
+# despues sumar al nivel (Dia, Team). Vol/Arb/Ciclos SI se suman por
+# fila (cada producto aporta su parte). Mismo patron aplicado en
+# GENERAR_RESUMEN.py commit d4b0aac.
+if 'Número Noc' in prod.columns:
+    prod_folio = prod.groupby(['Dia','Team','Número Noc']).agg(
+        Vol=('Vol','sum'),
+        HrsEf=('HrsEf','first'),
+        Turno_seg=('Turno_seg','first'),
+        Arb=('Arb','sum'),
+        Ciclos=('Ciclos','sum'),
+        Especie=('Desc Especie', dominant),
+        Predio=('Origen', dominant),
+    ).reset_index()
+    daily = prod_folio.groupby(['Dia','Team']).agg(
+        Vol=('Vol','sum'), HrsEf=('HrsEf','sum'),
+        Turno_seg=('Turno_seg','sum'),
+        Arb=('Arb','sum'), Ciclos=('Ciclos','sum'),
+        Especie=('Especie', dominant),
+        Predio=('Predio', dominant)
+    ).reset_index()
+else:
+    # Modo snapshot historico: prod ya viene pre-agregado, no hay folio
+    daily = prod.groupby(['Dia','Team']).agg(
+        Vol=('Vol','sum'), HrsEf=('HrsEf','sum'),
+        Turno_seg=('Turno_seg','sum'),
+        Arb=('Arb','sum'), Ciclos=('Ciclos','sum'),
+        Especie=('Desc Especie', dominant),
+        Predio=('Origen', dominant)
+    ).reset_index()
 
 # Si hay archivo Manual oficial, RECONSTRUIR los volúmenes diarios con los valores depurados
 # El Manual es la fuente de verdad: si un (Team, Día) no está en Manual, significa que ese día
