@@ -1,37 +1,45 @@
 #!/usr/bin/env python3
 """
-descargar_noc_api.py — Descarga datos de GeoNOC vía API REST (sin Selenium)
+descargar_noc_api.py — Descarga GeoNOC vía API REST (sin Selenium)
 ═══════════════════════════════════════════════════════════════════════════════
-Reemplaza a descargar_noc.py eliminando la dependencia de Selenium y Chrome.
-Usa directamente la API REST de GeoNOC + autenticación ArcGIS Enterprise.
+Versión cloud-ready validada al peso 2026-05-21:
+  - Auth: POST /portal/sharing/rest/generateToken (form-urlencoded)
+  - API:  POST /geonocAPI/informevistanoc con header `Authorization: Bearer {token}`
 
-Requisitos:
-  pip install requests
+Diferencias vs versión Mac:
+  - Lee credenciales desde ENV vars (ARAUCO_USER, ARAUCO_PASS) — no .noc_config.json
+  - Eliminados los 3 métodos de auth fallidos del intento anterior
+  - Eliminada la sub-rutina establecer_sesion (innecesaria con Bearer)
+  - Eliminada llamada a ACTUALIZAR_DASHBOARD.py (Mac/Excel only)
+  - Eliminado subprocess osascript (Mac only)
 
-Uso:
-  python3 descargar_noc_api.py
+Uso (Render cron job):
+  ARAUCO_USER=<RUT_empresa> ARAUCO_PASS=<password> python3 descargar_noc_api.py
 """
 
 import os
 import sys
 import json
-import csv
-import subprocess
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
+try:
+    from zoneinfo import ZoneInfo
+    CHILE_TZ = ZoneInfo("America/Santiago")
+except Exception:
+    # Fallback Python < 3.9 o sin tzdata: offset fijo UTC-4 (Chile verano)
+    from datetime import timezone, timedelta
+    CHILE_TZ = timezone(timedelta(hours=-4))
+
 import requests
-# Suprimir warnings de SSL (la red corporativa puede tener certificados internos)
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ── Configuración ──────────────────────────────────────────────────────────
-BASE_DIR    = Path(__file__).parent
-CONFIG_FILE = BASE_DIR / ".noc_config.json"
-LOG_FILE    = BASE_DIR / "descarga_log.txt"
+BASE_DIR = Path(__file__).parent
+LOG_FILE = BASE_DIR / "descarga_log.txt"
 
-# Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -42,27 +50,37 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# ── Cargar configuración ───────────────────────────────────────────────────
-if not CONFIG_FILE.exists():
-    log.error("No se encontró .noc_config.json")
-    sys.exit(1)
+# ── Credenciales desde ENV (con fallback a .noc_config.json para dev local) ──
+USUARIO = os.environ.get("ARAUCO_USER")
+PASSWORD = os.environ.get("ARAUCO_PASS")
 
-with open(CONFIG_FILE, encoding="utf-8") as f:
-    cfg = json.load(f)
+if not USUARIO or not PASSWORD:
+    CONFIG_FILE = BASE_DIR / ".noc_config.json"
+    if CONFIG_FILE.exists():
+        log.info("ENV vars no presentes — usando .noc_config.json (modo dev local)")
+        with open(CONFIG_FILE, encoding="utf-8") as f:
+            cfg = json.load(f)
+        USUARIO = cfg["username"]
+        PASSWORD = cfg["password"]
+    else:
+        log.error("Faltan credenciales: definir ENV vars ARAUCO_USER y ARAUCO_PASS")
+        sys.exit(1)
 
-USUARIO  = cfg["username"]     # 79662560-0
-PASSWORD = cfg["password"]     # Arauco2020
-EMSEFOR  = cfg.get("emsefor", USUARIO)  # Normalmente es el mismo RUT
+EMSEFOR = USUARIO  # mismo RUT empresa
 
-# URLs de la API
-PORTAL_URL    = "https://araucaria.arauco.com/portal"
-TOKEN_URL     = f"{PORTAL_URL}/sharing/rest/generateToken"
-GEONOC_API    = "https://geonoc.arauco.com/geonocAPI/informevistanoc"
-GEONOC_BASE   = "https://geonoc.arauco.com"
+# URLs ArcGIS Enterprise + GeoNOC
+PORTAL_URL = "https://araucaria.arauco.com/portal"
+TOKEN_URL = f"{PORTAL_URL}/sharing/rest/generateToken"
+GEONOC_API = "https://geonoc.arauco.com/geonocAPI/informevistanoc"
+GEONOC_BASE = "https://geonoc.arauco.com"
 
-# ── Funciones de autenticación ─────────────────────────────────────────────
+
+# ── Autenticación ──────────────────────────────────────────────────────────
 def obtener_token_arcgis(session: requests.Session) -> str:
-    """Obtiene un token de ArcGIS Enterprise vía REST API."""
+    """Obtiene token ArcGIS via POST form-urlencoded a generateToken.
+
+    Validado al peso 2026-05-21 — devuelve token con expiración 14 días.
+    """
     log.info("Obteniendo token de ArcGIS Enterprise...")
 
     data = {
@@ -80,54 +98,27 @@ def obtener_token_arcgis(session: requests.Session) -> str:
 
     if "token" in result:
         token = result["token"]
-        expires = datetime.fromtimestamp(result.get("expires", 0) / 1000)
-        log.info(f"Token obtenido — expira: {expires.strftime('%d/%m/%Y %H:%M')}")
+        expires_ms = result.get("expires", 0)
+        expires = datetime.fromtimestamp(expires_ms / 1000) if expires_ms else None
+        log.info(f"Token obtenido — expira: {expires.strftime('%d/%m/%Y %H:%M') if expires else 'desconocido'}")
         return token
-    elif "error" in result:
-        err = result["error"]
-        log.error(f"Error de autenticación: {err.get('message', err)}")
-        sys.exit(1)
-    else:
-        log.error(f"Respuesta inesperada: {result}")
-        sys.exit(1)
+
+    err = result.get("error", {})
+    log.error(f"Error de autenticación: {err.get('message', err) if err else result}")
+    sys.exit(1)
 
 
-def establecer_sesion(session: requests.Session, token: str):
-    """Establece sesión con geonoc.arauco.com usando el token de ArcGIS."""
-    # Método 1: Acceder al portal con el token para obtener cookies de sesión
-    log.info("Estableciendo sesión con GeoNOC...")
-
-    # Registrar el token como cookie de ArcGIS
-    session.cookies.set("esri_aopc", token, domain="geonoc.arauco.com")
-
-    # También intentar acceder a la app de planificación con el token
-    # para que el servidor valide y establezca cookies de sesión
-    try:
-        resp = session.get(
-            f"{GEONOC_BASE}/planificacion/",
-            params={"token": token},
-            verify=False,
-            timeout=30,
-            allow_redirects=True
-        )
-        log.info(f"Sesión establecida — status: {resp.status_code}")
-    except Exception as e:
-        log.warning(f"Advertencia al establecer sesión: {e}")
-
-
-# ── Funciones de descarga ──────────────────────────────────────────────────
+# ── Descarga de reportes ───────────────────────────────────────────────────
 def descargar_reporte(session: requests.Session, token: str,
                       reporte: str, fecha_ini: str, fecha_fin: str) -> list:
-    """
-    Descarga un reporte de GeoNOC vía API REST.
+    """Descarga un reporte de GeoNOC con Authorization Bearer.
+
+    Método validado al peso 2026-05-21: 199 registros TP bajados en ~2 seg.
 
     Args:
         reporte: "PG" (Productividad Genérico) o "TP" (Tiempos Perdidos)
-        fecha_ini: "2026-04-01" (formato YYYY-MM-DD)
-        fecha_fin: "2026-04-16" (formato YYYY-MM-DD)
-
-    Returns:
-        Lista de diccionarios con los registros
+        fecha_ini: "YYYY-MM-DD"
+        fecha_fin: "YYYY-MM-DD"
     """
     nombre = "Productividad Genérico" if reporte == "PG" else "Tiempos Perdidos"
     log.info(f"Descargando {nombre} ({fecha_ini} → {fecha_fin})...")
@@ -137,86 +128,73 @@ def descargar_reporte(session: requests.Session, token: str,
         "FECHA_INI": fecha_ini,
         "FECHA_FIN": fecha_fin,
         "ZONA": None,
-        "REPORTE": reporte
+        "REPORTE": reporte,
     }]
 
     headers = {
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{GEONOC_BASE}/planificacion/",
     }
 
-    # Intentar con token en cookie, en header, y en URL
-    for intento, auth_method in enumerate([
-        lambda: None,  # Solo cookies de sesión
-        lambda: headers.update({"Authorization": f"Bearer {token}"}),
-        lambda: None,  # Se maneja abajo con params
-    ], 1):
-        auth_method()
+    try:
+        resp = session.post(
+            GEONOC_API,
+            json=payload,
+            headers=headers,
+            verify=False,
+            timeout=120,
+        )
 
-        params = {"token": token} if intento == 3 else {}
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list):
+                log.info(f"  ✅ {nombre}: {len(data)} registros")
+                return data
+            if isinstance(data, dict) and "error" in data:
+                log.warning(f"  Error API: {data['error']}")
+                return []
+            log.info(f"  {nombre}: respuesta vacía o inesperada")
+            return []
 
-        try:
-            resp = session.post(
-                GEONOC_API,
-                json=payload,
-                headers=headers,
-                params=params,
-                verify=False,
-                timeout=120
-            )
+        log.warning(f"  HTTP {resp.status_code} — body: {resp.text[:300]}")
+        return []
 
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list) and len(data) > 0:
-                    log.info(f"  ✅ {nombre}: {len(data)} registros (método {intento})")
-                    return data
-                elif isinstance(data, dict) and "error" in data:
-                    log.warning(f"  Método {intento} — error API: {data['error']}")
-                    continue
-                else:
-                    log.info(f"  {nombre}: 0 registros (respuesta vacía)")
-                    return []
-            elif resp.status_code in (401, 403):
-                log.warning(f"  Método {intento} — auth rechazada ({resp.status_code})")
-                continue
-            else:
-                log.warning(f"  Método {intento} — HTTP {resp.status_code}")
-                continue
-
-        except Exception as e:
-            log.warning(f"  Método {intento} — error: {e}")
-            continue
-
-    log.error(f"❌ No se pudo descargar {nombre} tras 3 métodos de auth")
-    return []
+    except Exception as e:
+        log.error(f"  ❌ Excepción: {e}")
+        return []
 
 
 # ── Conversión JSON → CSV ─────────────────────────────────────────────────
-
-# Mapeo de campos JSON → columnas CSV para Productividad Genérico
-PG_HEADERS = (
-    "Número Noc;Fecha NOC;Intervención;Unidad Operativa;Rut Empresario;"
-    "Nombre Empresario;Equipo;Tipo Equipo;Código Calibrador;Nombre Calibrador;"
-    "Código Predio;Origen;Id Especie;Desc Especie;Fecha Inicio;Fecha Fin;"
-    "Hora Inicio;Hora Fin;Horómetro;Tiempo Colacion;Tiempo Efectivo;"
-    "Número Ciclos;Número Personas;Árboles Madereados;Volumen SSC PU;Volumen SSC AS;"
-    + ";".join(str(i) for i in range(1, 72)) + ";"
-    "Id Zona;Zona;NOC Completa;Zona Predio;Zona Movil;Zona Cosecha;"
-    "Número Acta;Secuencia Acta"
+# Base 2 NOC (REPORTE=BN) — 49 columnas, mismo header que el CSV que descarga Selenium
+BN_HEADERS = (
+    "FOLIO;FECHA;CODIGO_PREDIO;NOMBRE_PREDIO;EQUIPO;UNIDAD_OPERATIVA;INTERVENCION;"
+    "HORA_INICIO;HORA_TERMINO;TIEMPO_EFECTIVO;HORAS_COLACION;NUMERO_CICLOS;NUMERO_PERSONAS;"
+    "RUT_EMPRESA;NOMBRE_EMPRESA;NUMERO_ACTA;SECUENCIA;RUT_CALIBRADOR;NOMBRE_CALIBRADOR;"
+    "DIAMETRO;CODIGO_PRODUCTO;FACTOR_CORTEZA;ESPECIE;TROZOS;CODIGO_DESTINO;"
+    "LARGO;LARGO_REAL;M3SSC;M3SSC_CABEZAL;STOCK;TIEMPOS_MUERTOS;TOTAL_HR_TMP_MUERTOS;"
+    "TIPO_NOC;ESTADO_MADERA;FECHA_REGISTRO;FECHA_CORTE;ID_DETALLE_NOC;OBSERVACION;"
+    "TIPO_EQUIPO;BIOMASA;PRODUCTO;NOMBRE_DESTINO;TEMPORADA;COMPLETA;"
+    "ZONA_FORESTAL_PREDIO;ZONA_FORESTAL_MOVIL;ZONA_COSECHA;FSC_PRODUCCION;CERTFOR_PRODUCCION"
 )
 
-PG_FIELDS = [
-    "numero_noc", "hora_inicio", "intervencion", "unidad_operativa",
-    "rut_empresario", "nombre_empresario", "equipo", "tipo_equipo",
-    "rut_calibrador", "nombre_calibrador", "codigo_predio", "origen",
-    "id_epecie", "desc_especie", "hora_inicio", "hora_fin",
-    "hora_inicio", "hora_fin", "horometro", "horas_colacion",
-    "tiempo_efectivo", "numero_ciclos", "numero_personas",
-    "arboles_madereados", "m3ssc_pu", "m3ssc_as",
-] + [str(i) for i in range(1, 72)] + [
-    "id_zona", "zona", "noc_completa", "zona_predio", "zona_movil",
-    "zona_cosecha", "Numero_Acta", "secuencia_acta"
+# Mapeo de columnas CSV → claves del JSON de Arauco
+# Notar: API usa snake_case minúsculas mezclado con UPPERCASE en algunos campos
+# y typo "ZONA_COCECHA" (que en CSV se llama ZONA_COSECHA)
+BN_FIELDS = [
+    "folio", "fecha", "codigo_predio", "nombre_predio", "equipo",
+    "unidad_operativa", "intervencion", "hora_inicio", "hora_termino",
+    "tiempo_efectivo", "horas_colacion", "numero_ciclos", "numero_personas",
+    "rut_empresa", "nombre_empresa", "Numero_Acta", "secuencia",
+    "rut_calibrador", "nombre_calibrador", "diametro", "codigo_producto",
+    "factor_corteza", "especie", "trozos", "codigo_destino",
+    "largo", "largo_real", "m3ssc", "m3ssc_cabezal", "stock",
+    "tiempos_muertos", "TOTAL_HR_TMP_MUERTOS", "TIPO_NOC", "estado_madera",
+    "FECHA_REGISTRO", "FECHA_CORTE", "ID_DETALLE_NOC", "OBSERVACION",
+    "tipo_equipo", "BIOMASA", "PRODUCTO", "NOMBRE_DESTINO", "TEMPORADA",
+    "completa", "ZONA_FORESTAL_PREDIO", "ZONA_FORESTAL_MOVIL", "ZONA_COCECHA",
+    "FSC_PRODUCCION", "CERTFOR_PRODUCCION"
 ]
 
 TP_HEADERS = (
@@ -232,84 +210,138 @@ TP_FIELDS = [
 
 
 def formato_fecha(valor):
-    """Convierte '2026-04-01T00:04:24' → '01-04-2026'."""
+    """
+    Convierte timestamp Arauco → 'dd-mm-yyyy'.
+
+    Decisión 2026-05-22 noche: NO convertir naive datetimes. Probamos asumir
+    naive=UTC y empeoró (Selenium toma el valor tal cual sin convertir).
+    """
     if not valor:
         return ""
     try:
-        if "T" in str(valor):
-            dt = datetime.fromisoformat(str(valor))
+        s = str(valor)
+        # Si viene con "T", me quedo solo con la parte de fecha (igual que Selenium)
+        if "T" in s:
+            fecha_str = s.split("T")[0]  # "2026-04-30"
+            dt = datetime.strptime(fecha_str, "%Y-%m-%d")
         else:
-            dt = datetime.strptime(str(valor), "%Y-%m-%d")
+            dt = datetime.strptime(s, "%Y-%m-%d")
         return dt.strftime("%d-%m-%Y")
-    except:
+    except Exception:
         return str(valor) if valor else ""
 
 
 def formato_numero(valor):
-    """Formatea números: usa coma como separador decimal."""
     if valor is None:
         return ""
     if isinstance(valor, float):
-        # Usar coma como separador decimal (formato chileno)
         return str(valor).replace(".", ",")
     return str(valor)
 
 
 def valor_a_segundos(valor):
-    """Convierte un valor de hora a segundos desde medianoche.
-    Maneja: número (ya en segundos), ISO datetime string, o HH:MM:SS."""
     if valor is None:
         return ""
     if isinstance(valor, (int, float)):
         return str(int(valor))
     val_str = str(valor)
     try:
+        if val_str.endswith("Z"):
+            val_str = val_str[:-1] + "+00:00"
         if "T" in val_str:
-            # ISO datetime: "2026-03-30T10:00:00" → extraer hora y convertir a segundos
             dt = datetime.fromisoformat(val_str)
+            # Misma conversión timezone: si viene aware, convertir a hora Chile
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(CHILE_TZ)
             return str(dt.hour * 3600 + dt.minute * 60 + dt.second)
-        elif ":" in val_str:
-            # HH:MM:SS
+        if ":" in val_str:
             parts = val_str.split(":")
-            h, m, s = int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
+            h, m = int(parts[0]), int(parts[1])
+            s = int(parts[2]) if len(parts) > 2 else 0
             return str(h * 3600 + m * 60 + s)
-    except:
+    except Exception:
         pass
     return str(valor) if valor else ""
 
 
-def registro_pg_a_csv(rec: dict) -> str:
-    """Convierte un registro JSON de Productividad Genérico a línea CSV."""
-    valores = []
-    for i, campo in enumerate(PG_FIELDS):
-        val = rec.get(campo)
+def _iso_a_hhmm(valor):
+    """Convierte ISO timestamp '2026-04-29T11:00:00' → 'HH:MM' en hora Chile."""
+    if not valor:
+        return ""
+    try:
+        s = str(valor)
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        if "T" in s:
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(CHILE_TZ)
+            return dt.strftime("%H:%M")
+    except Exception:
+        pass
+    return str(valor) if valor else ""
 
-        # FIX 2026-05-22 distribución por día Arauco:
-        # Posiciones 1, 14, 15 = columnas Fecha NOC / Fecha Inicio / Fecha Fin → día (dd-mm-yyyy)
-        # Usamos hora_inicio/hora_fin (día operativo real) en lugar de fecha (cierre administrativo)
-        # que ponía turnos nocturnos en el día siguiente
-        if i in (1, 14, 15):
+
+def _minutos_a_hmm(valor):
+    """Convierte número de minutos (ej. 60) → formato 'H:MM' (1:00)."""
+    if valor is None or valor == "":
+        return ""
+    try:
+        mins = int(valor)
+        h, m = divmod(mins, 60)
+        return f"{h}:{m:02d}"
+    except Exception:
+        return str(valor) if valor else ""
+
+
+def _fecha_registro(valor):
+    """Convierte ISO '2026-05-01T08:49:26' → 'dd-mm-yyyy HH:MM:SS' tal cual sin conversión TZ."""
+    if not valor:
+        return ""
+    try:
+        s = str(valor)
+        if s.endswith("Z"):
+            s = s[:-1]
+        if "T" in s:
+            dt = datetime.fromisoformat(s.split("+")[0])
+            return dt.strftime("%d-%m-%Y %H:%M:%S")
+    except Exception:
+        pass
+    return str(valor) if valor else ""
+
+
+def registro_bn_a_csv(rec: dict) -> str:
+    """Convierte 1 registro JSON Base 2 NOC → 1 línea CSV con formato Selenium."""
+    valores = []
+    for campo in BN_FIELDS:
+        val = rec.get(campo)
+        # Campos fecha solo (dd-mm-yyyy)
+        if campo in ("fecha", "FECHA_CORTE"):
             val = formato_fecha(val)
-        # Posiciones 16, 17 = columnas Hora Inicio / Hora Fin → segundos desde medianoche
-        elif i in (16, 17):
-            val = valor_a_segundos(val)
-        # Campos numéricos con decimales
-        elif campo in ("m3ssc_pu", "m3ssc_as", "horometro", "tiempo_efectivo",
-                        "horas_colacion") or campo.isdigit():
-            val = formato_numero(val)
-        # RUT sin guión
-        elif campo in ("rut_empresario", "rut_calibrador"):
+        # Campo fecha con hora (FECHA_REGISTRO)
+        elif campo == "FECHA_REGISTRO":
+            val = _fecha_registro(val)
+        # Campos hora HH:MM
+        elif campo in ("hora_inicio", "hora_termino"):
+            val = _iso_a_hhmm(val)
+        # Tiempos en minutos → H:MM
+        elif campo in ("tiempo_efectivo", "horas_colacion"):
+            val = _minutos_a_hmm(val)
+        # RUTs sin guión
+        elif campo in ("rut_empresa", "rut_calibrador"):
             val = str(val).replace("-", "") if val else ""
+        # Decimales con coma (largo, largo_real ya vienen así desde API
+        # pero por seguridad convierto floats)
+        elif campo in ("m3ssc", "m3ssc_cabezal", "largo"):
+            val = formato_numero(val)
+        # Resto: string sin transformar
         else:
             val = str(val) if val is not None else ""
-
         valores.append(val)
-
     return ";".join(valores)
 
 
 def registro_tp_a_csv(rec: dict, indice: int) -> str:
-    """Convierte un registro JSON de Tiempos Perdidos a línea CSV."""
     valores = []
     for campo in TP_FIELDS:
         val = rec.get(campo)
@@ -320,28 +352,24 @@ def registro_tp_a_csv(rec: dict, indice: int) -> str:
         else:
             val = str(val) if val is not None else ""
         valores.append(val)
-
     return ";".join(valores)
 
 
 def guardar_csv(datos: list, reporte: str, destino: Path):
-    """Guarda los datos como CSV en formato compatible con el existente."""
-    if reporte == "PG":
-        nombre = "ProductividadGenerico.csv"
-        headers = PG_HEADERS
-        parse_fn = lambda rec, i: registro_pg_a_csv(rec)
+    if reporte == "BN":
+        nombre = "Base2NOC.csv"
+        headers = BN_HEADERS
+        parse_fn = lambda rec, i: registro_bn_a_csv(rec)
     else:
         nombre = "TiemposPerdidos.csv"
         headers = TP_HEADERS
         parse_fn = lambda rec, i: registro_tp_a_csv(rec, i)
 
     filepath = destino / nombre
-
     with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
         f.write(headers + "\r\n")
         for i, rec in enumerate(datos, 1):
-            linea = parse_fn(rec, i)
-            f.write(linea + "\r\n")
+            f.write(parse_fn(rec, i) + "\r\n")
 
     size_kb = filepath.stat().st_size / 1024
     log.info(f"  💾 {nombre}: {len(datos)} registros, {size_kb:.1f} KB")
@@ -355,45 +383,53 @@ def main():
     log.info("=" * 60)
     log.info(f"Descarga NOC vía API — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-    # Calcular rango de fechas: 1er día del mes hasta hoy
     hoy = datetime.now()
     primer_dia = hoy.replace(day=1)
     fecha_ini = primer_dia.strftime("%Y-%m-%d")
     fecha_fin = hoy.strftime("%Y-%m-%d")
     log.info(f"📅 Rango: {fecha_ini} → {fecha_fin}")
 
-    # Eliminar CSVs previos
-    for fname in ["ProductividadGenerico.csv", "TiemposPerdidos.csv"]:
+    for fname in ["Base2NOC.csv", "TiemposPerdidos.csv", "ProductividadGenerico.csv"]:
         fpath = BASE_DIR / fname
         if fpath.exists():
             fpath.unlink()
             log.info(f"  🗑️  Eliminado: {fname}")
 
-    # Crear sesión HTTP
     session = requests.Session()
     session.verify = False
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/131.0.0.0 Safari/537.36",
+        "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/131.0.0.0 Safari/537.36"),
     })
 
-    # Obtener token
     token = obtener_token_arcgis(session)
 
-    # Establecer sesión con GeoNOC
-    establecer_sesion(session, token)
-
-    # Descargar Productividad Genérico
-    datos_pg = descargar_reporte(session, token, "PG", fecha_ini, fecha_fin)
-    pg_ok = False
-    if datos_pg:
-        guardar_csv(datos_pg, "PG", BASE_DIR)
-        pg_ok = True
+    datos_bn = descargar_reporte(session, token, "BN", fecha_ini, fecha_fin)
+    bn_ok = False
+    if datos_bn:
+        # Filtro post-API: descartar registros con `fecha` fuera del rango pedido.
+        # Arauco API devuelve registros adicionales con fecha previa al rango
+        # (probable: filtra por otro campo internamente). Selenium ya viene filtrado.
+        fecha_ini_only = fecha_ini  # "YYYY-MM-DD"
+        fecha_fin_only = fecha_fin
+        total_original = len(datos_bn)
+        datos_bn_filtrados = []
+        for r in datos_bn:
+            fecha_str = str(r.get('fecha', ''))
+            if 'T' in fecha_str:
+                fecha_str = fecha_str.split('T')[0]
+            if fecha_ini_only <= fecha_str <= fecha_fin_only:
+                datos_bn_filtrados.append(r)
+        descartados = total_original - len(datos_bn_filtrados)
+        if descartados > 0:
+            log.info(f"  🧹 Filtro fecha: descartados {descartados} registros fuera del rango {fecha_ini} → {fecha_fin}")
+        datos_bn = datos_bn_filtrados
+        guardar_csv(datos_bn, "BN", BASE_DIR)
+        bn_ok = True
     else:
-        log.warning("⚠️  Sin datos de Productividad Genérico")
+        log.warning("⚠️  Sin datos de Base 2 NOC")
 
-    # Descargar Tiempos Perdidos
     datos_tp = descargar_reporte(session, token, "TP", fecha_ini, fecha_fin)
     tp_ok = False
     if datos_tp:
@@ -402,36 +438,13 @@ def main():
     else:
         log.warning("⚠️  Sin datos de Tiempos Perdidos")
 
-    # Resumen
-    if pg_ok and tp_ok:
+    if bn_ok and tp_ok:
         log.info("✅ Ambos archivos descargados correctamente")
-    elif pg_ok or tp_ok:
+    elif bn_ok or tp_ok:
         log.info("⚠️  Solo se descargó un archivo")
     else:
         log.error("❌ No se descargó ningún archivo")
         sys.exit(1)
-
-    # Actualizar Dashboard
-    script_update = BASE_DIR / "ACTUALIZAR_DASHBOARD.py"
-    if pg_ok and tp_ok and script_update.exists():
-        log.info("📊 Cerrando Excel si está abierto...")
-        subprocess.run(
-            ["osascript", "-e", 'tell application "Microsoft Excel" to quit saving no'],
-            capture_output=True, text=True, timeout=15
-        )
-        import time; time.sleep(3)
-        log.info("📊 Actualizando Dashboard Excel...")
-        try:
-            res = subprocess.run(
-                [sys.executable, str(script_update)],
-                capture_output=True, text=True, timeout=120
-            )
-            if res.returncode == 0:
-                log.info("✅ Dashboard actualizado correctamente")
-            else:
-                log.warning(f"⚠️  Error en actualización: {res.stderr[:2000]}")
-        except Exception as e:
-            log.error(f"❌ Error ejecutando actualización: {e}")
 
     log.info("🎯 Proceso finalizado")
     log.info("=" * 60)
