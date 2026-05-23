@@ -6,7 +6,7 @@ name: Pipeline Producción Diaria
 # ══════════════════════════════════════════════════════════════════════════════
 #
 # Triggers:
-#   - cron diario 02:00 UTC = 23:00 Chile (horario verano) / 22:00 Chile (invierno)
+#   - cron diario 03:15 UTC = 23:15 Chile (invierno) / 00:15 Chile (verano)
 #   - manual desde la UI de GitHub Actions (botón "Run workflow")
 #
 # Secrets requeridos (Settings → Secrets and variables → Actions):
@@ -17,7 +17,7 @@ name: Pipeline Producción Diaria
 
 on:
   schedule:
-    - cron: '0 2 * * *'    # 02:00 UTC todos los días = 23:00 Chile horario verano
+    - cron: '15 3 * * *'    # 03:15 UTC = 23:15 Chile invierno / 00:15 Chile verano
   workflow_dispatch:        # botón manual "Run workflow" en la UI de GitHub
 
 jobs:
