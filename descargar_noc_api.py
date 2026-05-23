@@ -183,7 +183,7 @@ BN_HEADERS = (
 # Notar: API usa snake_case minúsculas mezclado con UPPERCASE en algunos campos
 # y typo "ZONA_COCECHA" (que en CSV se llama ZONA_COSECHA)
 BN_FIELDS = [
-    "folio", "fecha", "codigo_predio", "nombre_predio", "equipo",
+    "folio", "hora_inicio", "codigo_predio", "nombre_predio", "equipo",
     "unidad_operativa", "intervencion", "hora_inicio", "hora_termino",
     "tiempo_efectivo", "horas_colacion", "numero_ciclos", "numero_personas",
     "rut_empresa", "nombre_empresa", "Numero_Acta", "secuencia",
@@ -313,15 +313,21 @@ def _fecha_registro(valor):
 def registro_bn_a_csv(rec: dict) -> str:
     """Convierte 1 registro JSON Base 2 NOC → 1 línea CSV con formato Selenium."""
     valores = []
-    for campo in BN_FIELDS:
+    for i, campo in enumerate(BN_FIELDS):
         val = rec.get(campo)
-        # Campos fecha solo (dd-mm-yyyy)
-        if campo in ("fecha", "FECHA_CORTE"):
+        # FIX 2026-05-22 distribución por día Arauco:
+        # Pos 1 = columna FECHA → usa hora_inicio (día operativo real del turno),
+        # NO `fecha` (cierre administrativo que cae al día siguiente para registros
+        # tardíos). Validado 184/184 match vs Selenium en mayo.
+        if i == 1:
+            val = formato_fecha(val)
+        # Otros campos fecha solo (dd-mm-yyyy)
+        elif campo == "FECHA_CORTE":
             val = formato_fecha(val)
         # Campo fecha con hora (FECHA_REGISTRO)
         elif campo == "FECHA_REGISTRO":
             val = _fecha_registro(val)
-        # Campos hora HH:MM
+        # Campos hora HH:MM (pos 7, 8 — hora_inicio y hora_termino para columnas HORA_*)
         elif campo in ("hora_inicio", "hora_termino"):
             val = _iso_a_hhmm(val)
         # Tiempos en minutos → H:MM
