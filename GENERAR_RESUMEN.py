@@ -176,14 +176,20 @@ def generate():
     for t in TEAMS:
         td_p = prod_dia[prod_dia['Team'] == t]
         td_tm = tm_dia[tm_dia['Team'] == t]
-        # Vol del día: Manual si tiene ese día, sino detallado
+        # Vol del día: Manual si tiene ese día, sino detallado.
+        # Vol SÍ se suma por fila (cada producto del folio aporta m³ distinto).
         if vol_oficial_diario is not None and manual_cubre_dia:
             vol = vol_oficial_diario.get((t, dia_actual), 0)
         else:
             vol = td_p['Vol'].sum()
-        hrs = td_p['HrsEf'].sum()
+        # FIX 2026-05-22 noche: HrsEf y Turno_seg son del folio completo, no del
+        # producto. Cada folio aparece N veces en el CSV (una por producto) con
+        # el MISMO Tiempo Efectivo. Sumar por fila los multiplicaba por N → bug
+        # M1.1 dijo 50h efectivas en 1 día (era 1 folio × 10h × 5 productos).
+        # Validado al peso día 22 M1.1 = 10h reales (no 50h).
+        hrs = td_p.groupby('Número Noc')['HrsEf'].first().sum()
         rend = vol / hrs if hrs > 0 else 0
-        turno_seg = td_p['Turno_seg'].sum()
+        turno_seg = td_p.groupby('Número Noc')['Turno_seg'].first().sum()
         turno_min = turno_seg / 60
 
         tm_mant = td_tm[td_tm['Clasif'] == 'Mantención']['Tiempo (Min)'].sum()
