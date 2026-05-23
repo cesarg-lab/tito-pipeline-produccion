@@ -435,6 +435,33 @@ def main():
         if descartados > 0:
             log.info(f"  🧹 Filtro hora_inicio: descartados {descartados} registros fuera del rango operativo {fecha_ini} → {fecha_fin}")
         datos_bn = datos_bn_filtrados
+
+        # Deduplicación post-API (FIX 2026-05-22 noche): el API GeoNOC a veces
+        # devuelve registros duplicados con mismo FOLIO+CODIGO_PRODUCTO+M3SSC+
+        # LARGO+ESTADO_MADERA+CODIGO_DESTINO pero TROZOS distintos (blank vs "0").
+        # Son la misma carga registrada 2 veces por bug de operario en GeoNOC.
+        # El portal Selenium los deduplica al exportar; el API no. Validado caso
+        # folio 826454 día 6-may con 10,117 m³ duplicados.
+        vistos = set()
+        datos_bn_dedup = []
+        for r in datos_bn:
+            clave_dedup = (
+                str(r.get('folio', '')),
+                str(r.get('codigo_producto', '')),
+                str(r.get('m3ssc', '')),
+                str(r.get('largo', '')),
+                str(r.get('estado_madera', '')),
+                str(r.get('codigo_destino', '')),
+            )
+            if clave_dedup in vistos:
+                continue
+            vistos.add(clave_dedup)
+            datos_bn_dedup.append(r)
+        duplicados = len(datos_bn) - len(datos_bn_dedup)
+        if duplicados > 0:
+            log.info(f"  🧹 Dedup: descartados {duplicados} registros duplicados (mismo folio+producto+m3+largo+estado+destino)")
+        datos_bn = datos_bn_dedup
+
         guardar_csv(datos_bn, "BN", BASE_DIR)
         bn_ok = True
     else:
