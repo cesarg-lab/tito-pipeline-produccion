@@ -1,24 +1,24 @@
-name: Pipeline Producción Diaria
+name: Pipeline ProducciÃ³n Diaria
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # Pipeline diario Forestal Millalemu
-# Descarga NOC Arauco → Genera HTML → Sube FTP → Notifica Telegram
-# ══════════════════════════════════════════════════════════════════════════════
+# Descarga NOC Arauco â Genera HTML â Sube FTP â Notifica Telegram
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 #
 # Triggers:
-#   - cron diario 03:15 UTC = 23:15 Chile (invierno) / 00:15 Chile (verano)
-#   - manual desde la UI de GitHub Actions (botón "Run workflow")
+#   - cron diario 02:47 UTC = 22:47 Chile (invierno) / 23:47 Chile (verano)
+#   - manual desde la UI de GitHub Actions (botÃ³n "Run workflow")
 #
-# Secrets requeridos (Settings → Secrets and variables → Actions):
+# Secrets requeridos (Settings â Secrets and variables â Actions):
 #   ARAUCO_USER, ARAUCO_PASS
 #   FTP_HOST, FTP_USER, FTP_PASS
 #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-# ══════════════════════════════════════════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 on:
   schedule:
-    - cron: '15 3 * * *'    # 03:15 UTC = 23:15 Chile invierno / 00:15 Chile verano
-  workflow_dispatch:        # botón manual "Run workflow" en la UI de GitHub
+    - cron: '47 2 * * *'    # 02:47 UTC = 22:47 Chile invierno / 23:47 Chile verano
+  workflow_dispatch:        # botÃ³n manual "Run workflow" en la UI de GitHub
 
 jobs:
   run-pipeline:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout código
+      - name: Checkout cÃ³digo
         uses: actions/checkout@v4
 
       - name: Setup Python 3.11
@@ -73,8 +73,8 @@ jobs:
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          MENSAJE="❌ <b>Pipeline Producción FALLÓ</b>
-          🕐 $(date '+%Y-%m-%d %H:%M:%S UTC')
+          MENSAJE="â <b>Pipeline ProducciÃ³n FALLÃ</b>
+          ð $(date '+%Y-%m-%d %H:%M:%S UTC')
 
           Revisa el log en GitHub Actions:
           ${RUN_URL}"
