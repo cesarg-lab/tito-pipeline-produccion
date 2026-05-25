@@ -1,24 +1,24 @@
-name: Pipeline ProducciÃ³n Diaria
+name: Pipeline Producción Diaria
 
-# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════════════════════════════════════════
 # Pipeline diario Forestal Millalemu
-# Descarga NOC Arauco â Genera HTML â Sube FTP â Notifica Telegram
-# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Descarga NOC Arauco → Genera HTML → Sube FTP → Notifica Telegram
+# ══════════════════════════════════════════════════════════════════════════════
 #
 # Triggers:
 #   - cron diario 02:47 UTC = 22:47 Chile (invierno) / 23:47 Chile (verano)
-#   - manual desde la UI de GitHub Actions (botÃ³n "Run workflow")
+#   - manual desde la UI de GitHub Actions (botón "Run workflow")
 #
-# Secrets requeridos (Settings â Secrets and variables â Actions):
+# Secrets requeridos (Settings → Secrets and variables → Actions):
 #   ARAUCO_USER, ARAUCO_PASS
 #   FTP_HOST, FTP_USER, FTP_PASS
 #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════════════════════════════════════════
 
 on:
   schedule:
     - cron: '47 2 * * *'    # 02:47 UTC = 22:47 Chile invierno / 23:47 Chile verano
-  workflow_dispatch:        # botÃ³n manual "Run workflow" en la UI de GitHub
+  workflow_dispatch:        # botón manual "Run workflow" en la UI de GitHub
 
 jobs:
   run-pipeline:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout cÃ³digo
+      - name: Checkout código
         uses: actions/checkout@v4
 
       - name: Setup Python 3.11
@@ -73,8 +73,8 @@ jobs:
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          MENSAJE="â <b>Pipeline ProducciÃ³n FALLÃ</b>
-          ð $(date '+%Y-%m-%d %H:%M:%S UTC')
+          MENSAJE="❌ <b>Pipeline Producción FALLÓ</b>
+          🕐 $(date '+%Y-%m-%d %H:%M:%S UTC')
 
           Revisa el log en GitHub Actions:
           ${RUN_URL}"
