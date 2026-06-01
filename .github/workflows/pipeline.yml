@@ -46,6 +46,7 @@ jobs:
 
       - name: Correr pipeline
         env:
+          TZ: America/Santiago
           ARAUCO_USER:        ${{ secrets.ARAUCO_USER }}
           ARAUCO_PASS:        ${{ secrets.ARAUCO_PASS }}
           FTP_HOST:           ${{ secrets.FTP_HOST }}
