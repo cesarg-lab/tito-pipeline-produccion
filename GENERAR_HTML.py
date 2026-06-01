@@ -284,7 +284,7 @@ else:
     DD = len(prod['Dia'].unique())
     ULTIMO_DIA = int(prod['Dia'].max())
 DT = DM
-DR = max(DT - DD, 1)
+DR = max(DT - DD, 0)
 
 def dominant(s):
     m = s.dropna().mode()
