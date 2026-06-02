@@ -937,6 +937,119 @@ data_json = json.dumps({
     'generado': datetime.now().strftime('%d/%m/%Y %H:%M')
 }, ensure_ascii=False)
 
+# ── Modal de gráfico ampliado (clic en un gráfico → se despliega grande) ──
+# Definido como strings Python normales para no doblar llaves dentro del f-string.
+MODAL_CSS = '''
+/* === Modal de grafico ampliado === */
+.chart-card:has(canvas) { cursor: pointer; position: relative; transition: box-shadow .15s ease, transform .15s ease; }
+.chart-card:has(canvas):hover { box-shadow: 0 6px 20px rgba(0,0,0,0.13); transform: translateY(-1px); }
+.chart-card:has(canvas)::after { content: "\\2922"; position: absolute; top: 12px; right: 14px; font-size: 15px; color: #94A3B8; opacity: .5; transition: opacity .15s, color .15s; pointer-events: none; }
+.chart-card:has(canvas):hover::after { opacity: 1; color: #1A5276; }
+#chartModalOverlay { position: fixed; inset: 0; background: rgba(15,23,42,0.62); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity .22s ease; }
+#chartModalOverlay.open { opacity: 1; pointer-events: auto; }
+#chartModalPanel { background: #fff; border-radius: 16px; width: min(920px, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.35); transform: translateY(14px) scale(.97); opacity: 0; transition: transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+#chartModalOverlay.open #chartModalPanel { transform: translateY(0) scale(1); opacity: 1; }
+#chartModalHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 20px; border-bottom: 1px solid #E2E8F0; }
+#chartModalTitle { font-size: 16px; font-weight: 800; color: #1A5276; margin: 0; }
+#chartModalClose { border: none; background: #F1F5F9; color: #475569; width: 34px; height: 34px; border-radius: 9px; font-size: 20px; line-height: 1; cursor: pointer; flex: none; transition: background .15s; }
+#chartModalClose:hover { background: #E2E8F0; color: #0F172A; }
+#chartModalBody { padding: 18px 20px 22px; overflow-y: auto; }
+#chartModalCanvasWrap { position: relative; height: min(46vh, 420px); }
+#chartModalTable { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+#chartModalTable th, #chartModalTable td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #EEF2F6; }
+#chartModalTable th:first-child, #chartModalTable td:first-child { text-align: left; }
+#chartModalTable thead th { color: #64748B; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 2px solid #E2E8F0; }
+#chartModalTable tbody tr:hover { background: #F8FAFC; }
+@media (max-width: 640px) {
+  #chartModalOverlay { padding: 0; }
+  #chartModalPanel { width: 100vw; height: 100%; max-height: 100vh; border-radius: 0; }
+  #chartModalCanvasWrap { height: 42vh; }
+}
+'''
+
+MODAL_HTML = '''
+<div id="chartModalOverlay" role="dialog" aria-modal="true" aria-label="Grafico ampliado">
+  <div id="chartModalPanel">
+    <div id="chartModalHead">
+      <h3 id="chartModalTitle">Grafico</h3>
+      <button id="chartModalClose" aria-label="Cerrar">&times;</button>
+    </div>
+    <div id="chartModalBody">
+      <div id="chartModalCanvasWrap"><canvas id="chartModalCanvas"></canvas></div>
+      <table id="chartModalTable"></table>
+    </div>
+  </div>
+</div>
+'''
+
+MODAL_JS = r"""
+(function(){
+  function setup(){
+  var overlay = document.getElementById('chartModalOverlay');
+  if (!overlay) return;
+  var titleEl = document.getElementById('chartModalTitle');
+  var tableEl = document.getElementById('chartModalTable');
+  var canvas  = document.getElementById('chartModalCanvas');
+  var modalChart = null;
+
+  function fmtNum(v){
+    if (v === null || v === undefined || v === '') return '';
+    if (typeof v === 'number') return v.toLocaleString('es-CL', {maximumFractionDigits:1});
+    if (typeof v === 'object') return (v && v.y != null) ? v.y : '';
+    return String(v);
+  }
+
+  function buildTable(data){
+    var ds = data.datasets || [];
+    var labels = data.labels || [];
+    if (!labels.length && ds.length && ds[0].data) labels = ds[0].data.map(function(_, i){ return 'Item ' + (i + 1); });
+    var head = '<thead><tr><th>Categoria</th>' + ds.map(function(d){ return '<th>' + (d.label || 'Serie') + '</th>'; }).join('') + '</tr></thead>';
+    var body = '<tbody>' + labels.map(function(lab, i){
+      return '<tr><td>' + lab + '</td>' + ds.map(function(d){ return '<td>' + fmtNum(d.data ? d.data[i] : '') + '</td>'; }).join('') + '</tr>';
+    }).join('') + '</tbody>';
+    tableEl.innerHTML = head + body;
+  }
+
+  function openModal(srcChart, title){
+    titleEl.textContent = title || 'Grafico';
+    var data;
+    try { data = JSON.parse(JSON.stringify(srcChart.config.data)); }
+    catch (err) { data = srcChart.config.data; }
+    var opts = Object.assign({}, srcChart.config.options, {responsive:true, maintainAspectRatio:false, animation:{duration:300}});
+    if (modalChart) { modalChart.destroy(); modalChart = null; }
+    modalChart = new Chart(canvas.getContext('2d'), {type: srcChart.config.type, data: data, options: opts});
+    buildTable(data);
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal(){
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+    setTimeout(function(){ if (modalChart) { modalChart.destroy(); modalChart = null; } }, 240);
+  }
+
+  document.addEventListener('click', function(e){
+    if (overlay.contains(e.target)) return;
+    var card = e.target.closest ? e.target.closest('.chart-card') : null;
+    if (!card) return;
+    var cv = card.querySelector('canvas');
+    if (!cv) return;
+    var ch = (typeof Chart !== 'undefined' && Chart.getChart) ? Chart.getChart(cv) : null;
+    if (!ch) return;
+    var h3 = card.querySelector('h3');
+    openModal(ch, h3 ? h3.textContent.trim() : 'Grafico');
+  });
+
+  document.getElementById('chartModalClose').addEventListener('click', closeModal);
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
+  else setup();
+})();
+"""
+
 # ── HTML Template ────────────────────────────────────────────
 html = f"""<!DOCTYPE html>
 <html lang="es">
@@ -1096,6 +1209,7 @@ html = f"""<!DOCTYPE html>
     .tm-box {{ padding: 6px 4px !important; }}
     .tm-box div:last-child {{ font-size: 14px !important; }}
   }}
+{MODAL_CSS}
 </style>
 </head>
 <body>
@@ -3053,7 +3167,9 @@ document.getElementById('genDate').textContent = D.generado;
     window.location.href = 'Dashboard_Cosecha.html';
   }});
 }})();
+{MODAL_JS}
 </script>
+{MODAL_HTML}
 </body>
 </html>"""
 
