@@ -412,8 +412,14 @@ esp = daily.groupby('Especie')['Vol'].sum()
 esp_list = [{'n': str(k), 'v': round(float(v),1)} for k,v in esp.items()]
 
 # TM por categoría (donut)
+# Sumar de los registros crudos de TM (misma fuente que el top causas), no de la
+# tabla cruzada con producción — así no se pierden TM de equipos sin producción
+# ese día ni de códigos de equipo sin mapear. Mantiene coherencia con tm_causes.
 tm_by_cat = daily.groupby('Team')[['TM_Mant','TM_Oper','TM_PP']].sum()
-tm_cat_total = {'Mantención': int(daily['TM_Mant'].sum()), 'Operacional': int(daily['TM_Oper'].sum()), 'Proceso': int(daily['TM_PP'].sum())}
+_tm_cat = tm.groupby('Clasif')['Tiempo (Min)'].sum()
+tm_cat_total = {'Mantención': int(_tm_cat.get('Mantención', 0)),
+                'Operacional': int(_tm_cat.get('Operacional', 0)),
+                'Proceso': int(_tm_cat.get('Proceso', 0))}
 tm_cat_list = [{'n': k, 'v': v} for k, v in tm_cat_total.items() if v > 0]
 
 # TM tendencia diaria
