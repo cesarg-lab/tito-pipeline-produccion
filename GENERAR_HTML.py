@@ -59,10 +59,19 @@ TEAM_MAP = {
 TEAMS = ['Millalemu 1.1','Millalemu 1.2','Millalemu 1.3','Millalemu 1.4',
          'Millalemu 5','Millalemu 7','Millalemu 9','Millalemu 11']
 CLASIF = {
-    1:'Mantención',2:'Mantención',3:'Mantención',4:'Mantención',
-    5:'Mantención',6:'Mantención',58:'Mantención',
-    13:'Operacional',14:'Operacional',18:'Operacional',38:'Operacional',
-    42:'Proceso',43:'Proceso'
+    # Mantención — falla / reparación / mantención de equipos
+    1:'Mantención',2:'Mantención',3:'Mantención',4:'Mantención',5:'Mantención',
+    6:'Mantención',7:'Mantención',8:'Mantención',10:'Mantención',12:'Mantención',
+    58:'Mantención',69:'Mantención',
+    # Operacional — logística / personal / abastecimiento / externo
+    13:'Operacional',14:'Operacional',15:'Operacional',20:'Operacional',21:'Operacional',
+    22:'Operacional',31:'Operacional',32:'Operacional',33:'Operacional',38:'Operacional',
+    41:'Operacional',
+    # Proceso — flujo interno de la faena
+    16:'Proceso',17:'Proceso',18:'Proceso',25:'Proceso',26:'Proceso',61:'Proceso',
+    65:'Proceso',66:'Proceso',68:'Proceso',
+    # Programado — NO es pérdida (se muestra aparte, no suma al tiempo perdido)
+    42:'Programado',43:'Programado',
 }
 # Leer metas desde Excel si existe, sino usar defaults
 EXCEL = os.path.join(BASE_DIR, "Dashboard_CosechaForestal.xlsx")
@@ -245,7 +254,10 @@ if not SNAPSHOT_MODE:
     prod['Vol'] = prod['Volumen SSC PU'].fillna(0) + prod['Volumen SSC AS'].fillna(0)
     # Tiempo Efectivo: detectar unidad automáticamente
     _te_raw = pd.to_numeric(prod['Tiempo Efectivo'].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
-    _te_divisor = 3600 if _te_raw.max() > 1000 else 60
+    # Unidad robusta: usar la MEDIANA de valores >0 (no el máximo, que se rompe con
+    # un solo outlier). Día típico ~480 min ó ~28800 seg → umbral 1000.
+    _te_pos = _te_raw[_te_raw > 0]
+    _te_divisor = 3600 if (len(_te_pos) > 0 and _te_pos.median() > 1000) else 60
     prod['HrsEf'] = _te_raw / _te_divisor
     prod['Arb'] = pd.to_numeric(prod['Árboles Madereados'], errors='coerce').fillna(0)
     prod['Ciclos'] = pd.to_numeric(prod['Número Ciclos'], errors='coerce').fillna(0).astype(int)
@@ -264,6 +276,12 @@ if not SNAPSHOT_MODE:
     tm['Dia'] = tm['Fecha_dt'].dt.day
 
 MES = int(prod['Fecha_dt'].dt.month.mode()[0])
+
+# Tiempo PROGRAMADO (colación / descanso): NO cuenta como tiempo perdido.
+# Se guarda el total para mostrarlo aparte y se excluye de TODAS las agregaciones
+# de TM (categorías, top causas, tendencia, disponibilidad), dejándolas coherentes.
+tm_prog_min = int(tm.loc[tm['Clasif'] == 'Programado', 'Tiempo (Min)'].sum()) if 'Clasif' in tm.columns else 0
+tm = tm[tm['Clasif'] != 'Programado'].copy()
 
 # Guardar copia del mes anterior para comparativa (si hay datos)
 MES_PREV = MES - 1 if MES > 1 else 12
