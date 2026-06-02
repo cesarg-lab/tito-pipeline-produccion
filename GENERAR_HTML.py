@@ -311,14 +311,19 @@ prod = prod[prod['Fecha_dt'].dt.month == MES]
 tm = tm[tm['Fecha_dt'].dt.month == MES]
 ANIO = int(prod['Fecha_dt'].dt.year.mode()[0])
 DM = calendar.monthrange(ANIO, MES)[1]
-# DD = días con datos oficiales (Manual si existe, sino detallado)
+# Feriados irrenunciables (fechas fijas): no se trabaja, no cuentan como día trabajado.
+FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+def _habil(_mes, _dia):
+    return f"{_mes:02d}-{_dia:02d}" not in FERIADOS_IRR
 if vol_oficial_diario is not None:
-    DD = len(set(d for (_, d) in vol_oficial_diario.keys()))
     ULTIMO_DIA = max(d for (_, d) in vol_oficial_diario.keys())
 else:
-    DD = len(prod['Dia'].unique())
     ULTIMO_DIA = int(prod['Dia'].max())
-DT = DM
+# Regla: los equipos deben producir TODOS los días; un día de falla (producción 0)
+# cuenta igual. Por eso "días trabajados" = días corridos hábiles transcurridos
+# (NO los días con registro), menos feriados irrenunciables.
+DT = sum(1 for d in range(1, DM + 1) if _habil(MES, d))            # días hábiles del mes
+DD = sum(1 for d in range(1, ULTIMO_DIA + 1) if _habil(MES, d))    # días hábiles transcurridos
 DR = max(DT - DD, 0)
 
 def dominant(s):
@@ -402,7 +407,7 @@ for t in TEAMS:
     td = daily[daily['Team'] == t]
     acum = round(td['Vol'].sum(), 1)
     meta = METAS[t]
-    dias_team = len(td)
+    dias_team = DD  # regla: todos deben producir los días hábiles (faltar no premia)
     prom = round(acum / dias_team, 1) if dias_team > 0 else 0
     proy = round(acum + prom * DR, 1)
     hrs = round(td['HrsEf'].sum(), 1)
@@ -1266,7 +1271,7 @@ html = f"""<!DOCTYPE html>
 <div class="header">
   <div>
     <h1>Control de Cosecha Forestal</h1>
-    <p class="subtitle">Forestal Millalemu | {MESES[MES]} {ANIO} | {DD} de {DM} días con datos</p>
+    <p class="subtitle">Forestal Millalemu | {MESES[MES]} {ANIO} | {DD} de {DT} días trabajados</p>
     {'<p class="subtitle" style="color:#FBBF24;font-weight:600;margin:3px 0 0">⚠️ Datos preliminares: proyección con pocos días, puede variar</p>' if DD <= 5 else ''}
     <p style="margin:2px 0 0;font-size:11px;opacity:0.5">Datos al: {ULTIMO_DIA}-{MESES[MES][:3]}-{ANIO}</p>
   </div>
