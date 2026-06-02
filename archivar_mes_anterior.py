@@ -95,7 +95,8 @@ def cierre(prod, mes, anio, metas):
         prod[c] = pd.to_numeric(prod[c].astype(str).str.replace(',', '.'), errors='coerce')
     prod['Vol'] = prod['Volumen SSC PU'].fillna(0) + prod['Volumen SSC AS'].fillna(0)
     _te = pd.to_numeric(prod['Tiempo Efectivo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-    prod['HrsEf'] = _te / (3600 if _te.max() > 1000 else 60)
+    _te_pos = _te[_te > 0]  # unidad robusta por mediana (no por máximo)
+    prod['HrsEf'] = _te / (3600 if (len(_te_pos) > 0 and _te_pos.median() > 1000) else 60)
     prod['Team'] = prod['Equipo'].map(TEAM_MAP)
     prod['Fecha_dt'] = pd.to_datetime(prod['Fecha NOC'], dayfirst=True, errors='coerce')
     prod['Dia'] = prod['Fecha_dt'].dt.day
