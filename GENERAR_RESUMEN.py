@@ -55,10 +55,19 @@ METAS = {'M1.1':7000,'M1.2':7000,'M1.3':7000,'M1.4':7000,
          'M5':4500,'M7':7000,'M9':7000,'M11':6000}
 
 CLASIF = {
-    1:'Mantención',2:'Mantención',3:'Mantención',4:'Mantención',
-    5:'Mantención',6:'Mantención',58:'Mantención',
-    13:'Operacional',14:'Operacional',18:'Operacional',38:'Operacional',
-    42:'Proceso',43:'Proceso'
+    # Mantención — falla / reparación / mantención de equipos
+    1:'Mantención',2:'Mantención',3:'Mantención',4:'Mantención',5:'Mantención',
+    6:'Mantención',7:'Mantención',8:'Mantención',10:'Mantención',12:'Mantención',
+    58:'Mantención',69:'Mantención',
+    # Operacional — logística / personal / abastecimiento / externo
+    13:'Operacional',14:'Operacional',15:'Operacional',20:'Operacional',21:'Operacional',
+    22:'Operacional',31:'Operacional',32:'Operacional',33:'Operacional',38:'Operacional',
+    41:'Operacional',
+    # Proceso — flujo interno de la faena
+    16:'Proceso',17:'Proceso',18:'Proceso',25:'Proceso',26:'Proceso',61:'Proceso',
+    65:'Proceso',66:'Proceso',68:'Proceso',
+    # Programado — NO es pérdida (se muestra aparte, no suma al tiempo perdido)
+    42:'Programado',43:'Programado',
 }
 
 EXCEL = BASE_DIR / "Dashboard_CosechaForestal.xlsx"
@@ -123,7 +132,8 @@ def generate():
             vol_oficial_diario = None
     # Tiempo Efectivo: detección automática de unidad (Selenium=segundos, API=minutos)
     _te_raw = pd.to_numeric(prod['Tiempo Efectivo'].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
-    prod['HrsEf'] = _te_raw / (3600 if _te_raw.max() > 1000 else 60)
+    _te_pos = _te_raw[_te_raw > 0]  # unidad robusta por mediana (no por máximo)
+    prod['HrsEf'] = _te_raw / (3600 if (len(_te_pos) > 0 and _te_pos.median() > 1000) else 60)
     for c in ['Hora Inicio', 'Hora Fin']:
         prod[c] = pd.to_numeric(prod[c].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
     prod['Turno_seg'] = (prod['Hora Fin'] - prod['Hora Inicio']).clip(lower=0)
@@ -133,6 +143,7 @@ def generate():
 
     tm['Tiempo (Min)'] = pd.to_numeric(tm['Tiempo (Min)'].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
     tm['Clasif'] = tm['Código Tiempo Perdido'].map(CLASIF).fillna('Operacional')
+    tm = tm[tm['Clasif'] != 'Programado'].copy()  # colación/descanso no es pérdida
     tm['Team'] = tm['Código Equipo'].map(TEAM_MAP)
     tm['Fecha_dt'] = pd.to_datetime(tm['Fecha'], dayfirst=True, errors='coerce')
     tm = tm.dropna(subset=['Fecha_dt'])
