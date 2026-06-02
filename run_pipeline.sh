@@ -46,6 +46,11 @@ else
     exit 1
 fi
 
+# ── 2.5 Archivar mes anterior si falta (idempotente; recupera el mes cerrado) ──
+echo ""
+echo "▶️  [2.5/9] Archivando mes anterior en el histórico si falta..."
+python3 archivar_mes_anterior.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  archivar_mes_anterior falló (no crítico, sigue)"
+
 # ── 3. Generar HTML ───────────────────────────────────────────────────────
 echo ""
 echo "▶️  [3/9] Generando Dashboard HTML..."
