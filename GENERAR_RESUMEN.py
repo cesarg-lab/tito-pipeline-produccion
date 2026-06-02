@@ -161,8 +161,12 @@ def generate():
     # Filtrar por equipos del grupo seleccionado
     prod_mes = prod_mes[prod_mes['Team'].isin(TEAMS)]
     tm_mes = tm_mes[tm_mes['Team'].isin(TEAMS)]
-    DD = len(prod_mes['Dia'].unique())
-    DR = max(DM - DD, 1)
+    # Días hábiles (regla: faltar no premia; solo descuentan feriados irrenunciables)
+    _FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+    _ULT = int(prod_mes['Dia'].max())
+    DT = sum(1 for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
+    DD = sum(1 for d in range(1, _ULT + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
+    DR = max(DT - DD, 1)
 
     prod_dia = prod_mes[prod_mes['Fecha_dt'] == ultimo]
     tm_dia = tm_mes[tm_mes['Fecha_dt'] == ultimo]
@@ -373,7 +377,7 @@ def generate():
     # ── PROYECCIÓN MENSUAL ──
     L.append(f"━━━━━━━━━━━━━━━━━━━━━")
     L.append(f"*📊 PROYECCIÓN {MESES[MES].upper()} {ANIO}*")
-    L.append(f"Día {DD} de {DM} | Quedan {DR} días")
+    L.append(f"Día {DD} de {DT} | Quedan {DR} días")
     L.append("")
     L.append(f"Acumulado: *{fmt(acum_total)} m³* de {fmt(meta_total)}")
     L.append(f"Proyección: *{fmt(proy_total)} m³* ({pct_total:.0f}%)")
