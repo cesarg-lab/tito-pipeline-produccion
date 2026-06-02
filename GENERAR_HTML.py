@@ -123,6 +123,23 @@ if os.path.exists(HIST_CSV):
     except Exception as e:
         print(f"⚠️  No se pudo cargar histórico: {e}")
 
+# ── Histórico de tiempos perdidos por mes ──
+TM_HIST_CSV = os.path.join(BASE_DIR, "historico_tm_mensual.csv")
+tm_mensual_list = []
+if os.path.exists(TM_HIST_CSV):
+    try:
+        _tmh = pd.read_csv(TM_HIST_CSV, sep=';', encoding='utf-8-sig')
+        for _, r in _tmh.iterrows():
+            tm_mensual_list.append({
+                'mes': int(r['mes']), 'anio': int(r['anio']), 'mesNombre': str(r['mes_nombre']),
+                'mant': float(r['mantencion_h']), 'oper': float(r['operacional_h']),
+                'proc': float(r['proceso_h']), 'prog': float(r['programado_h']),
+                'perdido': float(r['total_perdido_h']), 'topCausas': str(r.get('top_causas', '')),
+            })
+        print(f"📉 TM mensual cargado: {len(tm_mensual_list)} meses")
+    except Exception as e:
+        print(f"⚠️  No se pudo cargar TM mensual: {e}")
+
 # ── Leer y procesar datos ────────────────────────────────────
 if SNAPSHOT_MODE:
     # Modo snapshot: data_diario.csv y data_tm.csv ya están cocinados
@@ -906,6 +923,19 @@ if manual_disponible and vol_oficial_total_eq:
 
 MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
+# Agregar el mes EN CURSO al histórico de TM (en progreso) y ordenar
+if not any(m['mes'] == MES and m['anio'] == ANIO for m in tm_mensual_list):
+    _mant_h = round(tm_cat_total.get('Mantención', 0) / 60, 1)
+    _oper_h = round(tm_cat_total.get('Operacional', 0) / 60, 1)
+    _proc_h = round(tm_cat_total.get('Proceso', 0) / 60, 1)
+    tm_mensual_list.append({
+        'mes': MES, 'anio': ANIO, 'mesNombre': MESES[MES] + ' (en curso)',
+        'mant': _mant_h, 'oper': _oper_h, 'proc': _proc_h,
+        'prog': round(tm_prog_min / 60, 1),
+        'perdido': round(_mant_h + _oper_h + _proc_h, 1), 'topCausas': '',
+    })
+tm_mensual_list = sorted(tm_mensual_list, key=lambda m: (m['anio'], m['mes']))
+
 data_json = json.dumps({
     'cfg': {'mes':MES,'anio':ANIO,'dm':DM,'dd':DD,'dt':DT,'dr':DR,
             'ta': round(daily['Vol'].sum(),1), 'tm': sum(METAS.values()),
@@ -936,6 +966,7 @@ data_json = json.dumps({
     'mtbfMttr': mtbf_mttr,
     'compMes': comp_mes,
     'historico': historico_list,
+    'tmMensual': tm_mensual_list,
     'snapshotsDisponibles': sorted([
         d for d in os.listdir(os.path.join(BASE_DIR, '_snapshots'))
         if os.path.isdir(os.path.join(BASE_DIR, '_snapshots', d))
@@ -1356,6 +1387,11 @@ html = f"""<!DOCTYPE html>
   <div class="chart-card">
     <h3>Tendencia por Equipo (m³ mensuales)</h3>
     <canvas id="chartHistEquipos" style="max-height:340px"></canvas>
+  </div>
+  <div class="chart-card" style="margin-top:16px">
+    <h3>Tiempos Perdidos por Mes (horas)</h3>
+    <canvas id="chartTmMensual" style="max-height:300px"></canvas>
+    <div id="tmMensualTabla" style="overflow-x:auto;margin-top:14px"></div>
   </div>
 </div>
 
@@ -3070,6 +3106,42 @@ const dspEl = document.getElementById('diasSinProdTable');
       }}
     }}
   }});
+
+  // ── Tiempos Perdidos por Mes (apilado Mant/Oper/Proceso) + tabla ──
+  const tmM = D.tmMensual || [];
+  if (tmM.length && document.getElementById('chartTmMensual')) {{
+    const ctxTm = document.getElementById('chartTmMensual').getContext('2d');
+    new Chart(ctxTm, {{
+      type: 'bar',
+      data: {{
+        labels: tmM.map(m => m.mesNombre),
+        datasets: [
+          {{ label: 'Mantención', data: tmM.map(m => m.mant), backgroundColor: '#C0392BCC', stack: 'tm' }},
+          {{ label: 'Operacional', data: tmM.map(m => m.oper), backgroundColor: '#E67E22CC', stack: 'tm' }},
+          {{ label: 'Proceso', data: tmM.map(m => m.proc), backgroundColor: '#3498DBCC', stack: 'tm' }}
+        ]
+      }},
+      options: {{
+        responsive: true, maintainAspectRatio: false,
+        plugins: {{ legend: {{ position: 'bottom' }},
+          tooltip: {{ callbacks: {{ footer: items => 'Perdido: ' + items.reduce((a,b)=>a+b.raw,0).toFixed(0) + ' h' }} }} }},
+        scales: {{ x: {{ stacked: true }}, y: {{ stacked: true, beginAtZero: true, title: {{ display: true, text: 'horas' }} }} }}
+      }}
+    }});
+    let th = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="color:#64748B;text-align:right;border-bottom:2px solid #E2E8F0">'
+      + '<th style="text-align:left;padding:6px">Mes</th><th>🔧 Mant.</th><th>⚙️ Oper.</th><th>🔄 Proc.</th><th>Perdido</th><th style="color:#94A3B8">⏸️ Prog.</th><th style="text-align:left;padding-left:14px">Top causa</th></tr></thead><tbody>';
+    tmM.forEach(m => {{
+      const top = (m.topCausas || '').split(';')[0] || '';
+      th += '<tr style="text-align:right;border-bottom:1px solid #EEF2F6">'
+        + '<td style="text-align:left;padding:6px;font-weight:600">' + m.mesNombre + '</td>'
+        + '<td>' + m.mant.toFixed(0) + '</td><td>' + m.oper.toFixed(0) + '</td><td>' + m.proc.toFixed(0) + '</td>'
+        + '<td style="font-weight:700">' + m.perdido.toFixed(0) + '</td>'
+        + '<td style="color:#94A3B8">' + m.prog.toFixed(0) + '</td>'
+        + '<td style="text-align:left;padding-left:14px;color:#475569">' + top + '</td></tr>';
+    }});
+    th += '</tbody></table>';
+    document.getElementById('tmMensualTabla').innerHTML = th;
+  }}
 }})();
 
 document.getElementById('genDate').textContent = D.generado;
