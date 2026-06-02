@@ -166,9 +166,11 @@ def generate():
     tm   = tm[tm['Fecha_dt'].dt.month == MES]
 
     DM = calendar.monthrange(ANIO, MES)[1]
-    # DD = días con datos en Base2NOC (es la fuente más actualizada)
-    DD = len(prod['Dia'].unique())
-    DT = DM
+    # Días hábiles (regla: faltar no premia; solo descuentan feriados irrenunciables)
+    _FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+    _ULT = int(prod['Dia'].max())
+    DT = sum(1 for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
+    DD = sum(1 for d in range(1, _ULT + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
     DR = max(DT - DD, 1)
 
     daily = prod.groupby(['Dia','Team']).agg(
@@ -222,7 +224,7 @@ def generate():
         acum = td['Vol'].sum(); hrs = td['HrsEf'].sum()
         tm_mant = td['TM_Mant'].sum()
         turno_seg = td['Turno_seg'].sum()
-        dias_t = len(td); meta = METAS[t]
+        dias_t = DD; meta = METAS[t]  # días hábiles (regla: faltar no premia)
         prom = acum / dias_t if dias_t > 0 else 0
         proy = acum + prom * DR
         plan_dia = meta / DT
