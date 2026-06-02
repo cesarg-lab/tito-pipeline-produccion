@@ -40,6 +40,18 @@ METAS_DEFAULT = {'Millalemu 1.1':7000,'Millalemu 1.2':7000,'Millalemu 1.3':7000,
                  'Millalemu 9':7000,'Millalemu 11':6000}
 MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
          "Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+TM_HIST_CSV = BASE_DIR / "historico_tm_mensual.csv"
+CLASIF = {
+    1:'Mantención',2:'Mantención',3:'Mantención',4:'Mantención',5:'Mantención',
+    6:'Mantención',7:'Mantención',8:'Mantención',10:'Mantención',12:'Mantención',
+    58:'Mantención',69:'Mantención',
+    13:'Operacional',14:'Operacional',15:'Operacional',20:'Operacional',21:'Operacional',
+    22:'Operacional',31:'Operacional',32:'Operacional',33:'Operacional',38:'Operacional',
+    41:'Operacional',
+    16:'Proceso',17:'Proceso',18:'Proceso',25:'Proceso',26:'Proceso',61:'Proceso',
+    65:'Proceso',66:'Proceso',68:'Proceso',
+    42:'Programado',43:'Programado',
+}
 
 def log(m): print(f"[archivar_mes_anterior] {m}")
 
@@ -113,27 +125,81 @@ def cierre(prod, mes, anio, metas):
         filas.append(f"{mes};{anio};{MESES[mes]};{t};{meta:.0f};{vol:.1f};{cumpl:.1f};{dias};{dias};{prom:.1f};{rend:.1f};{hrs:.1f};{fuente}")
     return filas
 
+def tm_ya_archivado(mes, anio):
+    if not TM_HIST_CSV.exists():
+        return False
+    with open(TM_HIST_CSV, encoding='utf-8-sig', newline='') as f:
+        for row in csv.reader(f, delimiter=';'):
+            if len(row) >= 2 and row[0].strip() == str(mes) and row[1].strip() == str(anio):
+                return True
+    return False
+
+def descargar_tp(mes, anio):
+    """Baja Tiempos Perdidos del mes desde Arauco."""
+    spec = importlib.util.spec_from_file_location("dnoc", str(BASE_DIR / "descargar_noc_api.py"))
+    dn = importlib.util.module_from_spec(spec); spec.loader.exec_module(dn)
+    import requests
+    s = requests.Session(); s.verify = False
+    s.headers.update({"User-Agent": "Mozilla/5.0"})
+    token = dn.obtener_token_arcgis(s); dn.establecer_sesion(s, token)
+    ud = calendar.monthrange(anio, mes)[1]
+    tp = dn.descargar_reporte(s, token, "TP", f"{anio}-{mes:02d}-01", f"{anio}-{mes:02d}-{ud:02d}")
+    if not tp:
+        return None
+    dn.guardar_csv(tp, "TP", Path("/tmp"))
+    return pd.read_csv("/tmp/TiemposPerdidos.csv", sep=';', encoding='utf-8-sig')
+
+def archivar_tm(mes, anio):
+    """Calcula y guarda los tiempos perdidos por categoría + top causas del mes."""
+    if tm_ya_archivado(mes, anio):
+        log(f"TM de {MESES[mes]} {anio} ya está — nada que hacer.")
+        return
+    tp = descargar_tp(mes, anio)
+    if tp is None or tp.empty:
+        log(f"sin TM de {MESES[mes]} {anio} en Arauco — no se archiva.")
+        return
+    tp['min'] = pd.to_numeric(tp['Tiempo (Min)'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+    tp['cod'] = pd.to_numeric(tp['Código Tiempo Perdido'], errors='coerce').fillna(0).astype(int)
+    tp['cat'] = tp['cod'].map(CLASIF).fillna('Operacional')
+    by = tp.groupby('cat')['min'].sum() / 60
+    ma, op, pr, pg = by.get('Mantención', 0), by.get('Operacional', 0), by.get('Proceso', 0), by.get('Programado', 0)
+    perd = ma + op + pr
+    tcp = tp[tp['cat'] != 'Programado'].groupby('Descripción')['min'].sum().sort_values(ascending=False).head(3)
+    top = "; ".join(f"{str(k)[:28]} ({v/60:.0f}h)" for k, v in tcp.items())
+    nuevo = not TM_HIST_CSV.exists()
+    with open(TM_HIST_CSV, 'a', encoding='utf-8') as f:
+        if nuevo:
+            f.write("mes;anio;mes_nombre;mantencion_h;operacional_h;proceso_h;programado_h;total_perdido_h;top_causas\n")
+        f.write(f"{mes};{anio};{MESES[mes]};{ma:.1f};{op:.1f};{pr:.1f};{pg:.1f};{perd:.1f};{top}\n")
+    log(f"✅ TM {MESES[mes]} {anio} archivado: perdido {perd:.0f}h (Mant {ma:.0f} / Oper {op:.0f} / Proc {pr:.0f})")
+
 def main():
     hoy = datetime.now()
     primer_dia = hoy.replace(day=1)
     prev = primer_dia.fromordinal(primer_dia.toordinal() - 1)  # último día mes anterior
     mes, anio = prev.month, prev.year
 
+    # ── Producción ──
     if mes_ya_archivado(mes, anio):
-        log(f"{MESES[mes]} {anio} ya está en el histórico — nada que hacer.")
-        return 0
+        log(f"Producción de {MESES[mes]} {anio} ya está.")
+    else:
+        log(f"Recuperando producción de {MESES[mes]} {anio} de Arauco...")
+        prod = descargar_mes(mes, anio)
+        if prod is None or prod.empty:
+            log(f"sin datos de producción de {MESES[mes]} {anio}.")
+        else:
+            filas = cierre(prod, mes, anio, metas_desde_excel())
+            total = sum(float(r.split(';')[5]) for r in filas)
+            with open(HIST_CSV, 'a', encoding='utf-8') as f:
+                f.write("\n".join(filas) + "\n")
+            log(f"✅ Producción {MESES[mes]} {anio}: {len(filas)} faenas, total {total:,.0f} m³")
 
-    log(f"{MESES[mes]} {anio} NO está en el histórico — recuperando de Arauco...")
-    prod = descargar_mes(mes, anio)
-    if prod is None or prod.empty:
-        log(f"sin datos de {MESES[mes]} {anio} en Arauco — no se archiva (no es error).")
-        return 0
+    # ── Tiempos perdidos ──
+    try:
+        archivar_tm(mes, anio)
+    except Exception as e:
+        log(f"aviso: archivar_tm falló ({e}) — no crítico.")
 
-    filas = cierre(prod, mes, anio, metas_desde_excel())
-    total = sum(float(r.split(';')[5]) for r in filas)
-    with open(HIST_CSV, 'a', encoding='utf-8') as f:
-        f.write("\n".join(filas) + "\n")
-    log(f"✅ {MESES[mes]} {anio} archivado: {len(filas)} faenas, total {total:,.0f} m³")
     return 0
 
 if __name__ == "__main__":
