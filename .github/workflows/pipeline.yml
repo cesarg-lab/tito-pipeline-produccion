@@ -25,6 +25,8 @@ jobs:
     name: Descarga + HTML + FTP + Telegram
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write          # para commitear el histórico del mes archivado
 
     steps:
       - name: Checkout código
@@ -55,6 +57,20 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
         run: bash run_pipeline.sh
+
+      - name: Guardar histórico si cambió (auto-archivado mes anterior)
+        if: success()
+        run: |
+          if ! git diff --quiet historico_cierres_mensuales.csv; then
+            git config user.name "tito-pipeline-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add historico_cierres_mensuales.csv
+            git commit -m "data: cierre automatico del mes anterior [skip ci]"
+            git push
+            echo "✅ Histórico actualizado y commiteado"
+          else
+            echo "Histórico sin cambios — nada que commitear"
+          fi
 
       - name: Subir logs como artefacto (solo si falla)
         if: failure()
