@@ -1664,7 +1664,7 @@ new Chart(trendCtx, {{
     labels: D.trend.map(t => 'Día ' + t.d),
     datasets: [
       {{ label: 'Producción Real', data: D.trend.map(t => t.v),
-        backgroundColor: barColors, borderRadius: 4, order: 2 }},
+        backgroundColor: barColors, borderRadius: 4, maxBarThickness: 48, order: 2 }},
       {{ label: 'Meta Diaria Requerida', data: metaDiariaMovil,
         type: 'line', borderColor: '#E67E22', borderWidth: 2.5,
         borderDash: [6,3], pointRadius: 3, pointBackgroundColor: '#E67E22',
