@@ -114,11 +114,16 @@ def cierre(prod, mes, anio, metas):
     prod['Dia'] = prod['Fecha_dt'].dt.day
     prod = prod[prod['Fecha_dt'].dt.month == mes]
     fuente = f"Auto-archivado nube {datetime.now().strftime('%Y-%m-%d')}"
+    # Días hábiles del mes cerrado: días corridos menos feriados irrenunciables
+    # (regla: faltar/parar no premia; un día de falla cuenta como día trabajado).
+    _FER = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+    _dm = calendar.monthrange(anio, mes)[1]
+    dias_hab = sum(1 for d in range(1, _dm + 1) if f"{mes:02d}-{d:02d}" not in _FER)
     filas = []
     for t in ORDEN:
         td = prod[prod['Team'] == t]
         vol = float(td['Vol'].sum()); hrs = float(td['HrsEf'].sum())
-        dias = int(td['Dia'].nunique()); meta = metas[t]
+        dias = dias_hab; meta = metas[t]
         cumpl = vol / meta * 100 if meta else 0
         prom = vol / dias if dias else 0
         rend = vol / hrs if hrs else 0
