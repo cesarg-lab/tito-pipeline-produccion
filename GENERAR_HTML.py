@@ -401,6 +401,13 @@ for c in ['TM_Mant','TM_Oper','TM_PP']:
     daily[c] = daily[c].fillna(0)
 daily['TM_Total'] = daily['TM_Mant'] + daily['TM_Oper'] + daily['TM_PP']
 
+# TM por equipo desde los registros CRUDOS (no la tabla cruzada con producción, que
+# pierde fallas largas sin fila de producción que calce → disponibilidad inflada).
+# Mismo fix que las categorías globales.
+_tm_team = tm.groupby(['Team', 'Clasif'])['Tiempo (Min)'].sum().unstack(fill_value=0)
+def _tmcat(_team, _cat):
+    return int(_tm_team.loc[_team, _cat]) if (_team in _tm_team.index and _cat in _tm_team.columns) else 0
+
 # ── Generar JSON ─────────────────────────────────────────────
 team_kpis = []
 for t in TEAMS:
@@ -418,8 +425,8 @@ for t in TEAMS:
         'p': prom, 'pr': proy, 'b': round(proy-meta,1),
         'ci': round((proy/meta)*100,1) if meta else 0,
         'r': round(acum/hrs,2) if hrs else 0,
-        'h': hrs, 'tm': int(td['TM_Mant'].sum()),
-        'tt': int(td['TM_Total'].sum()),
+        'h': hrs, 'tm': _tmcat(t, 'Mantención'),
+        'tt': _tmcat(t, 'Mantención') + _tmcat(t, 'Operacional') + _tmcat(t, 'Proceso'),
         'turno': turno_min,
         'e': td['Especie'].mode().iloc[0] if len(td)>0 and len(td['Especie'].mode())>0 else '',
         'pr2': td['Predio'].mode().iloc[0] if len(td)>0 and len(td['Predio'].mode())>0 else '',
@@ -474,12 +481,12 @@ for t in TEAMS:
     tm_team_cat.append({
         't': t.replace('Millalemu ', 'M'),
         'tf': t,
-        'mant': int(td['TM_Mant'].sum()),
-        'oper': int(td['TM_Oper'].sum()),
-        'proc': int(td['TM_PP'].sum()),
-        'total': int(td['TM_Total'].sum()),
+        'mant': _tmcat(t, 'Mantención'),
+        'oper': _tmcat(t, 'Operacional'),
+        'proc': _tmcat(t, 'Proceso'),
+        'total': _tmcat(t, 'Mantención') + _tmcat(t, 'Operacional') + _tmcat(t, 'Proceso'),
         'hrs': round(td['HrsEf'].sum(), 1),
-        'disp': round((1 - td['TM_Mant'].sum() / (td['Turno_seg'].sum()/60)) * 100, 1) if td['Turno_seg'].sum() > 0 else 100
+        'disp': round((1 - _tmcat(t, 'Mantención') / (td['Turno_seg'].sum()/60)) * 100, 1) if td['Turno_seg'].sum() > 0 else 100
     })
 
 # ── DATOS NUEVOS ─────────────────────────────────────────
