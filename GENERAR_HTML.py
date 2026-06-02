@@ -1334,7 +1334,7 @@ html = f"""<!DOCTYPE html>
     </div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-    <div class="chart-card"><h3>Tendencia Diaria TM (min)</h3><canvas id="chartTMTrend"></canvas></div>
+    <div class="chart-card"><h3>Tendencia Diaria TM (horas)</h3><canvas id="chartTMTrend"></canvas></div>
     <div class="chart-card"><h3>TM por Equipo Desglosado</h3><canvas id="chartTMTeam"></canvas></div>
   </div>
   <div class="chart-card"><h3>Resumen Disponibilidad y Tiempos por Equipo</h3><div id="tmDispTable"></div></div>
@@ -1374,7 +1374,7 @@ html = f"""<!DOCTYPE html>
     <div class="chart-card"><h3>Rendimiento por Especie (m³/hr)</h3><canvas id="chartRendEsp"></canvas></div>
     <div class="chart-card"><h3>Rendimiento por Especie y Faena</h3><canvas id="chartRendEspTeam"></canvas></div>
   </div>
-  <div class="chart-card" style="margin-top:16px"><h3>Heatmap de Tiempos Perdidos (minutos por día/faena)</h3><div id="tmHeatmapBox"></div></div>
+  <div class="chart-card" style="margin-top:16px"><h3>Heatmap de Tiempos Perdidos (horas por día/faena)</h3><div id="tmHeatmapBox"></div></div>
   <div class="charts-row" style="margin-top:16px">
     <div class="chart-card"><h3>Disponibilidad Mecánica (MTBF / MTTR)</h3><div id="mtbfMttrTable"></div></div>
     <div class="chart-card"><h3>Comparativa vs Mes Anterior</h3><div id="compMesBox"></div></div>
@@ -2015,12 +2015,13 @@ new Chart(tmCtx, {{
   type: 'bar',
   data: {{
     labels: D.tmTop.map(t => t.n.length > 30 ? t.n.substring(0,30)+'...' : t.n),
-    datasets: [{{ label: 'Minutos', data: D.tmTop.map(t => t.m),
+    datasets: [{{ label: 'Horas', data: D.tmTop.map(t => Math.round(t.m/60*10)/10),
       backgroundColor: D.tmTop.map((_,i) => i < 2 ? '#C0392BCC' : i < 5 ? '#E67E22CC' : '#94A3B8CC'),
       borderRadius: 4 }}]
   }},
-  options: {{ indexAxis: 'y', responsive: true, plugins: {{ legend: {{ display: false }} }},
-    scales: {{ x: {{ beginAtZero: true }} }} }}
+  options: {{ indexAxis: 'y', responsive: true, plugins: {{ legend: {{ display: false }},
+      tooltip: {{ callbacks: {{ label: c => c.raw + ' h' }} }} }},
+    scales: {{ x: {{ beginAtZero: true, title: {{ display: true, text: 'horas' }} }} }} }}
 }});
 
 // TM Category Donut
@@ -2029,9 +2030,10 @@ new Chart(tmCatCtx, {{
   type: 'doughnut',
   data: {{
     labels: tmCat.map(c => c.n),
-    datasets: [{{ data: tmCat.map(c => c.v), backgroundColor: ['#C0392B','#E67E22','#3498DB'] }}]
+    datasets: [{{ data: tmCat.map(c => Math.round(c.v/60*10)/10), backgroundColor: ['#C0392B','#E67E22','#3498DB'] }}]
   }},
-  options: {{ responsive: true, plugins: {{ legend: {{ position: 'bottom', labels: {{ font: {{ size: 11 }} }} }} }} }}
+  options: {{ responsive: true, plugins: {{ legend: {{ position: 'bottom', labels: {{ font: {{ size: 11 }} }} }},
+      tooltip: {{ callbacks: {{ label: c => c.label + ': ' + c.raw + ' h' }} }} }} }}
 }});
 
 // Species Pie
@@ -2052,13 +2054,14 @@ new Chart(tmTrendCtx, {{
   data: {{
     labels: tmTrend.map(t => t.d),
     datasets: [
-      {{ label: 'Mantención', data: tmTrend.map(t => t.mant), backgroundColor: '#C0392BCC', stack: 'a' }},
-      {{ label: 'Operacional', data: tmTrend.map(t => t.oper), backgroundColor: '#E67E22CC', stack: 'a' }},
-      {{ label: 'Proceso', data: tmTrend.map(t => t.proc), backgroundColor: '#3498DBCC', stack: 'a', borderRadius: 3 }}
+      {{ label: 'Mantención', data: tmTrend.map(t => Math.round(t.mant/60*10)/10), backgroundColor: '#C0392BCC', stack: 'a' }},
+      {{ label: 'Operacional', data: tmTrend.map(t => Math.round(t.oper/60*10)/10), backgroundColor: '#E67E22CC', stack: 'a' }},
+      {{ label: 'Proceso', data: tmTrend.map(t => Math.round(t.proc/60*10)/10), backgroundColor: '#3498DBCC', stack: 'a', borderRadius: 3 }}
     ]
   }},
-  options: {{ responsive: true, plugins: {{ legend: {{ position: 'top', labels: {{ font: {{ size: 10 }} }} }} }},
-    scales: {{ x: {{ stacked: true }}, y: {{ stacked: true, beginAtZero: true }} }} }}
+  options: {{ responsive: true, plugins: {{ legend: {{ position: 'top', labels: {{ font: {{ size: 10 }} }} }},
+      tooltip: {{ callbacks: {{ label: c => c.dataset.label + ': ' + c.raw + ' h' }} }} }},
+    scales: {{ x: {{ stacked: true }}, y: {{ stacked: true, beginAtZero: true, title: {{ display: true, text: 'horas' }} }} }} }}
 }});
 
 // TM by Team (stacked horizontal)
@@ -2068,13 +2071,14 @@ new Chart(tmTeamCtx, {{
   data: {{
     labels: tmTeamCat.map(t => t.t),
     datasets: [
-      {{ label: 'Mantención', data: tmTeamCat.map(t => t.mant), backgroundColor: '#C0392BCC', stack: 'a' }},
-      {{ label: 'Operacional', data: tmTeamCat.map(t => t.oper), backgroundColor: '#E67E22CC', stack: 'a' }},
-      {{ label: 'Proceso', data: tmTeamCat.map(t => t.proc), backgroundColor: '#3498DBCC', stack: 'a', borderRadius: 3 }}
+      {{ label: 'Mantención', data: tmTeamCat.map(t => Math.round(t.mant/60*10)/10), backgroundColor: '#C0392BCC', stack: 'a' }},
+      {{ label: 'Operacional', data: tmTeamCat.map(t => Math.round(t.oper/60*10)/10), backgroundColor: '#E67E22CC', stack: 'a' }},
+      {{ label: 'Proceso', data: tmTeamCat.map(t => Math.round(t.proc/60*10)/10), backgroundColor: '#3498DBCC', stack: 'a', borderRadius: 3 }}
     ]
   }},
-  options: {{ indexAxis: 'y', responsive: true, plugins: {{ legend: {{ position: 'top', labels: {{ font: {{ size: 10 }} }} }} }},
-    scales: {{ x: {{ stacked: true, beginAtZero: true }}, y: {{ stacked: true }} }} }}
+  options: {{ indexAxis: 'y', responsive: true, plugins: {{ legend: {{ position: 'top', labels: {{ font: {{ size: 10 }} }} }},
+      tooltip: {{ callbacks: {{ label: c => c.dataset.label + ': ' + c.raw + ' h' }} }} }},
+    scales: {{ x: {{ stacked: true, beginAtZero: true, title: {{ display: true, text: 'horas' }} }}, y: {{ stacked: true }} }} }}
 }});
 
 // Availability Table
@@ -2538,7 +2542,7 @@ const dspEl = document.getElementById('diasSinProdTable');
     return '#DC2626';                  // rojo
   }};
 
-  let html = `<div style="margin-bottom:10px;font-size:11px;color:#64748B">Escala por minutos de tiempo perdido (más oscuro = más TM). Máximo registrado: ${{maxMin}} min.</div>`;
+  let html = `<div style="margin-bottom:10px;font-size:11px;color:#64748B">Escala por horas de tiempo perdido (más oscuro = más TM). Cada celda en horas. Máximo registrado: ${{(maxMin/60).toFixed(1)}} h.</div>`;
   html += '<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:2px;font-size:11px"><thead><tr>';
   html += '<th style="padding:4px 8px;text-align:left;color:#64748B;font-weight:600;position:sticky;left:0;background:white">Faena</th>';
   days.forEach(d => {{
@@ -2574,7 +2578,7 @@ const dspEl = document.getElementById('diasSinProdTable');
   html += '<th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">Faena</th>';
   html += '<th style="padding:8px 10px;text-align:right" title="Número de fallas de Mantención">Fallas</th>';
   html += '<th style="padding:8px 10px;text-align:right" title="Mean Time Between Failures: horas de operación efectiva entre fallas">MTBF (hrs)</th>';
-  html += '<th style="padding:8px 10px;text-align:right;border-radius:0 8px 0 0" title="Mean Time To Repair: minutos promedio para reparar una falla">MTTR (min)</th>';
+  html += '<th style="padding:8px 10px;text-align:right;border-radius:0 8px 0 0" title="Mean Time To Repair: horas promedio para reparar una falla">MTTR (h)</th>';
   html += '</tr></thead><tbody>';
   // Ordenar por más fallas arriba
   const sorted = [...D.mtbfMttr].sort((a, b) => b.fallas - a.fallas);
@@ -2585,7 +2589,7 @@ const dspEl = document.getElementById('diasSinProdTable');
       <td style="padding:6px 10px;font-weight:600;color:#1A5276">${{r.t.replace('Millalemu ','M')}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700">${{r.fallas}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700;color:${{mtbfColor}}">${{r.mtbf === null ? '—' : r.mtbf}}</td>
-      <td style="padding:6px 10px;text-align:right;font-weight:700;color:${{mttrColor}}">${{r.mttr === null ? '—' : r.mttr}}</td>
+      <td style="padding:6px 10px;text-align:right;font-weight:700;color:${{mttrColor}}">${{r.mttr === null ? '—' : (r.mttr/60).toFixed(1)+'h'}}</td>
     </tr>`;
   }});
   html += '</tbody></table>';
