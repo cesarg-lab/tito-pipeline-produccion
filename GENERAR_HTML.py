@@ -1104,6 +1104,7 @@ html = f"""<!DOCTYPE html>
   <div>
     <h1>Control de Cosecha Forestal</h1>
     <p class="subtitle">Forestal Millalemu | {MESES[MES]} {ANIO} | {DD} de {DM} días con datos</p>
+    {'<p class="subtitle" style="color:#FBBF24;font-weight:600;margin:3px 0 0">⚠️ Datos preliminares: proyección con pocos días, puede variar</p>' if DD <= 5 else ''}
     <p style="margin:2px 0 0;font-size:11px;opacity:0.5">Datos al: {ULTIMO_DIA}-{MESES[MES][:3]}-{ANIO}</p>
   </div>
   <div class="kpi-row" id="headerKpis"></div>
@@ -1250,7 +1251,7 @@ const tituloKpi = mesCerrado ? 'Cierre Real' : 'Cierre Proy.';
 const tituloProy = mesCerrado ? 'Total Mes' : 'Proyección';
 const sufijoBrecha = brechaVal >= 0 ? 'Sobre meta' : (mesCerrado ? 'Brecha real: ' : 'Brecha: ') + fmt(Math.round(brechaVal));
 document.getElementById('headerKpis').innerHTML = `
-  <div class="kpi" style="min-width:100px"><div class="kpi-label">Acumulado</div><div class="kpi-value" style="font-size:22px">${{fmt(cfg.ta)}}</div><div class="kpi-unit">m³ SSC</div></div>
+  <div class="kpi" style="min-width:100px"><div class="kpi-label">Acumulado</div><div class="kpi-value" style="font-size:22px">${{fmt(Math.round(cfg.ta))}}</div><div class="kpi-unit">m³ SSC</div></div>
   <div class="kpi" style="min-width:100px"><div class="kpi-label">Meta</div><div class="kpi-value" style="font-size:22px">${{fmt(cfg.tm)}}</div><div class="kpi-unit">m³ SSC</div></div>
   <div class="kpi" style="min-width:170px"><div class="kpi-label" style="font-weight:700">${{tituloKpi}}</div><div class="kpi-value" style="color:${{cierreColor}};font-size:52px;line-height:1;font-weight:900">${{cumplTotal}}%</div></div>
   <div class="kpi" style="min-width:150px"><div class="kpi-label" style="font-weight:700">${{tituloProy}}</div><div class="kpi-value" style="font-size:38px;line-height:1;font-weight:800">${{fmt(Math.round(proyTotal))}}</div><div class="kpi-unit" style="color:${{brechaColor}};font-weight:700">${{sufijoBrecha}}</div></div>
