@@ -62,7 +62,7 @@ CLASIF = {
 
 METAS_DEFAULT = {
     'Millalemu 1.1': 7000, 'Millalemu 1.2': 7000, 'Millalemu 1.3': 7000,
-    'Millalemu 1.4': 7000, 'Millalemu 5': 4500, 'Millalemu 7': 7000,
+    'Millalemu 1.4': 7000, 'Millalemu 5': 7000, 'Millalemu 7': 7000,
     'Millalemu 9': 7000, 'Millalemu 11': 6000
 }
 METAS = dict(METAS_DEFAULT)
@@ -373,7 +373,7 @@ def generate():
         cierre_c = '#FCA5A5'   # rojo
     # Cada box: (label, valor, unidad, color_valor, sub_texto, ancho, fs_valor)
     kpi_boxes = [
-        ('Acumulado',  f"{total_acum:,.1f}".replace(',','.'), 'm³ SSC', 'white', None, 1.00*kpi_scale, int(12*kpi_scale)),
+        ('Acumulado',  f"{total_acum:,.0f}".replace(',','.'), 'm³ SSC', 'white', None, 1.00*kpi_scale, int(12*kpi_scale)),
         ('Meta',       f"{meta_total:,.0f}".replace(',','.'), 'm³ SSC', 'white', None, 0.95*kpi_scale, int(12*kpi_scale)),
         ('Cierre Proy.', f"{pct_total:.1f}%", None, cierre_c, None, 2.10*kpi_scale, int(28*kpi_scale)),
         ('Proyección', f"{proy_total:,.0f}".replace(',','.'), None, 'white',
@@ -471,7 +471,7 @@ def generate():
             else:
                 is_bold = bold
             t(cx, ym, val_fn(team), fs=fs_val, c=c, bold=is_bold)
-        rect(col_x(n_teams+1), yc, col_w(n_teams+1), row_h, '#C7D2FE')
+        rect(col_x(n_teams+1), yc, col_w(n_teams+1), row_h, '#C5DAEC')
         t(col_x(n_teams+1) + col_w(n_teams+1) - P, ym, total_val, fs=fs_val, c=total_c, bold=True)
 
     hline(yc, PRIMARY, 2.5)
@@ -522,7 +522,7 @@ def generate():
                 t(cx, ym, val_txt, fs=F_NUM, c=TXT, bold=True)
 
         rect(col_x(n_teams+1), yc, col_w(n_teams+1), ROW_H,
-             '#E8EAF0' if not tiene_datos else '#C7D2FE')
+             '#E8EAF0' if not tiene_datos else '#C5DAEC')
         if tiene_datos:
             t(col_x(n_teams+1) + col_w(n_teams+1) - P, ym, fmt(total_dia), fs=F_NUM+2, c=PRIMARY_DK, bold=True)
 
