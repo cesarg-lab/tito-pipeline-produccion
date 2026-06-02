@@ -218,11 +218,15 @@ def generate():
     total_acum = 0; total_hrs = 0; total_tm_mant = 0
     meta_total = sum(METAS[t] for t in TEAMS)
 
+    # Mantención por equipo desde registros CRUDOS (no la tabla cruzada con
+    # producción, que pierde fallas de máquinas paradas todo el día → disp inflada).
+    _tm_mant_team = tm[tm['Clasif'] == 'Mantención'].groupby('Team')['Tiempo (Min)'].sum()
+
     total_turno_seg = 0
     for t in TEAMS:
         td = daily[daily['Team'] == t]
         acum = td['Vol'].sum(); hrs = td['HrsEf'].sum()
-        tm_mant = td['TM_Mant'].sum()
+        tm_mant = float(_tm_mant_team.get(t, 0))
         turno_seg = td['Turno_seg'].sum()
         dias_t = DD; meta = METAS[t]  # días hábiles (regla: faltar no premia)
         prom = acum / dias_t if dias_t > 0 else 0
