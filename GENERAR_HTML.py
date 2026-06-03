@@ -971,6 +971,18 @@ if not any(m['mes'] == MES and m['anio'] == ANIO for m in tm_mensual_list):
     })
 tm_mensual_list = sorted(tm_mensual_list, key=lambda m: (m['anio'], m['mes']))
 
+# Snapshots disponibles (mes completo navegable): los meses archivados (menos el
+# en curso, que es index.html) tienen su Dashboard_Cosecha_AAAA-MM.html en el FTP.
+# Se unen con las carpetas locales _snapshots/ para el botón local.
+snapshots_disponibles = set(f"{m['anio']}-{m['mes']:02d}" for m in tm_mensual_list
+                            if not (m['mes'] == MES and m['anio'] == ANIO))
+_sd = os.path.join(BASE_DIR, '_snapshots')
+if os.path.isdir(_sd):
+    snapshots_disponibles |= set(d for d in os.listdir(_sd)
+                                 if os.path.isdir(os.path.join(_sd, d))
+                                 and os.path.exists(os.path.join(_sd, d, 'data_diario.csv')))
+snapshots_disponibles = sorted(snapshots_disponibles)
+
 data_json = json.dumps({
     'cfg': {'mes':MES,'anio':ANIO,'dm':DM,'dd':DD,'dt':DT,'dr':DR,
             'ta': round(daily['Vol'].sum(),1), 'tm': sum(METAS.values()),
@@ -1002,11 +1014,7 @@ data_json = json.dumps({
     'compMes': comp_mes,
     'historico': historico_list,
     'tmMensual': tm_mensual_list,
-    'snapshotsDisponibles': sorted([
-        d for d in os.listdir(os.path.join(BASE_DIR, '_snapshots'))
-        if os.path.isdir(os.path.join(BASE_DIR, '_snapshots', d))
-        and os.path.exists(os.path.join(BASE_DIR, '_snapshots', d, 'data_diario.csv'))
-    ]) if os.path.isdir(os.path.join(BASE_DIR, '_snapshots')) else [],
+    'snapshotsDisponibles': snapshots_disponibles,
     'obsAnalisis': obs_analisis,
     'resumenEj': {
         'proyPct': proy_total_pct,
