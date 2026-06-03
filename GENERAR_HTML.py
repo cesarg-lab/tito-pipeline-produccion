@@ -3300,7 +3300,7 @@ document.getElementById('genDate').textContent = D.generado;
   }});
   btnClear.addEventListener('click', () => {{
     selMes.value = '__current__';
-    window.location.href = 'Dashboard_Cosecha.html';
+    window.location.href = 'index.html';
   }});
 }})();
 {MODAL_JS}
