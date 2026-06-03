@@ -2619,7 +2619,11 @@ const dspEl = document.getElementById('diasSinProdTable');
     </tr>`;
   }});
   html += '</tbody></table>';
-  html += '<div style="font-size:10px;color:#94A3B8;margin-top:8px">MTBF alto = falla poco (mejor). MTTR bajo = repara rápido (mejor). Solo considera fallas de Mantención.</div>';
+  html += `<div style="font-size:11px;color:#64748B;margin-top:10px;line-height:1.7;background:#F8FAFC;border-radius:8px;padding:10px 12px">
+    <b style="color:#1A5276">MTBF</b> <span style="color:#94A3B8">(Mean Time Between Failures)</span> — horas promedio que la máquina <b>trabaja entre una falla y la siguiente</b>. Mientras más alto, falla menos = <b style="color:#166534">mejor</b>.<br>
+    <b style="color:#1A5276">MTTR</b> <span style="color:#94A3B8">(Mean Time To Repair)</span> — horas promedio que toma <b>reparar</b> cada falla. Mientras más bajo, se arregla más rápido = <b style="color:#166534">mejor</b>.<br>
+    <span style="color:#94A3B8">Solo considera fallas de Mantención.</span>
+  </div>`;
   el.innerHTML = html;
 }})();
 
