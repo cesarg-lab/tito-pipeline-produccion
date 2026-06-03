@@ -3284,7 +3284,7 @@ document.getElementById('genDate').textContent = D.generado;
     const v = e.target.value;
     // Si es "Mes en curso" → ir al dashboard del mes actual
     if (v === '__current__') {{
-      window.location.href = 'Dashboard_Cosecha.html';
+      window.location.href = 'index.html';
       return;
     }}
     // Si el snapshot está disponible → navegar al HTML específico de ese mes
