@@ -3211,11 +3211,14 @@ document.getElementById('genDate').textContent = D.generado;
 
   const MESES_NOMBRE = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const mesesHist = [...new Set((D.historico||[]).map(r => r.anio*100 + r.mes))].sort();
-  const mesActualKey = D.cfg.anio*100 + D.cfg.mes;
+  // Mes en curso = fecha REAL del navegador (no la del snapshot que se está viendo)
+  const _hoy = new Date();
+  const mesActualKey = _hoy.getFullYear()*100 + (_hoy.getMonth()+1);
+  const mesActualTxt = `${{MESES_NOMBRE[_hoy.getMonth()+1]}} ${{_hoy.getFullYear()}}`;
   // Snapshots disponibles (los inyecta el backend)
   const snapshotsDisponibles = D.snapshotsDisponibles || [];
 
-  selMes.options[0].textContent = `Mes en curso (${{D.cfg.mesNombre}} ${{D.cfg.anio}})`;
+  selMes.options[0].textContent = `Mes en curso (${{mesActualTxt}})`;
   mesesHist.forEach(k => {{
     if (k === mesActualKey) return;
     const anio = Math.floor(k/100), mes = k%100;
