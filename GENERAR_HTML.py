@@ -677,13 +677,30 @@ for t in TEAMS:
         })
 
 # 6. Análisis por Predio
+# FIX: HrsEf es por folio (mismo turno repetido por producto). Deduplicar por
+# (predio, folio) tomando 'first' antes de sumar, igual que la vista por equipo;
+# si no, las horas se inflan N veces y el m³/hr sale deflactado.
 predio_stats = []
-pred_grp = prod.groupby('Código Predio').agg(
-    vol=('Vol','sum'), hrs=('HrsEf','sum'),
-    arb=('Arb','sum'), ciclos=('Ciclos','sum'),
-    equipos=('Team', lambda s: sorted(set(s.dropna()))),
-    especies=('Desc Especie', lambda s: sorted(set(s.dropna())))
-).reset_index()
+if 'Número Noc' in prod.columns:
+    _pf = prod.groupby(['Código Predio', 'Número Noc']).agg(
+        vol=('Vol', 'sum'), hrs=('HrsEf', 'first'),
+        arb=('Arb', 'sum'), ciclos=('Ciclos', 'sum'),
+        equipos=('Team', lambda s: tuple(sorted(set(s.dropna())))),
+        especies=('Desc Especie', lambda s: tuple(sorted(set(s.dropna())))),
+    ).reset_index()
+    pred_grp = _pf.groupby('Código Predio').agg(
+        vol=('vol', 'sum'), hrs=('hrs', 'sum'),
+        arb=('arb', 'sum'), ciclos=('ciclos', 'sum'),
+        equipos=('equipos', lambda s: sorted(set(e for tup in s for e in tup))),
+        especies=('especies', lambda s: sorted(set(e for tup in s for e in tup))),
+    ).reset_index()
+else:
+    pred_grp = prod.groupby('Código Predio').agg(
+        vol=('Vol','sum'), hrs=('HrsEf','sum'),
+        arb=('Arb','sum'), ciclos=('Ciclos','sum'),
+        equipos=('Team', lambda s: sorted(set(s.dropna()))),
+        especies=('Desc Especie', lambda s: sorted(set(s.dropna())))
+    ).reset_index()
 for _, r in pred_grp.iterrows():
     predio_stats.append({
         'pr': str(r['Código Predio']),
