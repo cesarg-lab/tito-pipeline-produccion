@@ -682,28 +682,34 @@ for t in TEAMS:
 # si no, las horas se inflan N veces y el m³/hr sale deflactado.
 predio_stats = []
 if 'Número Noc' in prod.columns:
+    _nom = 'Origen' if 'Origen' in prod.columns else 'Código Predio'
     _pf = prod.groupby(['Código Predio', 'Número Noc']).agg(
         vol=('Vol', 'sum'), hrs=('HrsEf', 'first'),
         arb=('Arb', 'sum'), ciclos=('Ciclos', 'sum'),
+        nombre=(_nom, 'first'),
         equipos=('Team', lambda s: tuple(sorted(set(s.dropna())))),
         especies=('Desc Especie', lambda s: tuple(sorted(set(s.dropna())))),
     ).reset_index()
     pred_grp = _pf.groupby('Código Predio').agg(
         vol=('vol', 'sum'), hrs=('hrs', 'sum'),
         arb=('arb', 'sum'), ciclos=('ciclos', 'sum'),
+        nombre=('nombre', 'first'),
         equipos=('equipos', lambda s: sorted(set(e for tup in s for e in tup))),
         especies=('especies', lambda s: sorted(set(e for tup in s for e in tup))),
     ).reset_index()
 else:
+    _nom = 'Origen' if 'Origen' in prod.columns else 'Código Predio'
     pred_grp = prod.groupby('Código Predio').agg(
         vol=('Vol','sum'), hrs=('HrsEf','sum'),
         arb=('Arb','sum'), ciclos=('Ciclos','sum'),
+        nombre=(_nom, 'first'),
         equipos=('Team', lambda s: sorted(set(s.dropna()))),
         especies=('Desc Especie', lambda s: sorted(set(s.dropna())))
     ).reset_index()
 for _, r in pred_grp.iterrows():
     predio_stats.append({
         'pr': str(r['Código Predio']),
+        'nombre': str(r['nombre']) if pd.notna(r['nombre']) else '',
         'vol': round(r['vol'], 1),
         'hrs': round(r['hrs'], 1),
         'rend': round(r['vol']/r['hrs'], 2) if r['hrs'] > 0 else 0,
@@ -2518,7 +2524,10 @@ const dspEl = document.getElementById('diasSinProdTable');
     const especiesTxt = p.esp.map(e => ESP_NAMES[e] || e).join(', ');
     const faenasTxt = p.eq.join(', ');
     html += `<tr style="background:${{i%2===0?'#F8FAFC':'white'}}">
-      <td style="padding:6px 10px;font-weight:600;color:#1A5276">${{p.pr}}</td>
+      <td style="padding:6px 10px;color:#1A5276">
+        <div style="font-weight:600">${{p.nombre || p.pr}}</div>
+        ${{p.nombre ? `<div style="font-size:10px;color:#94A3B8">Cód. ${{p.pr}}</div>` : ''}}
+      </td>
       <td style="padding:6px 10px;text-align:right;font-weight:700">${{fmt(p.vol)}}</td>
       <td style="padding:6px 10px;text-align:right">
         <div style="display:inline-block;background:#E2E8F0;height:8px;width:60px;border-radius:4px;overflow:hidden;vertical-align:middle;margin-right:6px">
