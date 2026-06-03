@@ -66,6 +66,11 @@ echo ""
 echo "▶️  [5/9] Subiendo a produccion.millalemu.com..."
 python3 SUBIR_FTP.py 2>&1 | tee -a "$LOG_PIPELINE"
 
+# ── 5.5 Generar snapshots de meses cerrados (idempotente; solo los que faltan) ──
+echo ""
+echo "▶️  [5.5/9] Generando snapshots de meses pasados si faltan..."
+python3 generar_snapshots.py --todos 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  generar_snapshots falló (no crítico, sigue)"
+
 # ── Pasos siguientes son nice-to-have: no abortan el pipeline si fallan ──
 set +e
 
