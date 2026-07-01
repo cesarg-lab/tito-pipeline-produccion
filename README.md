@@ -98,6 +98,36 @@ Una vez confirmada al menos 1 corrida automática exitosa (próximo día):
 
 ---
 
+## 🔄 Regenerar un mes puntual (cerrado)
+
+El pipeline diario descarga **solo el mes en curso** (rango: primer día del mes → hoy). Una vez que empieza un mes nuevo, ya **no vuelve a tocar los meses anteriores** — quedan congelados como snapshots (`_snapshots/AAAA-MM/` → pestaña "meses anteriores" del dashboard).
+
+Si necesitás **corregir un mes ya cerrado** (ej. producción cargada tarde en el NOC el último día), regeneralo a mano con `generar_snapshots.py`:
+
+```bash
+# En un clon del repo, con Python 3.11+ y las deps instaladas (pip install -r requirements.txt)
+export ARAUCO_USER="<RUT empresa, formato XXXXXXXX-X>"
+export ARAUCO_PASS="<password GeoNOC>"
+
+python3 generar_snapshots.py 2026-06 --force     # regenera Junio 2026
+```
+
+Qué hace (`--force` es clave: sin él, salta los meses cuyo HTML ya está en el servidor):
+
+1. Re-descarga el mes **completo** desde Arauco por API (BN + Tiempos Perdidos, del día 1 al último).
+2. Reconstruye `_snapshots/AAAA-MM/{data_diario.csv, data_tm.csv, meta.json}`.
+3. Corre `GENERAR_HTML.py --snapshot AAAA-MM` → `Dashboard_Cosecha_AAAA-MM.html`.
+4. Lo **sube por FTP** al hosting.
+
+> **Solo afecta la pestaña de ese mes** — no toca el mes actual (`index.html` / `data.json`) ni dispara notificaciones de Telegram.
+
+Notas:
+- Las credenciales **FTP** ya vienen como fallback dentro de `generar_snapshots.py`; solo hay que exportar las de **Arauco**. (En una corrida cloud, todas salen de los Secrets del repo.)
+- Podés pasar varios meses de una: `python3 generar_snapshots.py 2026-04 2026-05 2026-06 --force`.
+- El botón "Run workflow" de GitHub **NO** sirve para esto: el workflow siempre corre el mes en curso. Un mes puntual se regenera solo por esta vía.
+
+---
+
 ## 📊 Logs y monitoreo
 
 - **GitHub Actions UI** → tab Actions → cada corrida tiene log completo (queda 90 días)
