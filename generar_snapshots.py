@@ -64,15 +64,15 @@ def descargar(mes, anio):
     import requests
     s = requests.Session(); s.verify = False
     s.headers.update({"User-Agent": "Mozilla/5.0"})
-    tok = dn.obtener_token_arcgis(s); dn.establecer_sesion(s, tok)
+    tok = dn.obtener_token_arcgis(s)
     ud = calendar.monthrange(anio, mes)[1]
     fi, ff = f"{anio}-{mes:02d}-01", f"{anio}-{mes:02d}-{ud:02d}"
-    pg = dn.descargar_reporte(s, tok, "PG", fi, ff)
+    pg = dn.descargar_reporte(s, tok, "BN", fi, ff)
     tp = dn.descargar_reporte(s, tok, "TP", fi, ff)
     d = Path("/tmp/snap_dl"); d.mkdir(exist_ok=True)
-    if pg: dn.guardar_csv(pg, "PG", d)
+    if pg: dn.guardar_csv(pg, "BN", d)
     if tp: dn.guardar_csv(tp, "TP", d)
-    pgdf = pd.read_csv(d / "ProductividadGenerico.csv", sep=';', encoding='utf-8-sig') if pg else None
+    pgdf = pd.read_csv(d / "Base2NOC.csv", sep=';', encoding='utf-8-sig') if pg else None
     tpdf = pd.read_csv(d / "TiemposPerdidos.csv", sep=';', encoding='utf-8-sig') if tp else None
     return pgdf, tpdf
 
