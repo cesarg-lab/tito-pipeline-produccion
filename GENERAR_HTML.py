@@ -76,9 +76,9 @@ CLASIF = {
 # Leer metas desde Excel si existe, sino usar defaults
 EXCEL = os.path.join(BASE_DIR, "Dashboard_CosechaForestal.xlsx")
 METAS_DEFAULT = {
-    'Millalemu 1.1': 7000.0, 'Millalemu 1.2': 7000.0, 'Millalemu 1.3': 7000.0,
-    'Millalemu 1.4': 7000.0, 'Millalemu 5': 4500.0, 'Millalemu 7': 7000.0,
-    'Millalemu 9': 7000.0, 'Millalemu 11': 6000.0
+    'Millalemu 1.1': 8000.0, 'Millalemu 1.2': 8000.0, 'Millalemu 1.3': 8000.0,
+    'Millalemu 1.4': 8000.0, 'Millalemu 5': 4500.0, 'Millalemu 7': 7000.0,
+    'Millalemu 9': 5000.0, 'Millalemu 11': 6000.0
 }
 METAS = dict(METAS_DEFAULT)
 if os.path.exists(EXCEL):
@@ -1493,14 +1493,14 @@ const semaforoEl = document.getElementById('semaforo');
 semaforoEl.innerHTML = `
   <div class="semaforo-pill" style="background:#F0FDF4"><div class="semaforo-dot" style="background:#1E8449"></div><span style="font-size:13px;font-weight:600;color:#166534">${{enMeta}} ${{enMeta===1?'equipo':'equipos'}} en meta</span></div>
   <div class="semaforo-pill" style="background:#FEF2F2"><div class="semaforo-dot" style="background:#C0392B"></div><span style="font-size:13px;font-weight:600;color:#991B1B">${{conBrecha}} con brecha</span></div>
-  <div class="semaforo-pill" style="background:${{avgDisp>=80?'#F0FDF4':avgDisp>=60?'#FFF7ED':'#FEF2F2'}}"><span style="font-size:13px;font-weight:600;color:${{avgDisp>=80?'#166534':avgDisp>=60?'#92400E':'#C0392B'}}">Disp. promedio: ${{avgDisp.toFixed(1)}}%</span></div>
+  <div class="semaforo-pill" style="background:${{avgDisp>=90?'#F0FDF4':avgDisp>=60?'#FFF7ED':'#FEF2F2'}}"><span style="font-size:13px;font-weight:600;color:${{avgDisp>=90?'#166534':avgDisp>=60?'#92400E':'#C0392B'}}">Disp. promedio: ${{avgDisp.toFixed(1)}}%</span></div>
 `;
 
 // ── Alertas Ejecutivas ──────────────────────────────────
 const alertas = [];
 const expectedPctDay = (cfg.dd / cfg.dt * 100);
 
-// 1. Disponibilidad < 80% → CRÍTICA
+// 1. Disponibilidad < 90% → bajo meta (< 60% → CRÍTICA)
 D.kpis.forEach(k => {{
   const disp = k.turno > 0 ? (1 - k.tm / k.turno) * 100 : 100;
   if (disp < 60) {{
@@ -1508,7 +1508,7 @@ D.kpis.forEach(k => {{
       titulo: `${{k.t}} — Disponibilidad crítica: ${{disp.toFixed(1)}}%`,
       detalle: `TM Mantención: ${{(k.tm/60).toFixed(0)}} hrs. Intervención inmediata.`
     }});
-  }} else if (disp < 80) {{
+  }} else if (disp < 90) {{
     alertas.push({{ tipo: 'advertencia', icono: '🟡', valor: disp,
       titulo: `${{k.t}} — Disponibilidad bajo meta: ${{disp.toFixed(1)}}%`,
       detalle: `TM Mantención: ${{(k.tm/60).toFixed(0)}} hrs. Revisar mantenimiento preventivo.`
@@ -1656,7 +1656,7 @@ function showTeamDetail(teamName) {{
           </div>
           <div style="font-size:11px;color:#64748B">
             <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #F1F5F9">
-              <span>Disponibilidad estimada</span><b style="color:${{parseFloat(disp)<80?BAD:NEUTRAL}}">${{disp}}%</b>
+              <span>Disponibilidad estimada</span><b style="color:${{parseFloat(disp)<90?BAD:NEUTRAL}}">${{disp}}%</b>
             </div>
             <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #F1F5F9">
               <span>m³/hora efectiva</span><b>${{k.r}}</b>
@@ -1779,8 +1779,8 @@ D.kpis.forEach((k, i) => {{
   const isBottom3 = rank > totalTeams - 3;
   const badgeHtml = rank <= 3 ? `<div class="rank-badge">${{medals[rank]}}</div>` : `<div class="rank-badge-mid">#${{rank}}</div>`;
   const disp = k.turno > 0 ? (1 - k.tm / k.turno) * 100 : 100;
-  const dispColor = disp >= 80 ? '#166534' : disp >= 60 ? '#92400E' : '#C0392B';
-  const dispBg = disp >= 80 ? '#F0FDF4' : disp >= 60 ? '#FFF7ED' : '#FEF2F2';
+  const dispColor = disp >= 90 ? '#166534' : disp >= 60 ? '#92400E' : '#C0392B';
+  const dispBg = disp >= 90 ? '#F0FDF4' : disp >= 60 ? '#FFF7ED' : '#FEF2F2';
   cardsHtml += `
     <div class="team-card" data-team="${{k.t}}" style="border-color:${{color}}22">
       ${{badgeHtml}}
@@ -2125,7 +2125,7 @@ let dispHtml = `<table style="width:100%;border-collapse:collapse;font-size:12px
     <th style="padding:8px 10px;text-align:right;border-radius:0 8px 0 0">Disp. %</th>
   </tr></thead><tbody>`;
 tmTeamCat.forEach((t, i) => {{
-  const dispColor = t.disp >= 80 ? '#166534' : t.disp >= 60 ? '#92400E' : '#C0392B';
+  const dispColor = t.disp >= 90 ? '#166534' : t.disp >= 60 ? '#92400E' : '#C0392B';
   const mantColor = t.mant > 1000 ? '#C0392B' : '#334155';
   dispHtml += `<tr style="background:${{i%2===0?'#F8FAFC':'white'}}">
     <td style="padding:6px 10px;font-weight:600;color:#1A5276">${{t.tf}}</td>

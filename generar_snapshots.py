@@ -46,9 +46,12 @@ CLASIF = {
     65:'Proceso',66:'Proceso',68:'Proceso',
     42:'Programado',43:'Programado',
 }
-METAS = {'Millalemu 1.1':7000.0,'Millalemu 1.2':7000.0,'Millalemu 1.3':7000.0,
-         'Millalemu 1.4':7000.0,'Millalemu 5':7000.0,'Millalemu 7':7000.0,
-         'Millalemu 9':7000.0,'Millalemu 11':6000.0}
+# Metas mensuales por equipo (m³). Objetivo vigente desde julio 2026.
+# OJO: se aplican a cualquier mes que se regenere con este script; los meses
+# ya cerrados con metas anteriores conservan sus valores en su meta.json subido.
+METAS = {'Millalemu 1.1':8000.0,'Millalemu 1.2':8000.0,'Millalemu 1.3':8000.0,
+         'Millalemu 1.4':8000.0,'Millalemu 5':7000.0,'Millalemu 7':7000.0,
+         'Millalemu 9':5000.0,'Millalemu 11':6000.0}
 MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
          "Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
