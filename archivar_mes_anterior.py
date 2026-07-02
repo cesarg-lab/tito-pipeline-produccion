@@ -171,11 +171,14 @@ def archivar_tm(mes, anio):
     perd = ma + op + pr
     tcp = tp[tp['cat'] != 'Programado'].groupby('Descripción')['min'].sum().sort_values(ascending=False).head(3)
     top = "; ".join(f"{str(k)[:28]} ({v/60:.0f}h)" for k, v in tcp.items())
+    # top_causas lleva ';' internos → SIEMPRE entre comillas (con escape) o rompe
+    # el read_csv(sep=';') que arma tm_mensual_list en GENERAR_HTML.
+    top_q = '"' + top.replace('"', '""') + '"'
     nuevo = not TM_HIST_CSV.exists()
     with open(TM_HIST_CSV, 'a', encoding='utf-8') as f:
         if nuevo:
             f.write("mes;anio;mes_nombre;mantencion_h;operacional_h;proceso_h;programado_h;total_perdido_h;top_causas\n")
-        f.write(f"{mes};{anio};{MESES[mes]};{ma:.1f};{op:.1f};{pr:.1f};{pg:.1f};{perd:.1f};{top}\n")
+        f.write(f"{mes};{anio};{MESES[mes]};{ma:.1f};{op:.1f};{pr:.1f};{pg:.1f};{perd:.1f};{top_q}\n")
     log(f"✅ TM {MESES[mes]} {anio} archivado: perdido {perd:.0f}h (Mant {ma:.0f} / Oper {op:.0f} / Proc {pr:.0f})")
 
 def main():
