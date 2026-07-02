@@ -84,22 +84,22 @@ def mes_ya_archivado(mes, anio):
     return False
 
 def descargar_mes(mes, anio):
-    """Baja PG del mes desde Arauco y devuelve el DataFrame normalizado."""
+    """Baja BN (Base2NOC) del mes desde Arauco y devuelve el DataFrame crudo.
+    cierre() lo normaliza con normalizar(), que espera formato BN."""
     spec = importlib.util.spec_from_file_location("dnoc", str(BASE_DIR / "descargar_noc_api.py"))
     dn = importlib.util.module_from_spec(spec); spec.loader.exec_module(dn)
     import requests
     s = requests.Session(); s.verify = False
     s.headers.update({"User-Agent": "Mozilla/5.0"})
     token = dn.obtener_token_arcgis(s)
-    dn.establecer_sesion(s, token)
     ult_dia = calendar.monthrange(anio, mes)[1]
     fi, ff = f"{anio}-{mes:02d}-01", f"{anio}-{mes:02d}-{ult_dia:02d}"
     log(f"descargando {MESES[mes]} {anio} ({fi} → {ff})...")
-    pg = dn.descargar_reporte(s, token, "PG", fi, ff)
+    pg = dn.descargar_reporte(s, token, "BN", fi, ff)
     if not pg:
         return None
-    dn.guardar_csv(pg, "PG", Path("/tmp"))
-    return pd.read_csv("/tmp/ProductividadGenerico.csv", sep=';', encoding='utf-8-sig')
+    dn.guardar_csv(pg, "BN", Path("/tmp"))
+    return pd.read_csv("/tmp/Base2NOC.csv", sep=';', encoding='utf-8-sig')
 
 def cierre(prod, mes, anio, metas):
     prod = normalizar(prod)
@@ -146,7 +146,7 @@ def descargar_tp(mes, anio):
     import requests
     s = requests.Session(); s.verify = False
     s.headers.update({"User-Agent": "Mozilla/5.0"})
-    token = dn.obtener_token_arcgis(s); dn.establecer_sesion(s, token)
+    token = dn.obtener_token_arcgis(s)
     ud = calendar.monthrange(anio, mes)[1]
     tp = dn.descargar_reporte(s, token, "TP", f"{anio}-{mes:02d}-01", f"{anio}-{mes:02d}-{ud:02d}")
     if not tp:
