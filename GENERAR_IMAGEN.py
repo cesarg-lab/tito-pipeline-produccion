@@ -173,9 +173,22 @@ def generate():
     DD = sum(1 for d in range(1, _ULT + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
     DR = max(DT - DD, 1)
 
-    daily = prod.groupby(['Dia','Team']).agg(
-        Vol=('Vol','sum'), HrsEf=('HrsEf','sum'), Turno_seg=('Turno_seg','sum')
-    ).reset_index()
+    # Vol suma por fila (cada producto del folio aporta m³ distinto), pero HrsEf y
+    # Turno_seg son valores del FOLIO (se repiten en cada fila-producto). Sumarlos por
+    # fila los multiplica por N productos → infla las horas y SUBESTIMA el m³/hora.
+    # Fix: tomar 1 valor por folio antes de agregar (igual que GENERAR_RESUMEN).
+    if 'Número Noc' in prod.columns:
+        _vol = prod.groupby(['Dia','Team']).agg(Vol=('Vol','sum')).reset_index()
+        _ht = (prod.groupby(['Dia','Team','Número Noc'])
+                   .agg(HrsEf=('HrsEf','first'), Turno_seg=('Turno_seg','first')).reset_index()
+                   .groupby(['Dia','Team'])
+                   .agg(HrsEf=('HrsEf','sum'), Turno_seg=('Turno_seg','sum')).reset_index())
+        daily = _vol.merge(_ht, on=['Dia','Team'], how='left')
+        daily[['HrsEf','Turno_seg']] = daily[['HrsEf','Turno_seg']].fillna(0)
+    else:
+        daily = prod.groupby(['Dia','Team']).agg(
+            Vol=('Vol','sum'), HrsEf=('HrsEf','sum'), Turno_seg=('Turno_seg','sum')
+        ).reset_index()
     # Filtrar por grupo seleccionado
     daily = daily[daily['Team'].isin(TEAMS)].reset_index(drop=True)
     # También filtrar vol_oficial_diario para que agregue filas solo de los equipos del grupo
