@@ -126,7 +126,44 @@ def _fetch_pg_api():
         return None
 
 
+def _turnos_por_faena():
+    """Lee turnos_jefes.xlsx → {faena: [{jefe, full:set, half:set}, ...]}. {} si no está.
+    'T' = día completo del jefe; 'T 1/2' = día de cambio (medio día, ambos jefes)."""
+    try:
+        from openpyxl import load_workbook
+        xls = BASE / "turnos_jefes.xlsx"
+        if not xls.exists():
+            return {}
+        ws = load_workbook(str(xls), data_only=True).active
+        rows = list(ws.iter_rows(values_only=True))
+        dayrow = next((r for r in rows[:4] if sum(1 for c in r if isinstance(c, (int, float))) >= 20), None)
+        if not dayrow:
+            return {}
+        col2day = {i: int(c) for i, c in enumerate(dayrow) if isinstance(c, (int, float))}
+        turnos = {}; faena = None
+        for r in rows:
+            fa = r[1] if len(r) > 1 else None; jefe = r[2] if len(r) > 2 else None
+            if isinstance(fa, str) and fa.strip().startswith('Millalemu'):
+                faena = fa.strip()
+            if isinstance(jefe, str) and jefe.strip() and faena:
+                full, half = set(), set()
+                for i, day in col2day.items():
+                    v = r[i] if i < len(r) else None
+                    if isinstance(v, str):
+                        if '1/2' in v:
+                            half.add(day)
+                        elif v.strip().upper() == 'T':
+                            full.add(day)
+                if full or half:
+                    turnos.setdefault(faena, []).append({'jefe': jefe.strip(), 'full': full, 'half': half})
+        return turnos
+    except Exception as e:
+        print(f"   ⚠️  turnos: {e}")
+        return {}
+
+
 def main():
+    TURNOS = _turnos_por_faena()
     prod = _fetch_pg_api()
     if prod is None:
         prod = normalizar(pd.read_csv(CSV_PROD, sep=';', encoding='utf-8-sig'))
@@ -188,8 +225,21 @@ def main():
             _gx = _x.groupby('Número Noc'); _v = _x['Vol'].sum(); _he = _gx['HrsEf'].first().sum(); _ci = _gx['Ciclos'].first().sum()
             dias_det.append({'d': int(_day), 'vol': round(_v), 'hrs': round(_he, 1), 'cic': int(_ci), 'rend': round(_v / _he, 1) if _he else 0})
         dias_det.sort(key=lambda z: z['d'])
+        # Atribución por turno/jefe (7×7): cada día se asigna al jefe que estaba;
+        # día de cambio ('T 1/2') se reparte 50/50 entre los dos jefes.
+        turnos_faena = []
+        for jt in TURNOS.get(NOMBRE[t], []):
+            jv = jh = jc = jd = 0.0
+            for x in dias_det:
+                w = 1.0 if x['d'] in jt['full'] else (0.5 if x['d'] in jt['half'] else 0.0)
+                if w:
+                    jv += x['vol'] * w; jh += x['hrs'] * w; jc += x['cic'] * w; jd += w
+            if jd > 0:
+                turnos_faena.append(dict(jefe=jt['jefe'], dias=round(jd, 1), m3=round(jv), hrs=round(jh, 1),
+                    ciclos=int(round(jc)), m3_dia=round(jv / jd, 1), m3_hr=round(jv / jh, 1) if jh else 0))
+        turnos_faena.sort(key=lambda z: -z['m3_dia'])   # mejor turno primero
         faenas.append(dict(team=t, nombre=NOMBRE[t], tipo=('Terrestre' if t in TERRESTRE else 'Aéreo'),
-            grupo_tec=GRUPO_TEC.get(t, 'Skidder'), dias_detalle=dias_det,
+            grupo_tec=GRUPO_TEC.get(t, 'Skidder'), dias_detalle=dias_det, turnos=turnos_faena,
             meta_m3=METAS[t], vol_m3=round(vol, 1), cumpl_pct=round(vol / METAS[t] * 100, 1),
             proy_cierre_m3=round(proy, 0), proy_cumpl_pct=round(proy / METAS[t] * 100, 1), prom_diario_m3=round(prom, 1),
             dias=int(ndias), folios=int(nfolios), arboles=int(arb),
