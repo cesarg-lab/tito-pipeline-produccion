@@ -64,8 +64,68 @@ def _num(s):
     return pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
 
 
+def _hora_seg(v):
+    """Convierte hora (ISO datetime / 'HH:MM[:SS]' / número) a segundos desde medianoche."""
+    if v is None or v == '':
+        return 0
+    s = str(v)
+    try:
+        if 'T' in s:
+            from datetime import datetime as _dt
+            t = _dt.fromisoformat(s)
+            return t.hour * 3600 + t.minute * 60 + t.second
+        if ':' in s:
+            p = s.split(':')
+            return int(p[0]) * 3600 + int(p[1]) * 60 + (int(p[2]) if len(p) > 2 else 0)
+        return int(float(s))
+    except Exception:
+        return 0
+
+
+def _fetch_pg_api():
+    """Baja el reporte Productividad Genérico del NOC (única fuente con árboles
+    madereados; Base2NOC no los trae) → DataFrame con las columnas que espera el
+    cómputo. Devuelve None si falla (para caer al CSV)."""
+    try:
+        import descargar_noc_api as noc
+        import requests
+        from datetime import datetime
+        hoy = datetime.now()
+        fi = hoy.replace(day=1).strftime('%Y-%m-%d')
+        ff = hoy.strftime('%Y-%m-%d')
+        s = requests.Session(); s.verify = False
+        s.headers.update({'User-Agent': 'Mozilla/5.0'})
+        tok = noc.obtener_token_arcgis(s)
+        try:
+            noc.establecer_sesion(s, tok)
+        except Exception:
+            pass
+        datos = noc.descargar_reporte(s, tok, 'PG', fi, ff)
+        if not datos:
+            return None
+        rows = [{
+            'Equipo': str(r.get('equipo', '')).strip(),
+            'Fecha NOC': str(r.get('hora_inicio', ''))[:10],
+            'Volumen SSC PU': r.get('m3ssc_pu') or 0,
+            'Volumen SSC AS': r.get('m3ssc_as') or 0,
+            'Tiempo Efectivo': r.get('tiempo_efectivo') or 0,
+            'Hora Inicio': _hora_seg(r.get('hora_inicio')),
+            'Hora Fin': _hora_seg(r.get('hora_fin')),
+            'Número Ciclos': r.get('numero_ciclos') or 0,
+            'Árboles Madereados': r.get('arboles_madereados') or 0,
+            'Número Noc': r.get('numero_noc') or 0,
+        } for r in datos]
+        print(f"   🌲 PG API: {len(rows)} folios con árboles madereados")
+        return pd.DataFrame(rows)
+    except Exception as e:
+        print(f"   ⚠️  PG API no disponible ({e}); uso CSV local (VMA quedará en 0 si no hay árboles)")
+        return None
+
+
 def main():
-    prod = normalizar(pd.read_csv(CSV_PROD, sep=';', encoding='utf-8-sig'))
+    prod = _fetch_pg_api()
+    if prod is None:
+        prod = normalizar(pd.read_csv(CSV_PROD, sep=';', encoding='utf-8-sig'))
     for c in ['Volumen SSC PU', 'Volumen SSC AS']:
         if c not in prod.columns:
             prod[c] = 0
