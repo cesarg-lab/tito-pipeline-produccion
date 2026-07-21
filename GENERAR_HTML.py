@@ -828,9 +828,9 @@ proy_total_pct = round(_proy_total / _meta_total * 100, 1) if _meta_total > 0 el
 # 14. Análisis de Observaciones/Comentarios de Tiempos Perdidos
 import re as _re
 CATEGORIAS_OBS = [
-    ('Fallas técnicas',   '#DC2626', ['falla', 'falta', 'reparac', 'rep\\.', 'fuga', 'cambio', 'pasador', 'cilindro', 'cadena', 'flexible', 'correa', 'espada', 'lexan', 'motor', 'hidr', 'cabezal', 'volteo', 'trozado', 'madereo', 'shovel', 'skidder', 'carro', 'brazo']),
-    ('Factores externos', '#F59E0B', ['traslado', 'vehicul', 'tendido', 'carretera', 'camion', 'sodi', 'transport', 'horilla', 'orolla', 'electric']),
-    ('Pausas / descanso', '#94A3B8', ['pausa', 'colacion', 'descanso', 'capacitacion', 'charla', 'almuerz']),
+    ('Fallas técnicas',   '#FF625A', ['falla', 'falta', 'reparac', 'rep\\.', 'fuga', 'cambio', 'pasador', 'cilindro', 'cadena', 'flexible', 'correa', 'espada', 'lexan', 'motor', 'hidr', 'cabezal', 'volteo', 'trozado', 'madereo', 'shovel', 'skidder', 'carro', 'brazo']),
+    ('Factores externos', '#FFB454', ['traslado', 'vehicul', 'tendido', 'carretera', 'camion', 'sodi', 'transport', 'horilla', 'orolla', 'electric']),
+    ('Pausas / descanso', '#7E9289', ['pausa', 'colacion', 'descanso', 'capacitacion', 'charla', 'almuerz']),
     ('Traslados',         '#8B5CF6', ['traslado', 'predio', 'cancha', 'sector', 'cama']),
     ('Cargas / logística','#3B82F6', ['carguio', 'stock', 'distancia', 'apoyo']),
 ]
@@ -839,11 +839,11 @@ def clasificar_obs(txt):
     for nombre, color, keywords in CATEGORIAS_OBS:
         if any(k in t for k in keywords):
             return nombre, color
-    return 'Otros', '#64748B'
+    return 'Otros', '#8AA79C'
 
 obs_analisis = {
     'totalComentarios': 0,
-    'porCategoria': [],      # [{'cat': 'Fallas técnicas', 'color': '#DC2626', 'n': 42, 'minutos': 3240}]
+    'porCategoria': [],      # [{'cat': 'Fallas técnicas', 'color': '#FF625A', 'n': 42, 'minutos': 3240}]
     'topComentarios': [],    # [{'txt': '...', 'n': 10, 'minutos': 420, 'cat': 'Pausas'}]
     'porEquipo': {},         # {'Millalemu 1.1': [{'cat':..., 'n':..., 'minutos':...}]}
     'palabrasClave': [],     # [{'palabra': 'falla', 'n': 28}]
@@ -1035,23 +1035,23 @@ MODAL_CSS = '''
 /* === Modal de grafico ampliado === */
 .chart-card:has(canvas) { cursor: pointer; position: relative; transition: box-shadow .15s ease, transform .15s ease; }
 .chart-card:has(canvas):hover { box-shadow: 0 6px 20px rgba(0,0,0,0.13); transform: translateY(-1px); }
-.chart-card:has(canvas)::after { content: "\\2922"; position: absolute; top: 12px; right: 14px; font-size: 15px; color: #94A3B8; opacity: .5; transition: opacity .15s, color .15s; pointer-events: none; }
-.chart-card:has(canvas):hover::after { opacity: 1; color: #1A5276; }
+.chart-card:has(canvas)::after { content: "\\2922"; position: absolute; top: 12px; right: 14px; font-size: 15px; color: #7E9289; opacity: .5; transition: opacity .15s, color .15s; pointer-events: none; }
+.chart-card:has(canvas):hover::after { opacity: 1; color: #EFB24E; }
 #chartModalOverlay { position: fixed; inset: 0; background: rgba(15,23,42,0.62); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity .22s ease; }
 #chartModalOverlay.open { opacity: 1; pointer-events: auto; }
-#chartModalPanel { background: #fff; border-radius: 16px; width: min(920px, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.35); transform: translateY(14px) scale(.97); opacity: 0; transition: transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+#chartModalPanel { background: #111C17; border-radius: 16px; width: min(920px, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.35); transform: translateY(14px) scale(.97); opacity: 0; transition: transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
 #chartModalOverlay.open #chartModalPanel { transform: translateY(0) scale(1); opacity: 1; }
-#chartModalHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 20px; border-bottom: 1px solid #E2E8F0; }
-#chartModalTitle { font-size: 16px; font-weight: 800; color: #1A5276; margin: 0; }
-#chartModalClose { border: none; background: #F1F5F9; color: #475569; width: 34px; height: 34px; border-radius: 9px; font-size: 20px; line-height: 1; cursor: pointer; flex: none; transition: background .15s; }
-#chartModalClose:hover { background: #E2E8F0; color: #0F172A; }
+#chartModalHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 20px; border-bottom: 1px solid #24352E; }
+#chartModalTitle { font-size: 16px; font-weight: 800; color: #EFB24E; margin: 0; }
+#chartModalClose { border: none; background: #17241E; color: #9DB2A8; width: 34px; height: 34px; border-radius: 9px; font-size: 20px; line-height: 1; cursor: pointer; flex: none; transition: background .15s; }
+#chartModalClose:hover { background: #24352E; color: #EAF2EC; }
 #chartModalBody { padding: 18px 20px 22px; overflow-y: auto; }
 #chartModalCanvasWrap { position: relative; height: min(46vh, 420px); }
 #chartModalTable { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
-#chartModalTable th, #chartModalTable td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #EEF2F6; }
+#chartModalTable th, #chartModalTable td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #17241E; }
 #chartModalTable th:first-child, #chartModalTable td:first-child { text-align: left; }
-#chartModalTable thead th { color: #64748B; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 2px solid #E2E8F0; }
-#chartModalTable tbody tr:hover { background: #F8FAFC; }
+#chartModalTable thead th { color: #8AA79C; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 2px solid #24352E; }
+#chartModalTable tbody tr:hover { background: #0E1713; }
 @media (max-width: 640px) {
   #chartModalOverlay { padding: 0; }
   #chartModalPanel { width: 100vw; height: 100%; max-height: 100vh; border-radius: 0; }
@@ -1153,21 +1153,39 @@ html = f"""<!DOCTYPE html>
 <meta http-equiv="Expires" content="0">
 <title>Dashboard Cosecha - Millalemu {MESES[MES]} {ANIO}</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  if (window.Chart) {{
+    Chart.defaults.color = '#A6BAB0';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+    Chart.defaults.font.family = "'Segoe UI', -apple-system, sans-serif";
+    Chart.defaults.plugins.tooltip.backgroundColor = '#17241E';
+    Chart.defaults.plugins.tooltip.titleColor = '#EAF2EC';
+    Chart.defaults.plugins.tooltip.bodyColor = '#C3D3CB';
+    Chart.defaults.plugins.tooltip.borderColor = '#2E4038';
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.legend.labels.color = '#A6BAB0';
+  }}
+</script>
 <style>
   :root {{
-    --primary: #1A5276; --primary-dark: #154360; --accent: #1E8449;
-    --warning: #E67E22; --danger: #C0392B; --bg: #F8FAFC;
-    --card: #FFFFFF; --subtle: #F1F5F9; --border: #E2E8F0;
-    --text: #1E293B; --text-light: #64748B; --text-muted: #94A3B8;
+    --primary: #EFB24E; --primary-dark: #C6892C; --accent: #43D98A;
+    --warning: #FF9A3D; --danger: #FF625A; --bg: #0A100D;
+    --card: #111C17; --subtle: #17241E; --border: #20302A;
+    --text: #EAF2EC; --text-light: #A6BAB0; --text-muted: #7E9289;
+    --glow: rgba(239,178,78,.5); color-scheme: dark;
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-  body {{ font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }}
+  body {{ font-family: 'Segoe UI', -apple-system, sans-serif; color: var(--text); padding: 16px;
+    background: radial-gradient(1100px 560px at 82% -6%, rgba(239,178,78,.09), transparent 60%), radial-gradient(820px 460px at 4% 2%, rgba(67,217,138,.05), transparent 55%), var(--bg); }}
 
   .header {{
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    border-radius: 16px; padding: 20px 28px; margin-bottom: 20px; color: white;
+    background: linear-gradient(158deg, #12201A 0%, #0C1512 62%, #0A100D 100%);
+    border-radius: 18px; padding: 22px 30px; margin-bottom: 20px; color: #111C17;
+    border: 1px solid #2E4038; box-shadow: 0 10px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.03);
     display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
   }}
+  .header h1 {{ color: #F2F7F3; }}
+  .header .kpi-value {{ color: var(--primary); text-shadow: 0 0 22px var(--glow); }}
   .header h1 {{ font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }}
   .header .subtitle {{ font-size: 13px; opacity: 0.8; margin-top: 4px; }}
   .header .kpi-row {{ display: flex; gap: 28px; flex-wrap: wrap; }}
@@ -1215,16 +1233,16 @@ html = f"""<!DOCTYPE html>
   td {{ padding: 6px 10px; text-align: right; }}
   td:first-child {{ text-align: left; font-weight: 600; color: var(--primary); }}
   tr:nth-child(even) {{ background: var(--subtle); }}
-  .total-row {{ background: var(--primary) !important; color: white; font-weight: 700; }}
-  .total-row td {{ color: white; }}
+  .total-row {{ background: rgba(239,178,78,.12) !important; color: #F0C979; font-weight: 700; }}
+  .total-row td {{ color: #F0C979; }}
 
-  .cell-high {{ background: #D1FAE5; }}
-  .cell-med {{ background: #FEF9C3; }}
-  .cell-low {{ background: #FED7AA; }}
-  .cell-zero {{ background: #FEE2E2; }}
+  .cell-high {{ background: #12211A; }}
+  .cell-med {{ background: #24220F; }}
+  .cell-low {{ background: #241A10; }}
+  .cell-zero {{ background: #241514; }}
   .cell-high-soft {{ background: #ECFDF5; }}
   .cell-med-soft {{ background: #FEFCE8; }}
-  .cell-low-soft {{ background: #FFF7ED; }}
+  .cell-low-soft {{ background: #241A10; }}
 
   .tm-section {{ display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }}
   .bar-item {{ margin-bottom: 8px; }}
@@ -1238,31 +1256,31 @@ html = f"""<!DOCTYPE html>
   }}
   .team-detail .detail-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
   .team-detail .kpi-cards {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }}
-  .team-detail .kpi-card {{ background: #F8FAFC; border-radius: 8px; padding: 8px 12px; }}
+  .team-detail .kpi-card {{ background: #0E1713; border-radius: 8px; padding: 8px 12px; }}
   .team-detail .kpi-card .kpi-card-label {{ font-size: 10px; color: var(--text-muted); }}
   .team-detail .kpi-card .kpi-card-value {{ font-size: 16px; font-weight: 700; }}
   .team-detail .detail-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; overflow: hidden; }}
   .team-detail table {{ width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 16px; }}
   .disp-bar {{ margin-top: 8px; border-radius: 6px; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; }}
-  .disp-track {{ width: 50px; height: 5px; border-radius: 3px; background: #E5E7EB; overflow: hidden; display: inline-block; }}
+  .disp-track {{ width: 50px; height: 5px; border-radius: 3px; background: #24352E; overflow: hidden; display: inline-block; }}
   .disp-fill {{ height: 5px; border-radius: 3px; }}
   .rank-badge {{ position: absolute; top: 6px; right: 8px; font-size: 16px; }}
-  .rank-badge-bottom {{ position: absolute; top: 6px; right: 8px; font-size: 9px; background: #FEE2E2; color: #991B1B; border-radius: 4px; padding: 2px 5px; font-weight: 600; }}
-  .rank-badge-mid {{ position: absolute; top: 6px; right: 8px; font-size: 9px; background: #F1F5F9; color: #64748B; border-radius: 4px; padding: 2px 5px; font-weight: 600; }}
+  .rank-badge-bottom {{ position: absolute; top: 6px; right: 8px; font-size: 9px; background: #241514; color: #FF625A; border-radius: 4px; padding: 2px 5px; font-weight: 600; }}
+  .rank-badge-mid {{ position: absolute; top: 6px; right: 8px; font-size: 9px; background: #17241E; color: #8AA79C; border-radius: 4px; padding: 2px 5px; font-weight: 600; }}
   .semaforo {{ display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }}
   .semaforo-pill {{ display: flex; align-items: center; gap: 6px; border-radius: 8px; padding: 6px 14px; }}
   .alertas-panel {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }}
   .alerta {{ display: flex; align-items: flex-start; gap: 10px; border-radius: 10px; padding: 10px 16px; font-size: 13px; line-height: 1.4; }}
-  .alerta-critica {{ background: #FEF2F2; border-left: 4px solid #DC2626; }}
-  .alerta-advertencia {{ background: #FFF7ED; border-left: 4px solid #F59E0B; }}
+  .alerta-critica {{ background: #241514; border-left: 4px solid #FF625A; }}
+  .alerta-advertencia {{ background: #241A10; border-left: 4px solid #FFB454; }}
   .alerta-icono {{ font-size: 16px; flex-shrink: 0; margin-top: 1px; }}
   .alerta-texto {{ flex: 1; }}
-  .alerta-titulo {{ font-weight: 700; color: #1E293B; }}
-  .alerta-detalle {{ color: #64748B; font-size: 12px; margin-top: 2px; }}
+  .alerta-titulo {{ font-weight: 700; color: #EAF2EC; }}
+  .alerta-detalle {{ color: #8AA79C; font-size: 12px; margin-top: 2px; }}
   .semaforo-dot {{ width: 10px; height: 10px; border-radius: 50%; }}
-  .dbl-hint {{ font-size: 9px; color: #CBD5E1; text-align: center; margin-top: 6px; }}
-  .close-btn {{ background: #F1F5F9; border: none; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 12px; font-weight: 600; color: #64748B; }}
-  .close-btn:hover {{ background: #E2E8F0; }}
+  .dbl-hint {{ font-size: 9px; color: #2E4038; text-align: center; margin-top: 6px; }}
+  .close-btn {{ background: #17241E; border: none; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 12px; font-weight: 600; color: #8AA79C; }}
+  .close-btn:hover {{ background: #24352E; }}
   .tm-box {{ border-radius: 8px; padding: 8px 10px; text-align: center; }}
   .footer {{ text-align: center; margin-top: 24px; padding: 12px; font-size: 11px; color: var(--text-muted); }}
   .section {{ display: none; }}
@@ -1310,7 +1328,7 @@ html = f"""<!DOCTYPE html>
   <div>
     <h1>Control de Cosecha Forestal</h1>
     <p class="subtitle">Forestal Millalemu | {MESES[MES]} {ANIO} | {DD} de {DT} días trabajados</p>
-    {'<p class="subtitle" style="color:#FBBF24;font-weight:600;margin:3px 0 0">⚠️ Datos preliminares: proyección con pocos días, puede variar</p>' if DD <= 5 else ''}
+    {'<p class="subtitle" style="color:#FFC85A;font-weight:600;margin:3px 0 0">⚠️ Datos preliminares: proyección con pocos días, puede variar</p>' if DD <= 5 else ''}
     <p style="margin:2px 0 0;font-size:11px;opacity:0.5">Datos al: {ULTIMO_DIA}-{MESES[MES][:3]}-{ANIO}</p>
   </div>
   <div class="kpi-row" id="headerKpis"></div>
@@ -1319,20 +1337,20 @@ html = f"""<!DOCTYPE html>
 <div class="nav" id="nav"></div>
 
 <!-- Segmentador global de MES -->
-<div id="filtroBar" style="display:flex;align-items:center;gap:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;margin-bottom:14px;flex-wrap:wrap;font-size:13px">
+<div id="filtroBar" style="display:flex;align-items:center;gap:14px;background:#0E1713;border:1px solid #24352E;border-radius:8px;padding:10px 14px;margin-bottom:14px;flex-wrap:wrap;font-size:13px">
   <div style="display:flex;align-items:center;gap:6px">
-    <span style="color:#64748B">📅 Mes:</span>
-    <select id="selectMes" style="padding:4px 8px;border-radius:6px;border:1px solid #CBD5E1;background:white;font-size:13px;font-weight:600;color:#1A5276">
+    <span style="color:#8AA79C">📅 Mes:</span>
+    <select id="selectMes" style="padding:4px 8px;border-radius:6px;border:1px solid #2E4038;background:#17241E;font-size:13px;font-weight:600;color:#EFB24E">
       <option value="__current__" selected>Mes en curso</option>
     </select>
   </div>
-  <span id="filtroMesPill" style="display:none;background:#DBEAFE;color:#1E40AF;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600">Mes seleccionado</span>
-  <button id="btnLimpiarFiltro" style="display:none;margin-left:auto;padding:4px 10px;border-radius:6px;border:1px solid #CBD5E1;background:white;cursor:pointer;font-size:11px;color:#475569">
+  <span id="filtroMesPill" style="display:none;background:#16252E;color:#7FB0FF;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600">Mes seleccionado</span>
+  <button id="btnLimpiarFiltro" style="display:none;margin-left:auto;padding:4px 10px;border-radius:6px;border:1px solid #2E4038;background:#17241E;cursor:pointer;font-size:11px;color:#9DB2A8">
     ✕ Limpiar filtro
   </button>
 </div>
 
-<div id="avisoMesHistorico" style="display:none;background:#EFF6FF;border-left:4px solid #3B82F6;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:12px;color:#1E40AF">
+<div id="avisoMesHistorico" style="display:none;background:#14201C;border-left:4px solid #3B82F6;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:12px;color:#7FB0FF">
   📋 <strong>Vista mes histórico:</strong> los datos crudos (Resumen/Tabla de Producciones/Tiempos Perdidos) solo están disponibles para el mes en curso.
   Para meses anteriores se muestra el resumen agregado en la pestaña <strong>Comparativo Mensual</strong>.
 </div>
@@ -1353,7 +1371,7 @@ html = f"""<!DOCTYPE html>
 
 <div class="section" id="sec-kpis">
   <iframe id="kpiFrame" src="Dashboard_KPIs.html" title="KPIs Uso / Ritmo / Carga / VMA por faena"
-    style="width:100%;border:0;height:1200px;background:#F8FAFC;border-radius:12px"
+    style="width:100%;border:0;height:1200px;background:#0E1713;border-radius:12px"
     onload="try{{this.style.height=(this.contentWindow.document.body.scrollHeight+40)+'px'}}catch(e){{}}"></iframe>
 </div>
 
@@ -1378,7 +1396,7 @@ html = f"""<!DOCTYPE html>
   <div class="chart-card" style="margin-top:16px"><h3>Top 5 Causas de Pérdida por Faena</h3><div id="tmTeamCausesTable"></div></div>
 
   <!-- ═══ ANÁLISIS 80/20 ENRIQUECIDO PARA PLANIFICAR MAYO ═══ -->
-  <div class="chart-card" style="margin-top:24px;border-top:4px solid #D97706">
+  <div class="chart-card" style="margin-top:24px;border-top:4px solid #FF9A3D">
     <h3 style="display:flex;align-items:center;gap:8px">⚡ Análisis Pareto 80/20 — Faena Completa</h3>
     <div id="tmParetoBox"></div>
     <canvas id="chartParetoGlobal" style="max-height:340px;margin-top:8px"></canvas>
@@ -1386,13 +1404,13 @@ html = f"""<!DOCTYPE html>
 
   <div class="chart-card" style="margin-top:16px">
     <h3>🔥 Focos Crónicos: Causas vs Equipos</h3>
-    <div style="font-size:11px;color:#64748B;margin-bottom:8px">Las celdas muestran horas perdidas. Color rojo = concentración del problema en ese equipo.</div>
+    <div style="font-size:11px;color:#8AA79C;margin-bottom:8px">Las celdas muestran horas perdidas. Color rojo = concentración del problema en ese equipo.</div>
     <div id="tmHeatmapCETable" style="overflow-x:auto"></div>
   </div>
 
-  <div class="chart-card" style="margin-top:16px;background:linear-gradient(135deg,#F0FDF4 0%,#ECFCCB 100%);border-left:5px solid #16A34A">
-    <h3 style="color:#166534">🎯 Recomendaciones Accionables para Mayo</h3>
-    <div style="font-size:11px;color:#475569;margin-bottom:12px">Basado en patrones del mes cerrado. Ahorro potencial = reducir 30% del tiempo perdido por la causa.</div>
+  <div class="chart-card" style="margin-top:16px;background:linear-gradient(135deg,#12211A 0%,#1A2410 100%);border-left:5px solid #43D98A">
+    <h3 style="color:#43D98A">🎯 Recomendaciones Accionables para Mayo</h3>
+    <div style="font-size:11px;color:#9DB2A8;margin-bottom:12px">Basado en patrones del mes cerrado. Ahorro potencial = reducir 30% del tiempo perdido por la causa.</div>
     <div id="tmRecBox"></div>
   </div>
 </div>
@@ -1449,10 +1467,10 @@ html = f"""<!DOCTYPE html>
 <script>
 const D = {data_json};
 const TEAMS = D.teams;
-const COLORS = ['#1A5276','#2980B9','#1ABC9C','#27AE60','#8E44AD','#E67E22','#C0392B','#2C3E50'];
+const COLORS = ['#EFB24E','#2980B9','#1ABC9C','#27AE60','#8E44AD','#FF9A3D','#FF625A','#2C3E50'];
 const fmt = n => n != null ? n.toLocaleString('es-CL', {{maximumFractionDigits:1}}) : '—';
-const NEUTRAL = '#334155';
-const BAD = '#C0392B';
+const NEUTRAL = '#C3D3CB';
+const BAD = '#FF625A';
 
 // Header KPIs
 const cfg = D.cfg;
@@ -1461,9 +1479,9 @@ const promDia = cfg.ta / cfg.dd;
 const mesCerrado = cfg.dd >= cfg.dt;
 const proyTotal = mesCerrado ? cfg.ta : (cfg.ta + promDia * cfg.dr);
 const cumplTotal = (proyTotal / cfg.tm * 100).toFixed(1);
-const cierreColor = parseFloat(cumplTotal)>=80?'#A3E635':parseFloat(cumplTotal)>=60?'#FDE68A':'#FCA5A5';
+const cierreColor = parseFloat(cumplTotal)>=80?'#A3E635':parseFloat(cumplTotal)>=60?'#F5C542':'#FF8A80';
 const brechaVal = proyTotal - cfg.tm;
-const brechaColor = brechaVal >= 0 ? '#A3E635' : '#FCA5A5';
+const brechaColor = brechaVal >= 0 ? '#A3E635' : '#FF8A80';
 const tituloKpi = mesCerrado ? 'Cierre Real' : 'Cierre Proy.';
 const tituloProy = mesCerrado ? 'Total Mes' : 'Proyección';
 const sufijoBrecha = brechaVal >= 0 ? 'Sobre meta' : (mesCerrado ? 'Brecha real: ' : 'Brecha: ') + fmt(Math.round(brechaVal));
@@ -1498,9 +1516,9 @@ const conBrecha = D.kpis.length - enMeta;
 const avgDisp = D.kpis.reduce((s,k) => s + (k.turno>0 ? (1-k.tm/k.turno)*100 : 100), 0) / D.kpis.length;
 const semaforoEl = document.getElementById('semaforo');
 semaforoEl.innerHTML = `
-  <div class="semaforo-pill" style="background:#F0FDF4"><div class="semaforo-dot" style="background:#1E8449"></div><span style="font-size:13px;font-weight:600;color:#166534">${{enMeta}} ${{enMeta===1?'equipo':'equipos'}} en meta</span></div>
-  <div class="semaforo-pill" style="background:#FEF2F2"><div class="semaforo-dot" style="background:#C0392B"></div><span style="font-size:13px;font-weight:600;color:#991B1B">${{conBrecha}} con brecha</span></div>
-  <div class="semaforo-pill" style="background:${{avgDisp>=92?'#F0FDF4':avgDisp>=60?'#FFF7ED':'#FEF2F2'}}"><span style="font-size:13px;font-weight:600;color:${{avgDisp>=92?'#166534':avgDisp>=60?'#92400E':'#C0392B'}}">Disp. promedio: ${{avgDisp.toFixed(1)}}%</span></div>
+  <div class="semaforo-pill" style="background:#12211A"><div class="semaforo-dot" style="background:#43D98A"></div><span style="font-size:13px;font-weight:600;color:#43D98A">${{enMeta}} ${{enMeta===1?'equipo':'equipos'}} en meta</span></div>
+  <div class="semaforo-pill" style="background:#241514"><div class="semaforo-dot" style="background:#FF625A"></div><span style="font-size:13px;font-weight:600;color:#FF625A">${{conBrecha}} con brecha</span></div>
+  <div class="semaforo-pill" style="background:${{avgDisp>=92?'#12211A':avgDisp>=60?'#241A10':'#241514'}}"><span style="font-size:13px;font-weight:600;color:${{avgDisp>=92?'#43D98A':avgDisp>=60?'#FF9A3D':'#FF625A'}}">Disp. promedio: ${{avgDisp.toFixed(1)}}%</span></div>
 `;
 
 // ── Alertas Ejecutivas ──────────────────────────────────
@@ -1558,16 +1576,16 @@ if (alertas.length > 0) {{
   const advertencias = alertas.filter(a => a.tipo === 'advertencia').sort((a,b) => (a.valor||50) - (b.valor||50));
   let html = '';
   if (criticas.length > 0) {{
-    html += `<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:#991B1B;text-transform:uppercase;letter-spacing:0.5px">🔴 Críticas</div>`;
+    html += `<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:#FF625A;text-transform:uppercase;letter-spacing:0.5px">🔴 Críticas</div>`;
     html += criticas.map(a => `<div class="alerta alerta-critica"><span class="alerta-icono">${{a.icono}}</span><div class="alerta-texto"><div class="alerta-titulo">${{a.titulo}}</div><div class="alerta-detalle">${{a.detalle}}</div></div></div>`).join('');
   }}
   if (advertencias.length > 0) {{
-    html += `<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:0.5px;${{criticas.length>0?'margin-top:4px':''}}">⚠️ Advertencias</div>`;
+    html += `<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:#FF9A3D;text-transform:uppercase;letter-spacing:0.5px;${{criticas.length>0?'margin-top:4px':''}}">⚠️ Advertencias</div>`;
     html += advertencias.map(a => `<div class="alerta alerta-advertencia"><span class="alerta-icono">${{a.icono}}</span><div class="alerta-texto"><div class="alerta-titulo">${{a.titulo}}</div><div class="alerta-detalle">${{a.detalle}}</div></div></div>`).join('');
   }}
   alertasEl.innerHTML = html;
 }} else {{
-  alertasEl.innerHTML = '<div class="alerta" style="background:#F0FDF4;border-left:4px solid #16A34A"><span class="alerta-icono">✅</span><div class="alerta-texto"><div class="alerta-titulo" style="color:#166534">Sin alertas — Todas las faenas operando dentro de parámetros</div></div></div>';
+  alertasEl.innerHTML = '<div class="alerta" style="background:#12211A;border-left:4px solid #43D98A"><span class="alerta-icono">✅</span><div class="alerta-texto"><div class="alerta-titulo" style="color:#43D98A">Sin alertas — Todas las faenas operando dentro de parámetros</div></div></div>';
 }}
 
 // Ranking (don't reorder, just tag)
@@ -1625,15 +1643,15 @@ function showTeamDetail(teamName) {{
     const v = D.grid[d] ? (D.grid[d][teamName] || 0) : 0;
     acumR += v;
     const dif = v - planDiaDinamico;
-    const bg = ri%2===0 ? '#F8FAFC' : 'white';
+    const bg = ri%2===0 ? '#0E1713' : 'white';
     // Color del NÚMERO según volumen (celda blanca, igual que la grilla principal)
-    const cellTxt = v===0?'#DC2626':v>=200?'#059669':v>=100?'#CA8A04':'#EA580C';
+    const cellTxt = v===0?'#FF625A':v>=200?'#43D98A':v>=100?'#CA8A04':'#FF9A3D';
     gridRows += `<tr style="background:${{bg}}">
-      <td style="padding:5px 10px;font-weight:700;color:#1A5276;border-right:1px solid #E2E8F0">${{d}}</td>
-      <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:13px;color:${{cellTxt}};border-right:1px solid #E2E8F0">${{v>0?fmt(v):'—'}}</td>
-      <td style="padding:5px 10px;text-align:right;color:#94A3B8;border-right:1px solid #E2E8F0">${{fmt(planDiaDinamico)}}</td>
-      <td style="padding:5px 10px;text-align:right;font-weight:600;color:${{v===0?'#94A3B8':dif<0?BAD:NEUTRAL}};border-right:1px solid #E2E8F0">${{v>0?fmt(Math.round(dif)):'—'}}</td>
-      <td style="padding:5px 10px;text-align:right;font-weight:700;color:#1A5276;box-shadow:inset 3px 0 0 #1A5276">${{fmt(Math.round(acumR))}}</td>
+      <td style="padding:5px 10px;font-weight:700;color:#EFB24E;border-right:1px solid #24352E">${{d}}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:13px;color:${{cellTxt}};border-right:1px solid #24352E">${{v>0?fmt(v):'—'}}</td>
+      <td style="padding:5px 10px;text-align:right;color:#7E9289;border-right:1px solid #24352E">${{fmt(planDiaDinamico)}}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:600;color:${{v===0?'#7E9289':dif<0?BAD:NEUTRAL}};border-right:1px solid #24352E">${{v>0?fmt(Math.round(dif)):'—'}}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:700;color:#EFB24E;box-shadow:inset 3px 0 0 #EFB24E">${{fmt(Math.round(acumR))}}</td>
     </tr>`;
   }});
 
@@ -1643,7 +1661,7 @@ function showTeamDetail(teamName) {{
         <div style="display:flex;align-items:center;gap:16px">
           <div>
             <h2 style="margin:0;font-size:20px;font-weight:800;color:${{color}}">${{teamName}}</h2>
-            <p style="margin:2px 0 0;font-size:12px;color:#94A3B8">${{k.e}} | ${{k.pr2}} | ${{k.d}} días con datos</p>
+            <p style="margin:2px 0 0;font-size:12px;color:#7E9289">${{k.e}} | ${{k.pr2}} | ${{k.d}} días con datos</p>
           </div>
         </div>
         <button class="close-btn" onclick="detailEl.innerHTML=''">✕ Cerrar</button>
@@ -1651,21 +1669,21 @@ function showTeamDetail(teamName) {{
       <div class="kpi-cards">${{kpiHtml}}</div>
       <div class="detail-grid">
         <div>
-          <h4 style="margin:0 0 8px;font-size:13px;color:#1A5276">Producción Diaria (m³)</h4>
+          <h4 style="margin:0 0 8px;font-size:13px;color:#EFB24E">Producción Diaria (m³)</h4>
           <canvas id="chartTeamDetail" height="180"></canvas>
         </div>
         <div>
-          <h4 style="margin:0 0 8px;font-size:13px;color:#1A5276">Tiempos Perdidos</h4>
+          <h4 style="margin:0 0 8px;font-size:13px;color:#EFB24E">Tiempos Perdidos</h4>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-            <div class="tm-box" style="background:#FEF2F2"><div style="font-size:9px;color:#94A3B8">TM Mantenc.</div><div style="font-size:16px;font-weight:700;color:#C0392B">${{(k.tm/60).toFixed(1)}}h</div></div>
-            <div class="tm-box" style="background:#FFF7ED"><div style="font-size:9px;color:#94A3B8">TM Total</div><div style="font-size:16px;font-weight:700;color:#E67E22">${{(k.tt/60).toFixed(1)}}h</div></div>
-            <div class="tm-box" style="background:#F0FDF4"><div style="font-size:9px;color:#94A3B8">Hrs Efectivas</div><div style="font-size:16px;font-weight:700;color:#1E8449">${{k.h}}h</div></div>
+            <div class="tm-box" style="background:#241514"><div style="font-size:9px;color:#7E9289">TM Mantenc.</div><div style="font-size:16px;font-weight:700;color:#FF625A">${{(k.tm/60).toFixed(1)}}h</div></div>
+            <div class="tm-box" style="background:#241A10"><div style="font-size:9px;color:#7E9289">TM Total</div><div style="font-size:16px;font-weight:700;color:#FF9A3D">${{(k.tt/60).toFixed(1)}}h</div></div>
+            <div class="tm-box" style="background:#12211A"><div style="font-size:9px;color:#7E9289">Hrs Efectivas</div><div style="font-size:16px;font-weight:700;color:#43D98A">${{k.h}}h</div></div>
           </div>
-          <div style="font-size:11px;color:#64748B">
-            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #F1F5F9">
+          <div style="font-size:11px;color:#8AA79C">
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #17241E">
               <span>Disponibilidad estimada</span><b style="color:${{parseFloat(disp)<90?BAD:NEUTRAL}}">${{disp}}%</b>
             </div>
-            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #F1F5F9">
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #17241E">
               <span>m³/hora efectiva</span><b>${{k.r}}</b>
             </div>
             <div style="display:flex;justify-content:space-between;padding:4px 0">
@@ -1675,45 +1693,45 @@ function showTeamDetail(teamName) {{
         </div>
       </div>
       <div style="margin-top:16px">
-        <h4 style="margin:0 0 8px;font-size:13px;color:#1A5276">Análisis 80/20 — Pareto de Tiempos Perdidos</h4>
+        <h4 style="margin:0 0 8px;font-size:13px;color:#EFB24E">Análisis 80/20 — Pareto de Tiempos Perdidos</h4>
         ${{(() => {{
           const causas = D.tmTeamCauses[teamName] || [];
-          if (causas.length === 0) return '<div style="font-size:11px;color:#94A3B8;padding:8px">Sin tiempos perdidos registrados.</div>';
+          if (causas.length === 0) return '<div style="font-size:11px;color:#7E9289;padding:8px">Sin tiempos perdidos registrados.</div>';
           const total = causas.reduce((s, c) => s + c.m, 0);
           let acum = 0; let causasVital = []; let causasTrivial = [];
           causas.forEach(c => {{ acum += c.m; const pctAcum = acum/total*100;
             (pctAcum <= 80 || causasVital.length === 0) ? causasVital.push({{...c, pctAcum}}) : causasTrivial.push(c);
           }});
-          let h = `<div style="background:#FEF3C7;border-left:3px solid #D97706;padding:8px 12px;border-radius:6px;margin-bottom:8px;font-size:11px">
-            <strong style="color:#92400E">Hallazgo 80/20:</strong> <span style="color:#78350F">${{causasVital.length}} causa${{causasVital.length!==1?'s':''}} concentran el ${{causasVital[causasVital.length-1].pctAcum.toFixed(0)}}% del tiempo perdido total (${{(total/60).toFixed(1)}} hrs).</span>
+          let h = `<div style="background:#241D0F;border-left:3px solid #FF9A3D;padding:8px 12px;border-radius:6px;margin-bottom:8px;font-size:11px">
+            <strong style="color:#FF9A3D">Hallazgo 80/20:</strong> <span style="color:#78350F">${{causasVital.length}} causa${{causasVital.length!==1?'s':''}} concentran el ${{causasVital[causasVital.length-1].pctAcum.toFixed(0)}}% del tiempo perdido total (${{(total/60).toFixed(1)}} hrs).</span>
           </div>`;
           h += '<table style="width:100%;border-collapse:collapse;font-size:11px">';
-          h += '<thead><tr style="background:#F1F5F9"><th style="padding:4px 8px;text-align:left">Causa</th><th style="padding:4px 8px;text-align:right">Tiempo</th><th style="padding:4px 8px;text-align:right">%</th><th style="padding:4px 8px;text-align:right">% Acum</th></tr></thead><tbody>';
+          h += '<thead><tr style="background:#17241E"><th style="padding:4px 8px;text-align:left">Causa</th><th style="padding:4px 8px;text-align:right">Tiempo</th><th style="padding:4px 8px;text-align:right">%</th><th style="padding:4px 8px;text-align:right">% Acum</th></tr></thead><tbody>';
           causasVital.forEach(c => {{
             const pct = (c.m/total*100).toFixed(1);
-            h += `<tr style="background:#FEF9C3">
+            h += `<tr style="background:#24220F">
               <td style="padding:4px 8px;font-weight:600">⚡ ${{c.n}}</td>
               <td style="padding:4px 8px;text-align:right">${{(c.m/60).toFixed(1)}}h</td>
               <td style="padding:4px 8px;text-align:right">${{pct}}%</td>
-              <td style="padding:4px 8px;text-align:right;font-weight:700;color:#D97706">${{c.pctAcum.toFixed(0)}}%</td>
+              <td style="padding:4px 8px;text-align:right;font-weight:700;color:#FF9A3D">${{c.pctAcum.toFixed(0)}}%</td>
             </tr>`;
           }});
           causasTrivial.forEach(c => {{
             const pct = (c.m/total*100).toFixed(1);
-            h += `<tr style="background:white">
-              <td style="padding:4px 8px;color:#64748B">${{c.n}}</td>
-              <td style="padding:4px 8px;text-align:right;color:#94A3B8">${{(c.m/60).toFixed(1)}}h</td>
-              <td style="padding:4px 8px;text-align:right;color:#94A3B8">${{pct}}%</td>
-              <td style="padding:4px 8px;text-align:right;color:#94A3B8">—</td>
+            h += `<tr style="background:#17241E">
+              <td style="padding:4px 8px;color:#8AA79C">${{c.n}}</td>
+              <td style="padding:4px 8px;text-align:right;color:#7E9289">${{(c.m/60).toFixed(1)}}h</td>
+              <td style="padding:4px 8px;text-align:right;color:#7E9289">${{pct}}%</td>
+              <td style="padding:4px 8px;text-align:right;color:#7E9289">—</td>
             </tr>`;
           }});
           h += '</tbody></table>';
-          h += `<div style="font-size:10px;color:#64748B;margin-top:6px">💡 <strong>Atacar las causas en amarillo</strong> reduciría el ${{causasVital[causasVital.length-1].pctAcum.toFixed(0)}}% de TM.</div>`;
+          h += `<div style="font-size:10px;color:#8AA79C;margin-top:6px">💡 <strong>Atacar las causas en amarillo</strong> reduciría el ${{causasVital[causasVital.length-1].pctAcum.toFixed(0)}}% de TM.</div>`;
           return h;
         }})()}}
       </div>
       <div style="margin-top:16px;overflow-x:auto">
-        <h4 style="margin:0 0 8px;font-size:13px;color:#1A5276">Tabla de Producciones</h4>
+        <h4 style="margin:0 0 8px;font-size:13px;color:#EFB24E">Tabla de Producciones</h4>
         <table>
           <thead><tr style="background:${{color}};color:white">
             <th style="padding:6px 10px;text-align:left;border-radius:6px 0 0 0">Día</th>
@@ -1756,12 +1774,12 @@ function showTeamDetail(teamName) {{
       labels: days,
       datasets: [
         {{ label: 'm³ real', data: realData, backgroundColor: color + 'CC', borderRadius: 3, order: 3 }},
-        {{ label: 'Tendencia (prom 3d)', data: tendData, type: 'line', borderColor: '#059669', borderWidth: 2,
+        {{ label: 'Tendencia (prom 3d)', data: tendData, type: 'line', borderColor: '#43D98A', borderWidth: 2,
           borderDash: [0], fill: false, pointRadius: 0, tension: 0.3, order: 1 }},
         {{ label: 'Plan teórico (' + fmt(planTeorico) + ')', data: planLine, type: 'line',
-          borderColor: '#94A3B8', borderWidth: 1.5, borderDash: [5, 5], fill: false, pointRadius: 0, order: 2 }},
+          borderColor: '#7E9289', borderWidth: 1.5, borderDash: [5, 5], fill: false, pointRadius: 0, order: 2 }},
         {{ label: 'Req. p/ cerrar (' + fmt(planDia) + ')', data: reqLine, type: 'line',
-          borderColor: '#DC2626', borderWidth: 2, borderDash: [2, 3], fill: false, pointRadius: 0, order: 2 }},
+          borderColor: '#FF625A', borderWidth: 2, borderDash: [2, 3], fill: false, pointRadius: 0, order: 2 }},
       ]
     }},
     options: {{
@@ -1779,25 +1797,25 @@ let cardsHtml = '';
 D.kpis.forEach((k, i) => {{
   const color = COLORS[i % COLORS.length];
   const pct = Math.min(k.ci/100, 1);
-  const gaugeColor = pct >= 0.9 ? '#1E8449' : pct >= 0.7 ? '#E67E22' : '#C0392B';
+  const gaugeColor = pct >= 0.9 ? '#43D98A' : pct >= 0.7 ? '#FF9A3D' : '#FF625A';
   const cumplColor = k.c < expectedPct ? BAD : NEUTRAL;
   const brechaColor = k.b < 0 ? BAD : NEUTRAL;
   const rank = rankMap[k.t];
   const isBottom3 = rank > totalTeams - 3;
   const badgeHtml = rank <= 3 ? `<div class="rank-badge">${{medals[rank]}}</div>` : `<div class="rank-badge-mid">#${{rank}}</div>`;
   const disp = k.turno > 0 ? (1 - k.tm / k.turno) * 100 : 100;
-  const dispColor = disp >= 92 ? '#166534' : disp >= 60 ? '#92400E' : '#C0392B';
-  const dispBg = disp >= 92 ? '#F0FDF4' : disp >= 60 ? '#FFF7ED' : '#FEF2F2';
+  const dispColor = disp >= 92 ? '#43D98A' : disp >= 60 ? '#FF9A3D' : '#FF625A';
+  const dispBg = disp >= 92 ? '#12211A' : disp >= 60 ? '#241A10' : '#241514';
   cardsHtml += `
     <div class="team-card" data-team="${{k.t}}" style="border-color:${{color}}22">
       ${{badgeHtml}}
       <div class="gauge-container">
         <div>
           <div class="team-name" style="color:${{color}}">${{k.t}}</div>
-          <div style="font-size:10px;color:#94A3B8">${{k.e}} | ${{k.pr2}}</div>
+          <div style="font-size:10px;color:#7E9289">${{k.e}} | ${{k.pr2}}</div>
         </div>
         <svg width="64" height="40" viewBox="0 0 64 40">
-          <path d="M 6 36 A 26 26 0 0 1 58 36" fill="none" stroke="#E5E7EB" stroke-width="6" stroke-linecap="round"/>
+          <path d="M 6 36 A 26 26 0 0 1 58 36" fill="none" stroke="#24352E" stroke-width="6" stroke-linecap="round"/>
           <path d="M 6 36 A 26 26 0 0 1 58 36" fill="none" stroke="${{gaugeColor}}" stroke-width="6" stroke-linecap="round"
             stroke-dasharray="${{pct * 82}} 82"/>
           <text x="32" y="30" text-anchor="middle" font-size="12" font-weight="700" fill="${{gaugeColor}}">${{k.ci.toFixed(1)}}%</text>
@@ -1812,7 +1830,7 @@ D.kpis.forEach((k, i) => {{
         <div><span class="label">Ritmo Cierre</span><br><span class="value" style="color:${{(() => {{ const ritmo=Math.round((k.m-k.a)/Math.max(cfg.dr,1)); return ritmo>k.p?BAD:NEUTRAL; }})()}}">${{(() => {{ const ritmo=Math.round((k.m-k.a)/Math.max(cfg.dr,1)); return fmt(ritmo); }})()}} <span style="font-size:9px">m³/d</span></span></div>
       </div>
       <div class="disp-bar" style="background:${{dispBg}}">
-        <span style="font-size:10px;color:#64748B">Disp. Mecánica</span>
+        <span style="font-size:10px;color:#8AA79C">Disp. Mecánica</span>
         <span style="display:flex;align-items:center;gap:6px">
           <span class="disp-track"><span class="disp-fill" style="width:${{Math.min(disp,100)}}%;background:${{dispColor}}"></span></span>
           <b style="font-size:11px;color:${{dispColor}}">${{disp.toFixed(1)}}%</b>
@@ -1831,12 +1849,12 @@ D.kpis.forEach((k, i) => {{
   const avancePlan = Math.round(cfg.tm / cfg.dt * cfg.dd);
   const difVsPlan = Math.round(cfg.ta - avancePlan);
   const pctG = Math.min(totalCiPct / 100, 1);
-  const gColor = pctG >= 0.9 ? '#1E8449' : pctG >= 0.7 ? '#E67E22' : '#C0392B';
+  const gColor = pctG >= 0.9 ? '#43D98A' : pctG >= 0.7 ? '#FF9A3D' : '#FF625A';
   const brechaColor = totalBrecha < 0 ? '#FF6B6B' : '#7DCEA0';
   const difColor = difVsPlan < 0 ? '#FF6B6B' : '#7DCEA0';
   const ritmoColor = ritmoTotal > promDia ? '#FF6B6B' : '#7DCEA0';
   cardsHtml += `
-    <div class="team-card" style="border-color:#1A527644;background:linear-gradient(135deg,#1A5276 0%,#154360 100%);color:white;max-width:340px;box-shadow:0 4px 12px rgba(26,82,118,0.25)">
+    <div class="team-card" style="border-color:#EFB24E66;background:linear-gradient(155deg,rgba(239,178,78,.15),rgba(239,178,78,.03) 70%),#111C17;color:#EAF2EC;max-width:340px;box-shadow:0 0 30px rgba(239,178,78,.12)">
       <div class="gauge-container">
         <div>
           <div class="team-name" style="color:white;font-size:14px">TOTAL</div>
@@ -1891,8 +1909,8 @@ new Chart(trendCtx, {{
       {{ label: 'Producción Real', data: D.trend.map(t => t.v),
         backgroundColor: barColors, borderRadius: 4, maxBarThickness: 48, order: 2 }},
       {{ label: 'Meta Diaria Requerida', data: metaDiariaMovil,
-        type: 'line', borderColor: '#E67E22', borderWidth: 2.5,
-        borderDash: [6,3], pointRadius: 3, pointBackgroundColor: '#E67E22',
+        type: 'line', borderColor: '#FF9A3D', borderWidth: 2.5,
+        borderDash: [6,3], pointRadius: 3, pointBackgroundColor: '#FF9A3D',
         fill: false, tension: 0.3, order: 1 }}
     ]
   }},
@@ -1939,47 +1957,47 @@ const avgDispTotal = totalTurno > 0 ? (1 - totalTMmant/totalTurno)*100 : 100;
 
 let thead = '<thead><tr><th style="text-align:left">KPI / Día</th>';
 TEAMS.forEach(t => thead += `<th>${{t.replace('Millalemu ','M')}}</th>`);
-thead += '<th style="border-left:3px solid #FFFFFF;font-weight:800">Total</th></tr></thead>';
+thead += '<th style="border-left:3px solid #111C17;font-weight:800">Total</th></tr></thead>';
 
-const pctColor = pct => pct >= 80 ? '#059669' : pct >= 60 ? '#D97706' : BAD;
+const pctColor = pct => pct >= 80 ? '#43D98A' : pct >= 60 ? '#FF9A3D' : BAD;
 const kpiDefs = [
   // % Proy al inicio — lo más accionable
   {{ label: '% Proyección', fn: k => {{ const p=(k.pr/k.m*100); return p.toFixed(0)+'%'; }},
-    color: k => pctColor(k.pr/k.m*100), total: cumplTotal+'%', bg: '#F1F5F9', bold: true, big: true,
+    color: k => pctColor(k.pr/k.m*100), total: cumplTotal+'%', bg: '#17241E', bold: true, big: true,
     totalColor: pctColor(parseFloat(cumplTotal)) }},
-  {{ label: 'Meta Mensual', fn: k => fmt(k.m), total: fmt(cfg.tm), bg: '#F8FAFC', bold: true }},
-  {{ label: 'Total Acumulado', fn: k => fmt(k.a), total: fmt(cfg.ta), bg: '#F1F5F9', bold: true, big: true,
-    color: k => {{ const ap=k.m/cfg.dt*cfg.dd; return ap>0 && k.a/ap>=1.0 ? '#059669' : ap>0 && k.a/ap>=0.85 ? '#D97706' : BAD; }},
-    totalColor: (() => {{ const ap=cfg.tm/cfg.dt*cfg.dd; return ap>0 && cfg.ta/ap>=1.0 ? '#059669' : ap>0 && cfg.ta/ap>=0.85 ? '#D97706' : BAD; }})() }},
-  {{ label: 'Avance Plan', fn: k => fmt(Math.round(k.m/cfg.dt*cfg.dd)), total: fmt(Math.round(cfg.tm/cfg.dt*cfg.dd)), bg: '#F8FAFC' }},
+  {{ label: 'Meta Mensual', fn: k => fmt(k.m), total: fmt(cfg.tm), bg: '#0E1713', bold: true }},
+  {{ label: 'Total Acumulado', fn: k => fmt(k.a), total: fmt(cfg.ta), bg: '#17241E', bold: true, big: true,
+    color: k => {{ const ap=k.m/cfg.dt*cfg.dd; return ap>0 && k.a/ap>=1.0 ? '#43D98A' : ap>0 && k.a/ap>=0.85 ? '#FF9A3D' : BAD; }},
+    totalColor: (() => {{ const ap=cfg.tm/cfg.dt*cfg.dd; return ap>0 && cfg.ta/ap>=1.0 ? '#43D98A' : ap>0 && cfg.ta/ap>=0.85 ? '#FF9A3D' : BAD; }})() }},
+  {{ label: 'Avance Plan', fn: k => fmt(Math.round(k.m/cfg.dt*cfg.dd)), total: fmt(Math.round(cfg.tm/cfg.dt*cfg.dd)), bg: '#0E1713' }},
   {{ label: 'Dif. vs Plan', fn: k => {{ const d=Math.round(k.a-(k.m/cfg.dt*cfg.dd)); return fmt(d); }},
-    color: k => (k.a-(k.m/cfg.dt*cfg.dd))<0 ? BAD : NEUTRAL, total: fmt(Math.round(cfg.ta-cfg.tm/cfg.dt*cfg.dd)), bg: '#F8FAFC' }},
+    color: k => (k.a-(k.m/cfg.dt*cfg.dd))<0 ? BAD : NEUTRAL, total: fmt(Math.round(cfg.ta-cfg.tm/cfg.dt*cfg.dd)), bg: '#0E1713' }},
   {{ label: 'Ritmo Cierre', fn: k => {{ const needed=(k.m-k.a)/Math.max(cfg.dr,1); return fmt(Math.round(needed)); }},
     color: k => {{ const needed=(k.m-k.a)/Math.max(cfg.dr,1); return needed>k.p ? BAD : NEUTRAL; }},
-    total: fmt(Math.round((cfg.tm-cfg.ta)/Math.max(cfg.dr,1))), bg: '#F8FAFC' }},
-  {{ label: 'm³/hr Efectiva', fn: k => k.r.toFixed(1), total: totalHrs>0?(cfg.ta/totalHrs).toFixed(1):'—', bg: '#EFF6FF', bold: true }},
+    total: fmt(Math.round((cfg.tm-cfg.ta)/Math.max(cfg.dr,1))), bg: '#0E1713' }},
+  {{ label: 'm³/hr Efectiva', fn: k => k.r.toFixed(1), total: totalHrs>0?(cfg.ta/totalHrs).toFixed(1):'—', bg: '#14201C', bold: true }},
   {{ label: 'TM Mant. (hrs)', fn: k => (k.tm/60).toFixed(1),
-    color: k => k.tm>2000 ? BAD : NEUTRAL, total: (totalTMmant/60).toFixed(1), bg: '#FEF2F2' }},
+    color: k => k.tm>2000 ? BAD : NEUTRAL, total: (totalTMmant/60).toFixed(1), bg: '#241514' }},
   // Proyección (m³) al final — destacado
   {{ label: 'Proyección Mes', fn: k => fmt(k.pr),
-    color: k => pctColor(k.pr/k.m*100), total: fmt(Math.round(proyTotal)), bg: '#F1F5F9', bold: true, big: true,
+    color: k => pctColor(k.pr/k.m*100), total: fmt(Math.round(proyTotal)), bg: '#17241E', bold: true, big: true,
     totalColor: pctColor(parseFloat(cumplTotal)) }},
 ];
 
 let tbody = '<tbody>';
 kpiDefs.forEach((kpi, ki) => {{
-  const borderBot = ki === kpiDefs.length-1 ? 'border-bottom:3px solid #1A5276;' : '';
+  const borderBot = ki === kpiDefs.length-1 ? 'border-bottom:3px solid #EFB24E;' : '';
   const fs = kpi.big ? '14px' : '11px';
   const fsLabel = kpi.big ? '12px' : '11px';
-  let row = `<tr style="background:${{kpi.bg}}"><td style="padding:${{kpi.big?'7px 12px':'5px 12px'}};font-weight:700;font-size:${{fsLabel}};color:#1A5276;${{borderBot}}">${{kpi.label}}</td>`;
+  let row = `<tr style="background:${{kpi.bg}}"><td style="padding:${{kpi.big?'7px 12px':'5px 12px'}};font-weight:700;font-size:${{fsLabel}};color:#EFB24E;${{borderBot}}">${{kpi.label}}</td>`;
   TEAMS.forEach(t => {{
     const k = D.kpis.find(x => x.t === t);
     const c = kpi.color ? `color:${{kpi.color(k)}};` : `color:${{NEUTRAL}};`;
     const fw = (kpi.bold || kpi.big) ? 'font-weight:700;' : 'font-weight:500;';
-    row += `<td style="padding:${{kpi.big?'7px 10px':'5px 10px'}};text-align:right;font-size:${{fs}};${{fw}}${{c}}border-right:1px solid #E2E8F0;${{borderBot ? borderBot : 'border-bottom:1px solid #E2E8F0;'}}">${{kpi.fn(k)}}</td>`;
+    row += `<td style="padding:${{kpi.big?'7px 10px':'5px 10px'}};text-align:right;font-size:${{fs}};${{fw}}${{c}}border-right:1px solid #24352E;${{borderBot ? borderBot : 'border-bottom:1px solid #24352E;'}}">${{kpi.fn(k)}}</td>`;
   }});
-  const totalC = kpi.totalColor ? `color:${{kpi.totalColor}};` : 'color:#1A5276;';
-  row += `<td style="padding:${{kpi.big?'7px 10px':'5px 10px'}};text-align:right;font-weight:800;font-size:${{fs}};border-left:3px solid #1A5276;${{totalC}}${{borderBot}}">${{kpi.total}}</td></tr>`;
+  const totalC = kpi.totalColor ? `color:${{kpi.totalColor}};` : 'color:#EFB24E;';
+  row += `<td style="padding:${{kpi.big?'7px 10px':'5px 10px'}};text-align:right;font-weight:800;font-size:${{fs}};border-left:3px solid #EFB24E;${{totalC}}${{borderBot}}">${{kpi.total}}</td></tr>`;
   tbody += row;
 }});
 
@@ -1989,41 +2007,41 @@ days.forEach((d, ri) => {{
   let total = 0;
   const dow = getDow(d);
   const bgRow = ri%2===0 ? 'var(--subtle)' : 'white';
-  let row = `<tr style="background:${{bgRow}}"><td style="font-weight:700;font-size:13px;border-right:1px solid #E2E8F0;white-space:nowrap;color:#1A5276">${{d}} <span style="font-size:10px;font-weight:400;color:#94A3B8">${{dow}}</span></td>`;
+  let row = `<tr style="background:${{bgRow}}"><td style="font-weight:700;font-size:13px;border-right:1px solid #24352E;white-space:nowrap;color:#EFB24E">${{d}} <span style="font-size:10px;font-weight:400;color:#7E9289">${{dow}}</span></td>`;
   TEAMS.forEach(t => {{
     const v = D.grid[d] ? (D.grid[d][t] || 0) : 0;
     const tmVal = D.gridTM && D.gridTM[d] ? (D.gridTM[d][t] || 0) : 0;
     total += v;
     // Color del NÚMERO según nivel (celda queda blanca)
-    const txtColor = v === 0 ? '#DC2626' : v >= 200 ? '#059669' : v >= 100 ? '#CA8A04' : '#EA580C';
-    const tmHint = tmVal > 0 ? `<div style="font-size:8px;color:#C0392B;font-weight:400;margin-top:1px">${{(tmVal/60).toFixed(1)}}h TM</div>` : '';
-    row += `<td style="font-weight:700;font-size:13px;border-right:1px solid #E2E8F0;color:${{txtColor}}">${{v > 0 ? fmt(v) : '—'}}${{tmHint}}</td>`;
+    const txtColor = v === 0 ? '#FF625A' : v >= 200 ? '#43D98A' : v >= 100 ? '#CA8A04' : '#FF9A3D';
+    const tmHint = tmVal > 0 ? `<div style="font-size:8px;color:#FF625A;font-weight:400;margin-top:1px">${{(tmVal/60).toFixed(1)}}h TM</div>` : '';
+    row += `<td style="font-weight:700;font-size:13px;border-right:1px solid #24352E;color:${{txtColor}}">${{v > 0 ? fmt(v) : '—'}}${{tmHint}}</td>`;
   }});
   // Color del Total del día: comparar vs plan/día faena (~1750 m³/día con meta 52500/30)
   const pctPlan = planDiaFaena > 0 ? total/planDiaFaena : 0;
-  const totalColor = total === 0 ? '#DC2626' : pctPlan >= 1.0 ? '#059669' : pctPlan >= 0.80 ? '#CA8A04' : '#EA580C';
-  row += `<td style="font-weight:800;font-size:13px;background:#F1F5F9;border-left:3px solid #1A5276;color:${{totalColor}}">${{fmt(total)}}</td></tr>`;
+  const totalColor = total === 0 ? '#FF625A' : pctPlan >= 1.0 ? '#43D98A' : pctPlan >= 0.80 ? '#CA8A04' : '#FF9A3D';
+  row += `<td style="font-weight:800;font-size:13px;background:#17241E;border-left:3px solid #EFB24E;color:${{totalColor}}">${{fmt(total)}}</td></tr>`;
   tbody += row;
 }});
 
 // Fila TOTAL removida — ya está el "Total Acumulado" en el bloque KPI superior
 
 // Promedio row — línea superior continua + color por nivel vs plan/día equipo
-tbody += '<tr style="font-weight:700"><td style="padding:8px 12px;font-size:11px;color:#1A5276;border-top:3px solid #1A5276">PROMEDIO/DÍA</td>';
+tbody += '<tr style="font-weight:700"><td style="padding:8px 12px;font-size:11px;color:#EFB24E;border-top:3px solid #EFB24E">PROMEDIO/DÍA</td>';
 TEAMS.forEach(t => {{
   const k = D.kpis.find(x => x.t === t);
   const avg = k && k.d > 0 ? k.a / k.d : 0;
   // Plan/día por equipo = meta_equipo / días_a_trabajar
   const planEq = k ? k.m / cfg.dt : 0;
   const pct = planEq > 0 ? avg/planEq : 0;
-  const avgColor = avg === 0 ? '#DC2626' : pct >= 1.0 ? '#059669' : pct >= 0.80 ? '#CA8A04' : '#EA580C';
-  tbody += `<td style="padding:8px 10px;text-align:right;font-size:12px;color:${{avgColor}};border-top:3px solid #1A5276">${{fmt(Math.round(avg))}}</td>`;
+  const avgColor = avg === 0 ? '#FF625A' : pct >= 1.0 ? '#43D98A' : pct >= 0.80 ? '#CA8A04' : '#FF9A3D';
+  tbody += `<td style="padding:8px 10px;text-align:right;font-size:12px;color:${{avgColor}};border-top:3px solid #EFB24E">${{fmt(Math.round(avg))}}</td>`;
 }});
 // Promedio Total faena vs plan/día faena
 const promFaena = cfg.dd > 0 ? cfg.ta/cfg.dd : 0;
 const pctPF = planDiaFaena > 0 ? promFaena/planDiaFaena : 0;
-const promColor = promFaena === 0 ? '#DC2626' : pctPF >= 1.0 ? '#059669' : pctPF >= 0.80 ? '#CA8A04' : '#EA580C';
-tbody += `<td style="padding:8px 10px;text-align:right;font-size:12px;color:${{promColor}};font-weight:800;background:#F1F5F9;border-top:3px solid #1A5276;border-left:3px solid #1A5276">${{fmt(Math.round(promFaena))}}</td></tr></tbody>`;
+const promColor = promFaena === 0 ? '#FF625A' : pctPF >= 1.0 ? '#43D98A' : pctPF >= 0.80 ? '#CA8A04' : '#FF9A3D';
+tbody += `<td style="padding:8px 10px;text-align:right;font-size:12px;color:${{promColor}};font-weight:800;background:#17241E;border-top:3px solid #EFB24E;border-left:3px solid #EFB24E">${{fmt(Math.round(promFaena))}}</td></tr></tbody>`;
 gridEl.innerHTML = thead + tbody;
 
 // TM Summary Cards
@@ -2031,19 +2049,19 @@ const tmCat = D.tmCat || [];
 const tmTrend = D.tmTrend || [];
 const tmTeamCat = D.tmTeamCat || [];
 const totalTM = tmCat.reduce((s,c) => s + c.v, 0);
-const CAT_COLORS_MAP = {{'Mantención':'#C0392B','Operacional':'#E67E22','Proceso':'#3498DB'}};
+const CAT_COLORS_MAP = {{'Mantención':'#FF625A','Operacional':'#FF9A3D','Proceso':'#3498DB'}};
 const tmSummaryEl = document.getElementById('tmSummaryCards');
 tmSummaryEl.innerHTML = `
-  <div style="background:white;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
-    <div style="font-size:10px;color:#94A3B8">TM Total Flota</div>
-    <div style="font-size:22px;font-weight:800;color:#1A5276">${{fmt(totalTM)}} <span style="font-size:11px;font-weight:400">min</span></div>
-    <div style="font-size:11px;color:#64748B">${{(totalTM/60).toFixed(1)}} horas</div>
+  <div style="background:#17241E;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+    <div style="font-size:10px;color:#7E9289">TM Total Flota</div>
+    <div style="font-size:22px;font-weight:800;color:#EFB24E">${{fmt(totalTM)}} <span style="font-size:11px;font-weight:400">min</span></div>
+    <div style="font-size:11px;color:#8AA79C">${{(totalTM/60).toFixed(1)}} horas</div>
   </div>
   ${{tmCat.map(c => `
-  <div style="background:white;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:3px solid ${{CAT_COLORS_MAP[c.n]||'#94A3B8'}}">
-    <div style="font-size:10px;color:#94A3B8">${{c.n}}</div>
-    <div style="font-size:22px;font-weight:800;color:${{CAT_COLORS_MAP[c.n]||'#334155'}}">${{fmt(c.v)}} <span style="font-size:11px;font-weight:400">min</span></div>
-    <div style="font-size:11px;color:#64748B">${{totalTM > 0 ? (c.v/totalTM*100).toFixed(1) : 0}}% del total</div>
+  <div style="background:#17241E;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:3px solid ${{CAT_COLORS_MAP[c.n]||'#7E9289'}}">
+    <div style="font-size:10px;color:#7E9289">${{c.n}}</div>
+    <div style="font-size:22px;font-weight:800;color:${{CAT_COLORS_MAP[c.n]||'#C3D3CB'}}">${{fmt(c.v)}} <span style="font-size:11px;font-weight:400">min</span></div>
+    <div style="font-size:11px;color:#8AA79C">${{totalTM > 0 ? (c.v/totalTM*100).toFixed(1) : 0}}% del total</div>
   </div>`).join('')}}
 `;
 
@@ -2068,7 +2086,7 @@ new Chart(tmCatCtx, {{
   type: 'doughnut',
   data: {{
     labels: tmCat.map(c => c.n),
-    datasets: [{{ data: tmCat.map(c => Math.round(c.v/60*10)/10), backgroundColor: ['#C0392B','#E67E22','#3498DB'] }}]
+    datasets: [{{ data: tmCat.map(c => Math.round(c.v/60*10)/10), backgroundColor: ['#FF625A','#FF9A3D','#3498DB'] }}]
   }},
   options: {{ responsive: true, plugins: {{ legend: {{ position: 'bottom', labels: {{ font: {{ size: 11 }} }} }},
       tooltip: {{ callbacks: {{ label: c => c.label + ': ' + c.raw + ' h' }} }} }} }}
@@ -2080,7 +2098,7 @@ new Chart(espCtx, {{
   type: 'doughnut',
   data: {{
     labels: D.esp.map(e => e.n),
-    datasets: [{{ data: D.esp.map(e => e.v), backgroundColor: ['#27AE60','#2980B9','#E67E22','#8E44AD'] }}]
+    datasets: [{{ data: D.esp.map(e => e.v), backgroundColor: ['#27AE60','#2980B9','#FF9A3D','#8E44AD'] }}]
   }},
   options: {{ responsive: true, plugins: {{ legend: {{ position: 'bottom', labels: {{ font: {{ size: 11 }} }} }} }} }}
 }});
@@ -2122,7 +2140,7 @@ new Chart(tmTeamCtx, {{
 // Availability Table
 const dispTableEl = document.getElementById('tmDispTable');
 let dispHtml = `<table style="width:100%;border-collapse:collapse;font-size:12px">
-  <thead><tr style="background:#1A5276;color:white">
+  <thead><tr style="background:#EFB24E;color:white">
     <th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">Equipo</th>
     <th style="padding:8px 10px;text-align:right">Hrs Efect.</th>
     <th style="padding:8px 10px;text-align:right">TM Mant.</th>
@@ -2132,10 +2150,10 @@ let dispHtml = `<table style="width:100%;border-collapse:collapse;font-size:12px
     <th style="padding:8px 10px;text-align:right;border-radius:0 8px 0 0">Disp. %</th>
   </tr></thead><tbody>`;
 tmTeamCat.forEach((t, i) => {{
-  const dispColor = t.disp >= 92 ? '#166534' : t.disp >= 60 ? '#92400E' : '#C0392B';
-  const mantColor = t.mant > 1000 ? '#C0392B' : '#334155';
-  dispHtml += `<tr style="background:${{i%2===0?'#F8FAFC':'white'}}">
-    <td style="padding:6px 10px;font-weight:600;color:#1A5276">${{t.tf}}</td>
+  const dispColor = t.disp >= 92 ? '#43D98A' : t.disp >= 60 ? '#FF9A3D' : '#FF625A';
+  const mantColor = t.mant > 1000 ? '#FF625A' : '#C3D3CB';
+  dispHtml += `<tr style="background:${{i%2===0?'#0E1713':'white'}}">
+    <td style="padding:6px 10px;font-weight:600;color:#EFB24E">${{t.tf}}</td>
     <td style="padding:6px 10px;text-align:right">${{t.hrs}}h</td>
     <td style="padding:6px 10px;text-align:right;color:${{mantColor}}">${{(t.mant/60).toFixed(1)}}h</td>
     <td style="padding:6px 10px;text-align:right">${{(t.oper/60).toFixed(1)}}h</td>
@@ -2160,10 +2178,10 @@ new Chart(avanceCtx, {{
     labels: avLabels,
     datasets: [
       {{ label: 'Real Acumulado', data: D.avance.map(a => a.real),
-         borderColor: '#1A5276', backgroundColor: 'rgba(26,82,118,0.08)',
+         borderColor: '#EFB24E', backgroundColor: 'rgba(26,82,118,0.08)',
          fill: true, tension: 0.3, pointRadius: 3, borderWidth: 2 }},
       {{ label: 'Plan Lineal', data: D.avance.map(a => a.plan),
-         borderColor: '#E67E22', borderDash: [6,3],
+         borderColor: '#FF9A3D', borderDash: [6,3],
          fill: false, tension: 0, pointRadius: 0, borderWidth: 2 }}
     ]
   }},
@@ -2185,9 +2203,9 @@ document.querySelectorAll('.team-card').forEach(card => {{
   const tend = D.tendencia[teamName];
   if (!tend) return;
   const arrow = tend.c > 5 ? '↑' : tend.c < -5 ? '↓' : '→';
-  const aColor = tend.c > 5 ? '#059669' : tend.c < -5 ? '#DC2626' : '#64748B';
+  const aColor = tend.c > 5 ? '#43D98A' : tend.c < -5 ? '#FF625A' : '#8AA79C';
   const trendEl = document.createElement('div');
-  trendEl.style.cssText = 'margin-top:6px;padding:4px 8px;border-radius:6px;background:#F8FAFC;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#64748B';
+  trendEl.style.cssText = 'margin-top:6px;padding:4px 8px;border-radius:6px;background:#0E1713;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#8AA79C';
   trendEl.innerHTML = `<span>Tendencia semanal</span><span style="font-weight:700;font-size:13px;color:${{aColor}}">${{arrow}} ${{tend.c > 0 ? '+' : ''}}${{tend.c}}%</span>`;
   card.appendChild(trendEl);
 }});
@@ -2195,20 +2213,20 @@ document.querySelectorAll('.team-card').forEach(card => {{
 // ── 3. Top 5 Causas TM por Faena (tabla) ─────────────────
 const tmCausesEl = document.getElementById('tmTeamCausesTable');
 let tcHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px">';
-tcHtml += '<thead><tr style="background:#1A5276;color:white"><th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">Faena</th>';
+tcHtml += '<thead><tr style="background:#EFB24E;color:white"><th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">Faena</th>';
 for (let i = 1; i <= 5; i++) tcHtml += `<th style="padding:8px 6px;text-align:left">#${{i}} Causa</th>`;
 tcHtml += '</tr></thead><tbody>';
 TEAMS.forEach((t, ti) => {{
   const causes = D.tmTeamCauses[t] || [];
-  tcHtml += `<tr style="background:${{ti%2===0?'#F8FAFC':'white'}}">`;
-  tcHtml += `<td style="padding:6px 10px;font-weight:600;color:#1A5276;white-space:nowrap">${{t.replace('Millalemu ','M')}}</td>`;
+  tcHtml += `<tr style="background:${{ti%2===0?'#0E1713':'white'}}">`;
+  tcHtml += `<td style="padding:6px 10px;font-weight:600;color:#EFB24E;white-space:nowrap">${{t.replace('Millalemu ','M')}}</td>`;
   for (let i = 0; i < 5; i++) {{
     if (causes[i]) {{
       const hrs = (causes[i].m/60).toFixed(1);
-      const bgI = causes[i].m > 1200 ? '#FEF2F2' : causes[i].m > 600 ? '#FFF7ED' : '';
-      tcHtml += `<td style="padding:6px;${{bgI?'background:'+bgI+';':''}}"><span style="font-weight:600">${{hrs}}h</span><br><span style="color:#64748B;font-size:10px">${{causes[i].n.substring(0,35)}}</span></td>`;
+      const bgI = causes[i].m > 1200 ? '#241514' : causes[i].m > 600 ? '#241A10' : '';
+      tcHtml += `<td style="padding:6px;${{bgI?'background:'+bgI+';':''}}"><span style="font-weight:600">${{hrs}}h</span><br><span style="color:#8AA79C;font-size:10px">${{causes[i].n.substring(0,35)}}</span></td>`;
     }} else {{
-      tcHtml += '<td style="padding:6px;color:#CBD5E1">—</td>';
+      tcHtml += '<td style="padding:6px;color:#2E4038">—</td>';
     }}
   }}
   tcHtml += '</tr>';
@@ -2218,7 +2236,7 @@ tmCausesEl.innerHTML = tcHtml;
 
 // ── 4. Rendimiento por Especie ───────────────────────────
 const rendEspCtx = document.getElementById('chartRendEsp').getContext('2d');
-const espColors = {{'PIRA':'#2E86C1','EUGL':'#27AE60','EUNI':'#8E44AD','EUNG':'#E67E22'}};
+const espColors = {{'PIRA':'#2E86C1','EUGL':'#27AE60','EUNI':'#8E44AD','EUNG':'#FF9A3D'}};
 new Chart(rendEspCtx, {{
   type: 'bar',
   data: {{
@@ -2285,11 +2303,11 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // Escala semáforo: verde / amarillo / rojo / plomo (sin registro)
   const cellColor = (vol, meta) => {{
-    if (vol <= 0) return {{bg:'#94A3B8', label:'sinReg'}};   // plomo — sin registro
+    if (vol <= 0) return {{bg:'#7E9289', label:'sinReg'}};   // plomo — sin registro
     const r = meta > 0 ? vol / meta : 1;
-    if (r >= 0.80) return {{bg:'#16A34A', label:'ok'}};       // verde — ≥80% meta
-    if (r >= 0.50) return {{bg:'#EAB308', label:'med'}};      // amarillo — 50-80% meta
-    return {{bg:'#DC2626', label:'bajo'}};                    // rojo — <50% meta
+    if (r >= 0.80) return {{bg:'#43D98A', label:'ok'}};       // verde — ≥80% meta
+    if (r >= 0.50) return {{bg:'#F5C542', label:'med'}};      // amarillo — 50-80% meta
+    return {{bg:'#FF625A', label:'bajo'}};                    // rojo — <50% meta
   }};
 
   // Alertas: huecos, rachas, bajos
@@ -2329,32 +2347,32 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // ——— HEATMAP + TABLA CUMPLIMIENTO ———
   html += '<div style="min-width:0">';
-  html += `<div style="margin-bottom:10px;display:flex;gap:14px;font-size:11px;color:#64748B;flex-wrap:wrap;align-items:center">
-    <span><span style="display:inline-block;width:12px;height:12px;background:#16A34A;border-radius:2px;vertical-align:middle;margin-right:4px"></span>≥80% meta</span>
-    <span><span style="display:inline-block;width:12px;height:12px;background:#EAB308;border-radius:2px;vertical-align:middle;margin-right:4px"></span>50-80% meta</span>
-    <span><span style="display:inline-block;width:12px;height:12px;background:#DC2626;border-radius:2px;vertical-align:middle;margin-right:4px"></span>&lt;50% meta</span>
-    <span><span style="display:inline-block;width:12px;height:12px;background:#94A3B8;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Sin registro</span>
+  html += `<div style="margin-bottom:10px;display:flex;gap:14px;font-size:11px;color:#8AA79C;flex-wrap:wrap;align-items:center">
+    <span><span style="display:inline-block;width:12px;height:12px;background:#43D98A;border-radius:2px;vertical-align:middle;margin-right:4px"></span>≥80% meta</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#F5C542;border-radius:2px;vertical-align:middle;margin-right:4px"></span>50-80% meta</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#FF625A;border-radius:2px;vertical-align:middle;margin-right:4px"></span>&lt;50% meta</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#7E9289;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Sin registro</span>
   </div>`;
 
   html += '<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:2px;font-size:11px"><thead><tr>';
-  html += '<th style="padding:4px 8px;text-align:left;color:#64748B;font-weight:600;position:sticky;left:0;background:white">Faena</th>';
+  html += '<th style="padding:4px 8px;text-align:left;color:#8AA79C;font-weight:600;position:sticky;left:0;background:#17241E">Faena</th>';
   days.forEach(d => {{
     const dow = DIAS_SEMANA[new Date(cfg.anio, cfg.mes-1, d).getDay()];
-    html += `<th style="padding:2px;text-align:center;font-weight:500;color:#94A3B8;font-size:10px;min-width:24px">
+    html += `<th style="padding:2px;text-align:center;font-weight:500;color:#7E9289;font-size:10px;min-width:24px">
       <div>${{d}}</div><div style="font-size:9px">${{dow[0]}}</div>
     </th>`;
   }});
   // Nuevas columnas: cumplimiento m³
-  html += '<th style="padding:4px 10px;text-align:right;color:#64748B;font-weight:600;border-left:2px solid #E2E8F0">m³ Acum.</th>';
-  html += `<th style="padding:4px 8px;text-align:right;color:#64748B;font-weight:600" title="Meta mensual prorrateada a los ${{days.length}} días transcurridos">Meta al día</th>`;
-  html += '<th style="padding:4px 8px;text-align:center;color:#64748B;font-weight:600">Cumpl.</th>';
+  html += '<th style="padding:4px 10px;text-align:right;color:#8AA79C;font-weight:600;border-left:2px solid #24352E">m³ Acum.</th>';
+  html += `<th style="padding:4px 8px;text-align:right;color:#8AA79C;font-weight:600" title="Meta mensual prorrateada a los ${{days.length}} días transcurridos">Meta al día</th>`;
+  html += '<th style="padding:4px 8px;text-align:center;color:#8AA79C;font-weight:600">Cumpl.</th>';
   html += '</tr></thead><tbody>';
 
   TEAMS.forEach((t, i) => {{
     const r = totales[i];
-    const metaColor = r.pctMeta >= 100 ? '#166534' : r.pctMeta >= 80 ? '#16A34A' : r.pctMeta >= 50 ? '#EAB308' : '#DC2626';
+    const metaColor = r.pctMeta >= 100 ? '#43D98A' : r.pctMeta >= 80 ? '#43D98A' : r.pctMeta >= 50 ? '#F5C542' : '#FF625A';
     html += `<tr>
-      <td style="padding:4px 8px;font-weight:600;color:#1A5276;white-space:nowrap;position:sticky;left:0;background:white">${{t.replace('Millalemu ','M')}}</td>`;
+      <td style="padding:4px 8px;font-weight:600;color:#EFB24E;white-space:nowrap;position:sticky;left:0;background:#17241E">${{t.replace('Millalemu ','M')}}</td>`;
     days.forEach(d => {{
       const v = D.grid[d]?.[t] || 0;
       const c = cellColor(v, metaDiaria[t]);
@@ -2363,8 +2381,8 @@ const dspEl = document.getElementById('diasSinProdTable');
         : `${{t}} · Día ${{d}}: SIN REGISTRO`;
       html += `<td style="width:24px;height:24px;background:${{c.bg}};border-radius:3px;cursor:help" title="${{tip}}"></td>`;
     }});
-    html += `<td style="padding:4px 10px;text-align:right;font-weight:700;color:#1E293B;border-left:2px solid #E2E8F0">${{fmt(r.vol)}}</td>`;
-    html += `<td style="padding:4px 8px;text-align:right;color:#64748B">${{fmt(r.metaAcum)}}</td>`;
+    html += `<td style="padding:4px 10px;text-align:right;font-weight:700;color:#EAF2EC;border-left:2px solid #24352E">${{fmt(r.vol)}}</td>`;
+    html += `<td style="padding:4px 8px;text-align:right;color:#8AA79C">${{fmt(r.metaAcum)}}</td>`;
     html += `<td style="padding:4px 8px;text-align:center;font-weight:700;color:${{metaColor}}">${{r.pctMeta.toFixed(0)}}%</td>`;
     html += '</tr>';
   }});
@@ -2373,43 +2391,43 @@ const dspEl = document.getElementById('diasSinProdTable');
   const volTot = totales.reduce((s, r) => s + r.vol, 0);
   const metaTot = totales.reduce((s, r) => s + r.metaAcum, 0);
   const pctTot = metaTot > 0 ? (volTot / metaTot * 100) : 0;
-  const pctTotColor = pctTot >= 100 ? '#166534' : pctTot >= 80 ? '#16A34A' : pctTot >= 50 ? '#EAB308' : '#DC2626';
-  html += `<tr style="background:#F1F5F9;font-weight:700">
-    <td style="padding:6px 8px;color:#1A5276;position:sticky;left:0;background:#F1F5F9">TOTAL</td>
-    <td colspan="${{days.length}}" style="padding:6px 8px;text-align:center;color:#64748B;font-size:10px;font-weight:500">${{days.length}} días transcurridos</td>
-    <td style="padding:6px 10px;text-align:right;color:#1E293B;border-left:2px solid #CBD5E1">${{fmt(volTot)}}</td>
-    <td style="padding:6px 8px;text-align:right;color:#64748B">${{fmt(metaTot)}}</td>
+  const pctTotColor = pctTot >= 100 ? '#43D98A' : pctTot >= 80 ? '#43D98A' : pctTot >= 50 ? '#F5C542' : '#FF625A';
+  html += `<tr style="background:#17241E;font-weight:700">
+    <td style="padding:6px 8px;color:#EFB24E;position:sticky;left:0;background:#17241E">TOTAL</td>
+    <td colspan="${{days.length}}" style="padding:6px 8px;text-align:center;color:#8AA79C;font-size:10px;font-weight:500">${{days.length}} días transcurridos</td>
+    <td style="padding:6px 10px;text-align:right;color:#EAF2EC;border-left:2px solid #2E4038">${{fmt(volTot)}}</td>
+    <td style="padding:6px 8px;text-align:right;color:#8AA79C">${{fmt(metaTot)}}</td>
     <td style="padding:6px 8px;text-align:center;color:${{pctTotColor}}">${{pctTot.toFixed(0)}}%</td>
   </tr>`;
   html += '</tbody></table></div></div>';
 
   // ——— PANEL DE ALERTAS ———
-  html += '<div style="min-width:220px;max-width:280px;background:#F8FAFC;border-radius:8px;padding:12px">';
-  html += `<div style="font-size:12px;font-weight:700;color:#1A5276;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Alertas</div>`;
+  html += '<div style="min-width:220px;max-width:280px;background:#0E1713;border-radius:8px;padding:12px">';
+  html += `<div style="font-size:12px;font-weight:700;color:#EFB24E;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Alertas</div>`;
   if (huecos.length === 0 && bajos.length === 0 && rachas.length === 0) {{
-    html += '<div style="font-size:12px;color:#166534;padding:8px 0">✓ Sin alertas. Todas las faenas reportaron dentro de rango.</div>';
+    html += '<div style="font-size:12px;color:#43D98A;padding:8px 0">✓ Sin alertas. Todas las faenas reportaron dentro de rango.</div>';
   }} else {{
     if (huecos.length > 0) {{
-      html += `<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;color:#DC2626;margin-bottom:4px">Sin reporte (${{huecos.length}})</div>`;
+      html += `<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;color:#FF625A;margin-bottom:4px">Sin reporte (${{huecos.length}})</div>`;
       huecos.forEach(h => {{
         const dow = DIAS_SEMANA[new Date(cfg.anio, cfg.mes-1, h.d).getDay()];
-        html += `<div style="font-size:11px;padding:2px 0;color:#334155">${{h.t.replace('Millalemu ','M')}} · <strong>${{h.d}} ${{dow}}</strong></div>`;
+        html += `<div style="font-size:11px;padding:2px 0;color:#C3D3CB">${{h.t.replace('Millalemu ','M')}} · <strong>${{h.d}} ${{dow}}</strong></div>`;
       }});
       html += '</div>';
     }}
     if (rachas.length > 0) {{
-      html += `<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;color:#991B1B;margin-bottom:4px">Rachas (≥2 días seguidos)</div>`;
+      html += `<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;color:#FF625A;margin-bottom:4px">Rachas (≥2 días seguidos)</div>`;
       rachas.forEach(r => {{
-        html += `<div style="font-size:11px;padding:2px 0;color:#334155">${{r.t.replace('Millalemu ','M')}} · días <strong>${{r.inicio}}${{r.inicio!==r.fin?'-'+r.fin:''}}</strong> (${{r.len}} días)</div>`;
+        html += `<div style="font-size:11px;padding:2px 0;color:#C3D3CB">${{r.t.replace('Millalemu ','M')}} · días <strong>${{r.inicio}}${{r.inicio!==r.fin?'-'+r.fin:''}}</strong> (${{r.len}} días)</div>`;
       }});
       html += '</div>';
     }}
     if (bajos.length > 0) {{
-      html += `<div><div style="font-size:11px;font-weight:600;color:#E67E22;margin-bottom:4px">Bajo meta &lt;40% (${{bajos.length}})</div>`;
+      html += `<div><div style="font-size:11px;font-weight:600;color:#FF9A3D;margin-bottom:4px">Bajo meta &lt;40% (${{bajos.length}})</div>`;
       bajos.slice(0, 6).forEach(b => {{
-        html += `<div style="font-size:11px;padding:2px 0;color:#334155">${{b.t.replace('Millalemu ','M')}} · día ${{b.d}} · ${{fmt(b.v)}} m³</div>`;
+        html += `<div style="font-size:11px;padding:2px 0;color:#C3D3CB">${{b.t.replace('Millalemu ','M')}} · día ${{b.d}} · ${{fmt(b.v)}} m³</div>`;
       }});
-      if (bajos.length > 6) html += `<div style="font-size:10px;color:#94A3B8;margin-top:2px">+${{bajos.length-6}} más…</div>`;
+      if (bajos.length > 6) html += `<div style="font-size:10px;color:#7E9289;margin-top:2px">+${{bajos.length-6}} más…</div>`;
       html += '</div>';
     }}
   }}
@@ -2425,36 +2443,36 @@ const dspEl = document.getElementById('diasSinProdTable');
   const rEl = document.getElementById('resumenEjecutivo');
   const re = D.resumenEj;
   const proyPct = re.proyPct;
-  const proyColor = proyPct >= 100 ? '#166534' : proyPct >= 90 ? '#16A34A' : proyPct >= 80 ? '#EAB308' : '#DC2626';
+  const proyColor = proyPct >= 100 ? '#43D98A' : proyPct >= 90 ? '#43D98A' : proyPct >= 80 ? '#F5C542' : '#FF625A';
   const cumplAct = cfg.tm > 0 ? (cfg.ta / cfg.tm * 100) : 0;
 
   const tile = (label, valor, sub, color) => `
-    <div style="background:white;border-radius:10px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:4px solid ${{color}}">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748B;font-weight:600">${{label}}</div>
+    <div style="background:#17241E;border-radius:10px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:4px solid ${{color}}">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#8AA79C;font-weight:600">${{label}}</div>
       <div style="font-size:22px;font-weight:800;color:${{color}};margin:4px 0 2px">${{valor}}</div>
-      <div style="font-size:11px;color:#64748B">${{sub}}</div>
+      <div style="font-size:11px;color:#8AA79C">${{sub}}</div>
     </div>`;
 
   const alertas = [];
   if (re.peor && re.peor.ci < 90) alertas.push(`${{re.peor.t.replace('Millalemu ','M')}} proy. ${{re.peor.ci.toFixed(0)}}%`);
   if (re.sinReporte > 0) alertas.push(`${{re.sinReporte}} reportes faltantes`);
   const alertasTxt = alertas.length > 0 ? alertas.join(' | ') : 'Sin alertas críticas';
-  const alertasColor = alertas.length > 0 ? '#DC2626' : '#166534';
+  const alertasColor = alertas.length > 0 ? '#FF625A' : '#43D98A';
 
   rEl.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-bottom:16px">
       ${{tile('Cumplimiento actual', cumplAct.toFixed(0) + '%',
         `${{fmt(cfg.ta)}} de ${{fmt(cfg.tm)}} m³`,
-        cumplAct >= 50 ? '#16A34A' : '#EAB308')}}
+        cumplAct >= 50 ? '#43D98A' : '#F5C542')}}
       ${{tile('Proyección cierre mes', proyPct.toFixed(0) + '%',
         proyPct >= 100 ? 'Superará meta' : 'Brecha: ' + fmt(Math.round(cfg.tm - cfg.tm * proyPct/100)) + ' m³',
         proyColor)}}
       ${{tile('Mejor faena', re.mejor ? re.mejor.t.replace('Millalemu ','M') : '—',
         re.mejor ? re.mejor.ci.toFixed(0) + '% proy.' : '',
-        '#16A34A')}}
+        '#43D98A')}}
       ${{tile('Peor faena', re.peor ? re.peor.t.replace('Millalemu ','M') : '—',
         re.peor ? re.peor.ci.toFixed(0) + '% proy.' : '',
-        '#DC2626')}}
+        '#FF625A')}}
       ${{tile('Alertas', alertasTxt, `Día ${{cfg.dd}}/${{cfg.dm}}`, alertasColor)}}
     </div>`;
 }})();
@@ -2465,7 +2483,7 @@ const dspEl = document.getElementById('diasSinProdTable');
 (() => {{
   const el = document.getElementById('rankingEfTable');
   const maxRend = Math.max(...D.rankingEf.map(r => r.rend));
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1A5276;color:white">';
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#EFB24E;color:white">';
   html += '<th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">#</th>';
   html += '<th style="padding:8px 10px;text-align:left">Faena</th>';
   html += '<th style="padding:8px 10px;text-align:right">m³/hr</th>';
@@ -2476,18 +2494,18 @@ const dspEl = document.getElementById('diasSinProdTable');
   const medalla = ['🥇','🥈','🥉'];
   D.rankingEf.forEach((r, i) => {{
     const pctBar = maxRend > 0 ? (r.rend / maxRend * 100) : 0;
-    const barColor = i === 0 ? '#166534' : i <= 2 ? '#16A34A' : i >= D.rankingEf.length - 2 ? '#DC2626' : '#64748B';
-    html += `<tr style="background:${{i%2===0?'#F8FAFC':'white'}}">
-      <td style="padding:6px 10px;font-weight:700;color:#1A5276">${{i < 3 ? medalla[i] : (i+1)}}</td>
-      <td style="padding:6px 10px;font-weight:600;color:#1A5276">${{r.t.replace('Millalemu ','M')}}</td>
+    const barColor = i === 0 ? '#43D98A' : i <= 2 ? '#43D98A' : i >= D.rankingEf.length - 2 ? '#FF625A' : '#8AA79C';
+    html += `<tr style="background:${{i%2===0?'#0E1713':'white'}}">
+      <td style="padding:6px 10px;font-weight:700;color:#EFB24E">${{i < 3 ? medalla[i] : (i+1)}}</td>
+      <td style="padding:6px 10px;font-weight:600;color:#EFB24E">${{r.t.replace('Millalemu ','M')}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700">${{r.rend.toFixed(2)}}</td>
       <td style="padding:6px 10px">
-        <div style="background:#E2E8F0;height:8px;border-radius:4px;overflow:hidden;width:80px">
+        <div style="background:#24352E;height:8px;border-radius:4px;overflow:hidden;width:80px">
           <div style="width:${{pctBar}}%;height:100%;background:${{barColor}}"></div>
         </div>
       </td>
-      <td style="padding:6px 10px;text-align:right;color:#64748B">${{r.mArb > 0 ? r.mArb.toFixed(3) : '—'}}</td>
-      <td style="padding:6px 10px;text-align:right;color:#64748B">${{r.mCic > 0 ? r.mCic.toFixed(2) : '—'}}</td>
+      <td style="padding:6px 10px;text-align:right;color:#8AA79C">${{r.mArb > 0 ? r.mArb.toFixed(3) : '—'}}</td>
+      <td style="padding:6px 10px;text-align:right;color:#8AA79C">${{r.mCic > 0 ? r.mCic.toFixed(2) : '—'}}</td>
     </tr>`;
   }});
   html += '</tbody></table>';
@@ -2499,20 +2517,20 @@ const dspEl = document.getElementById('diasSinProdTable');
 // ═══════════════════════════════════════════════════════════
 (() => {{
   const el = document.getElementById('espMixBox');
-  const ESP_COLORS = {{'PIRA':'#16A34A','EUGL':'#1A5276','EUNI':'#8E44AD'}};
+  const ESP_COLORS = {{'PIRA':'#43D98A','EUGL':'#EFB24E','EUNI':'#8E44AD'}};
   let html = '<div style="display:flex;flex-direction:column;gap:10px">';
   D.espMix.forEach(e => {{
-    const color = ESP_COLORS[e.cod] || '#64748B';
+    const color = ESP_COLORS[e.cod] || '#8AA79C';
     html += `
       <div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-          <span style="font-weight:600;color:#1E293B">${{e.nom}}</span>
+          <span style="font-weight:600;color:#EAF2EC">${{e.nom}}</span>
           <span style="font-weight:700;color:${{color}}">${{e.pct}}%</span>
         </div>
-        <div style="background:#E2E8F0;height:14px;border-radius:4px;overflow:hidden">
+        <div style="background:#24352E;height:14px;border-radius:4px;overflow:hidden">
           <div style="width:${{e.pct}}%;height:100%;background:${{color}};display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:white;font-size:10px;font-weight:700">${{fmt(e.vol)}} m³</div>
         </div>
-        <div style="font-size:10px;color:#64748B;margin-top:2px">Rendimiento: ${{e.rend.toFixed(2)}} m³/hr</div>
+        <div style="font-size:10px;color:#8AA79C;margin-top:2px">Rendimiento: ${{e.rend.toFixed(2)}} m³/hr</div>
       </div>`;
   }});
   html += '</div>';
@@ -2526,7 +2544,7 @@ const dspEl = document.getElementById('diasSinProdTable');
   const el = document.getElementById('prediosTable');
   const ESP_NAMES = {{'PIRA':'Pino','EUGL':'E.Globulus','EUNI':'E.Nitens'}};
   const volTotal = D.predios.reduce((s, p) => s + p.vol, 0);
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1A5276;color:white">';
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#EFB24E;color:white">';
   html += '<th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">Predio</th>';
   html += '<th style="padding:8px 10px;text-align:right">m³ Producidos</th>';
   html += '<th style="padding:8px 10px;text-align:right">% del total</th>';
@@ -2538,20 +2556,20 @@ const dspEl = document.getElementById('diasSinProdTable');
     const pct = volTotal > 0 ? (p.vol / volTotal * 100) : 0;
     const especiesTxt = p.esp.map(e => ESP_NAMES[e] || e).join(', ');
     const faenasTxt = p.eq.join(', ');
-    html += `<tr style="background:${{i%2===0?'#F8FAFC':'white'}}">
-      <td style="padding:6px 10px;color:#1A5276">
+    html += `<tr style="background:${{i%2===0?'#0E1713':'white'}}">
+      <td style="padding:6px 10px;color:#EFB24E">
         <div style="font-weight:600">${{p.nombre || p.pr}}</div>
-        ${{p.nombre ? `<div style="font-size:10px;color:#94A3B8">Cód. ${{p.pr}}</div>` : ''}}
+        ${{p.nombre ? `<div style="font-size:10px;color:#7E9289">Cód. ${{p.pr}}</div>` : ''}}
       </td>
       <td style="padding:6px 10px;text-align:right;font-weight:700">${{fmt(p.vol)}}</td>
       <td style="padding:6px 10px;text-align:right">
-        <div style="display:inline-block;background:#E2E8F0;height:8px;width:60px;border-radius:4px;overflow:hidden;vertical-align:middle;margin-right:6px">
-          <div style="width:${{pct}}%;height:100%;background:#16A34A"></div>
+        <div style="display:inline-block;background:#24352E;height:8px;width:60px;border-radius:4px;overflow:hidden;vertical-align:middle;margin-right:6px">
+          <div style="width:${{pct}}%;height:100%;background:#43D98A"></div>
         </div>${{pct.toFixed(1)}}%
       </td>
       <td style="padding:6px 10px;text-align:right">${{p.rend.toFixed(2)}}</td>
-      <td style="padding:6px 10px;font-size:11px;color:#334155">${{especiesTxt}}</td>
-      <td style="padding:6px 10px;font-size:11px;color:#334155">${{faenasTxt}}</td>
+      <td style="padding:6px 10px;font-size:11px;color:#C3D3CB">${{especiesTxt}}</td>
+      <td style="padding:6px 10px;font-size:11px;color:#C3D3CB">${{faenasTxt}}</td>
     </tr>`;
   }});
   html += '</tbody></table>';
@@ -2575,35 +2593,35 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // Escala: sin datos = blanco, bajo = amarillo claro, medio = naranja, alto = rojo
   const cellColor = (min) => {{
-    if (min <= 0) return '#F8FAFC';
+    if (min <= 0) return '#0E1713';
     const r = min / maxMin;
-    if (r < 0.25) return '#FEF3C7';    // amarillo muy claro
-    if (r < 0.5) return '#FBBF24';     // amarillo
+    if (r < 0.25) return '#241D0F';    // amarillo muy claro
+    if (r < 0.5) return '#FFC85A';     // amarillo
     if (r < 0.75) return '#F97316';    // naranja
-    return '#DC2626';                  // rojo
+    return '#FF625A';                  // rojo
   }};
 
-  let html = `<div style="margin-bottom:10px;font-size:11px;color:#64748B">Escala por horas de tiempo perdido (más oscuro = más TM). Cada celda en horas. Máximo registrado: ${{(maxMin/60).toFixed(1)}} h.</div>`;
+  let html = `<div style="margin-bottom:10px;font-size:11px;color:#8AA79C">Escala por horas de tiempo perdido (más oscuro = más TM). Cada celda en horas. Máximo registrado: ${{(maxMin/60).toFixed(1)}} h.</div>`;
   html += '<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:2px;font-size:11px"><thead><tr>';
-  html += '<th style="padding:4px 8px;text-align:left;color:#64748B;font-weight:600;position:sticky;left:0;background:white">Faena</th>';
+  html += '<th style="padding:4px 8px;text-align:left;color:#8AA79C;font-weight:600;position:sticky;left:0;background:#17241E">Faena</th>';
   days.forEach(d => {{
     const dow = DIAS_SEMANA[new Date(cfg.anio, cfg.mes-1, d).getDay()];
-    html += `<th style="padding:2px;text-align:center;font-weight:500;color:#94A3B8;font-size:10px;min-width:24px">
+    html += `<th style="padding:2px;text-align:center;font-weight:500;color:#7E9289;font-size:10px;min-width:24px">
       <div>${{d}}</div><div style="font-size:9px">${{dow[0]}}</div></th>`;
   }});
-  html += '<th style="padding:4px 8px;text-align:right;color:#64748B;font-weight:600">Total (hrs)</th>';
+  html += '<th style="padding:4px 8px;text-align:right;color:#8AA79C;font-weight:600">Total (hrs)</th>';
   html += '</tr></thead><tbody>';
   TEAMS.forEach(t => {{
     let totMin = 0;
-    html += `<tr><td style="padding:4px 8px;font-weight:600;color:#1A5276;white-space:nowrap;position:sticky;left:0;background:white">${{t.replace('Millalemu ','M')}}</td>`;
+    html += `<tr><td style="padding:4px 8px;font-weight:600;color:#EFB24E;white-space:nowrap;position:sticky;left:0;background:#17241E">${{t.replace('Millalemu ','M')}}</td>`;
     days.forEach(d => {{
       const min = D.tmHeatmap[d]?.[t] || 0;
       totMin += min;
       const color = cellColor(min);
       const tip = min > 0 ? `${{t}} · Día ${{d}}: ${{min}} min (${{(min/60).toFixed(1)}} hrs)` : `${{t}} · Día ${{d}}: sin TM registrado`;
-      html += `<td style="width:24px;height:24px;background:${{color}};border-radius:3px;cursor:help;text-align:center;font-size:9px;color:${{min>maxMin*0.5?'white':'#1E293B'}}" title="${{tip}}">${{min > 0 ? Math.round(min/60*10)/10 : ''}}</td>`;
+      html += `<td style="width:24px;height:24px;background:${{color}};border-radius:3px;cursor:help;text-align:center;font-size:9px;color:${{min>maxMin*0.5?'white':'#EAF2EC'}}" title="${{tip}}">${{min > 0 ? Math.round(min/60*10)/10 : ''}}</td>`;
     }});
-    html += `<td style="padding:4px 8px;text-align:right;font-weight:700;color:#C0392B">${{(totMin/60).toFixed(1)}}</td>`;
+    html += `<td style="padding:4px 8px;text-align:right;font-weight:700;color:#FF625A">${{(totMin/60).toFixed(1)}}</td>`;
     html += '</tr>';
   }});
   html += '</tbody></table></div>';
@@ -2615,7 +2633,7 @@ const dspEl = document.getElementById('diasSinProdTable');
 // ═══════════════════════════════════════════════════════════
 (() => {{
   const el = document.getElementById('mtbfMttrTable');
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1A5276;color:white">';
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#EFB24E;color:white">';
   html += '<th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">Faena</th>';
   html += '<th style="padding:8px 10px;text-align:right" title="Número de fallas de Mantención">Fallas</th>';
   html += '<th style="padding:8px 10px;text-align:right" title="Mean Time Between Failures: horas de operación efectiva entre fallas">MTBF (hrs)</th>';
@@ -2624,20 +2642,20 @@ const dspEl = document.getElementById('diasSinProdTable');
   // Ordenar por más fallas arriba
   const sorted = [...D.mtbfMttr].sort((a, b) => b.fallas - a.fallas);
   sorted.forEach((r, i) => {{
-    const mtbfColor = r.mtbf === null ? '#94A3B8' : r.mtbf >= 40 ? '#166534' : r.mtbf >= 20 ? '#EAB308' : '#DC2626';
-    const mttrColor = r.mttr === null ? '#94A3B8' : r.mttr <= 60 ? '#166534' : r.mttr <= 120 ? '#EAB308' : '#DC2626';
-    html += `<tr style="background:${{i%2===0?'#F8FAFC':'white'}}">
-      <td style="padding:6px 10px;font-weight:600;color:#1A5276">${{r.t.replace('Millalemu ','M')}}</td>
+    const mtbfColor = r.mtbf === null ? '#7E9289' : r.mtbf >= 40 ? '#43D98A' : r.mtbf >= 20 ? '#F5C542' : '#FF625A';
+    const mttrColor = r.mttr === null ? '#7E9289' : r.mttr <= 60 ? '#43D98A' : r.mttr <= 120 ? '#F5C542' : '#FF625A';
+    html += `<tr style="background:${{i%2===0?'#0E1713':'white'}}">
+      <td style="padding:6px 10px;font-weight:600;color:#EFB24E">${{r.t.replace('Millalemu ','M')}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700">${{r.fallas}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700;color:${{mtbfColor}}">${{r.mtbf === null ? '—' : r.mtbf}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700;color:${{mttrColor}}">${{r.mttr === null ? '—' : (r.mttr/60).toFixed(1)+'h'}}</td>
     </tr>`;
   }});
   html += '</tbody></table>';
-  html += `<div style="font-size:11px;color:#64748B;margin-top:10px;line-height:1.7;background:#F8FAFC;border-radius:8px;padding:10px 12px">
-    <b style="color:#1A5276">MTBF</b> <span style="color:#94A3B8">(Mean Time Between Failures)</span> — horas promedio que la máquina <b>trabaja entre una falla y la siguiente</b>. Mientras más alto, falla menos = <b style="color:#166534">mejor</b>.<br>
-    <b style="color:#1A5276">MTTR</b> <span style="color:#94A3B8">(Mean Time To Repair)</span> — horas promedio que toma <b>reparar</b> cada falla. Mientras más bajo, se arregla más rápido = <b style="color:#166534">mejor</b>.<br>
-    <span style="color:#94A3B8">Solo considera fallas de Mantención.</span>
+  html += `<div style="font-size:11px;color:#8AA79C;margin-top:10px;line-height:1.7;background:#0E1713;border-radius:8px;padding:10px 12px">
+    <b style="color:#EFB24E">MTBF</b> <span style="color:#7E9289">(Mean Time Between Failures)</span> — horas promedio que la máquina <b>trabaja entre una falla y la siguiente</b>. Mientras más alto, falla menos = <b style="color:#43D98A">mejor</b>.<br>
+    <b style="color:#EFB24E">MTTR</b> <span style="color:#7E9289">(Mean Time To Repair)</span> — horas promedio que toma <b>reparar</b> cada falla. Mientras más bajo, se arregla más rápido = <b style="color:#43D98A">mejor</b>.<br>
+    <span style="color:#7E9289">Solo considera fallas de Mantención.</span>
   </div>`;
   el.innerHTML = html;
 }})();
@@ -2650,24 +2668,24 @@ const dspEl = document.getElementById('diasSinProdTable');
   const c = D.compMes;
   const MESES_NOMBRE = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   if (!c) {{
-    el.innerHTML = '<p style="text-align:center;color:#64748B;padding:20px">Sin datos del mes anterior para comparar.</p>';
+    el.innerHTML = '<p style="text-align:center;color:#8AA79C;padding:20px">Sin datos del mes anterior para comparar.</p>';
     return;
   }}
   if (!c.suficiente) {{
-    el.innerHTML = `<p style="text-align:center;color:#64748B;padding:20px">Mes anterior (${{MESES_NOMBRE[c.mesPrev]}}) tiene solo ${{c.diasPrev}} día${{c.diasPrev!==1?'s':''}} de datos. Comparativa no confiable.</p>`;
+    el.innerHTML = `<p style="text-align:center;color:#8AA79C;padding:20px">Mes anterior (${{MESES_NOMBRE[c.mesPrev]}}) tiene solo ${{c.diasPrev}} día${{c.diasPrev!==1?'s':''}} de datos. Comparativa no confiable.</p>`;
     return;
   }}
   const row = (label, prev, act, delta, unit) => {{
-    const color = delta >= 0 ? '#166534' : '#DC2626';
+    const color = delta >= 0 ? '#43D98A' : '#FF625A';
     const arrow = delta >= 0 ? '▲' : '▼';
     return `<tr>
-      <td style="padding:6px 10px;color:#64748B">${{label}}</td>
+      <td style="padding:6px 10px;color:#8AA79C">${{label}}</td>
       <td style="padding:6px 10px;text-align:right">${{fmt(prev)}} ${{unit}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700">${{fmt(act)}} ${{unit}}</td>
       <td style="padding:6px 10px;text-align:right;font-weight:700;color:${{color}}">${{arrow}} ${{Math.abs(delta)}}%</td>
     </tr>`;
   }};
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#F1F5F9;color:#64748B">';
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#17241E;color:#8AA79C">';
   html += '<th style="padding:8px 10px;text-align:left;border-radius:8px 0 0 0">Métrica</th>';
   html += `<th style="padding:8px 10px;text-align:right">${{MESES_NOMBRE[c.mesPrev]}} (${{c.diasPrev}}d)</th>`;
   html += `<th style="padding:8px 10px;text-align:right">${{cfg.mesNombre}} (${{cfg.dd}}d)</th>`;
@@ -2676,7 +2694,7 @@ const dspEl = document.getElementById('diasSinProdTable');
   html += row('Prom. diario', c.promPrev, c.promAct, c.deltaProm, 'm³');
   html += row('Rendimiento', c.rendPrev, c.rendAct, c.deltaRend, 'm³/hr');
   html += '</tbody></table>';
-  html += `<div style="font-size:10px;color:#94A3B8;margin-top:8px">Comparación en base a promedios diarios (normalizada por días de datos).</div>`;
+  html += `<div style="font-size:10px;color:#7E9289;margin-top:8px">Comparación en base a promedios diarios (normalizada por días de datos).</div>`;
   el.innerHTML = html;
 }})();
 
@@ -2687,7 +2705,7 @@ const dspEl = document.getElementById('diasSinProdTable');
   const el = document.getElementById('obsAnalisisBox');
   const oa = D.obsAnalisis || {{}};
   if (!oa.totalComentarios || oa.totalComentarios === 0) {{
-    el.innerHTML = '<p style="text-align:center;color:#64748B;padding:20px">Sin observaciones en los registros de Tiempos Perdidos.</p>';
+    el.innerHTML = '<p style="text-align:center;color:#8AA79C;padding:20px">Sin observaciones en los registros de Tiempos Perdidos.</p>';
     return;
   }}
 
@@ -2696,18 +2714,18 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // ── LADO IZQUIERDO: Categorías + Palabras clave ──
   html += '<div>';
-  html += `<div style="font-size:11px;color:#64748B;margin-bottom:8px">${{oa.totalComentarios}} comentarios analizados · ${{(totalMin/60).toFixed(1)}} hrs totales</div>`;
+  html += `<div style="font-size:11px;color:#8AA79C;margin-bottom:8px">${{oa.totalComentarios}} comentarios analizados · ${{(totalMin/60).toFixed(1)}} hrs totales</div>`;
 
   // Categorías con barras proporcionales
-  html += '<div style="margin-bottom:14px"><div style="font-weight:700;color:#1A5276;font-size:12px;margin-bottom:6px">Por categoría</div>';
+  html += '<div style="margin-bottom:14px"><div style="font-weight:700;color:#EFB24E;font-size:12px;margin-bottom:6px">Por categoría</div>';
   oa.porCategoria.forEach(c => {{
     const pct = totalMin > 0 ? (c.minutos / totalMin * 100) : 0;
     html += `<div style="margin-bottom:6px">
       <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
-        <span style="color:#1E293B"><strong>${{c.cat}}</strong> · ${{c.n}} coment.</span>
+        <span style="color:#EAF2EC"><strong>${{c.cat}}</strong> · ${{c.n}} coment.</span>
         <span style="color:${{c.color}};font-weight:700">${{(c.minutos/60).toFixed(1)}}h (${{pct.toFixed(0)}}%)</span>
       </div>
-      <div style="background:#F1F5F9;height:8px;border-radius:4px;overflow:hidden">
+      <div style="background:#17241E;height:8px;border-radius:4px;overflow:hidden">
         <div style="width:${{pct}}%;height:100%;background:${{c.color}}"></div>
       </div>
     </div>`;
@@ -2716,12 +2734,12 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // Palabras clave como burbujas (bubble chart / circle packing)
   if (oa.palabrasClave && oa.palabrasClave.length > 0) {{
-    html += '<div><div style="font-weight:700;color:#1A5276;font-size:12px;margin-bottom:6px">Palabras más frecuentes (tamaño = frecuencia)</div>';
-    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;padding:12px;background:linear-gradient(135deg,#F8FAFC,#EFF6FF);border-radius:8px;min-height:180px">';
+    html += '<div><div style="font-weight:700;color:#EFB24E;font-size:12px;margin-bottom:6px">Palabras más frecuentes (tamaño = frecuencia)</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;padding:12px;background:linear-gradient(135deg,#0E1713,#14201C);border-radius:8px;min-height:180px">';
     const maxN = oa.palabrasClave[0].n;
     const minN = oa.palabrasClave[oa.palabrasClave.length-1].n;
     // Paleta de colores — las más frecuentes más oscuras/rojas
-    const palette = ['#DC2626','#F59E0B','#D97706','#16A34A','#2563EB','#8B5CF6','#0891B2','#64748B'];
+    const palette = ['#FF625A','#FFB454','#FF9A3D','#43D98A','#2563EB','#8B5CF6','#0891B2','#8AA79C'];
     oa.palabrasClave.forEach((p, i) => {{
       // Tamaño del círculo: entre 40 y 100 px
       const ratio = maxN > minN ? (p.n - minN) / (maxN - minN) : 0.5;
@@ -2740,15 +2758,15 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // ── LADO DERECHO: Top comentarios ──
   html += '<div>';
-  html += '<div style="font-weight:700;color:#1A5276;font-size:12px;margin-bottom:6px">Top comentarios (por tiempo acumulado)</div>';
+  html += '<div style="font-weight:700;color:#EFB24E;font-size:12px;margin-bottom:6px">Top comentarios (por tiempo acumulado)</div>';
   html += '<div style="max-height:420px;overflow-y:auto">';
   oa.topComentarios.forEach((c, i) => {{
-    html += `<div style="background:white;border-left:3px solid ${{c.color}};padding:6px 10px;margin-bottom:4px;border-radius:3px;font-size:11px">
+    html += `<div style="background:#17241E;border-left:3px solid ${{c.color}};padding:6px 10px;margin-bottom:4px;border-radius:3px;font-size:11px">
       <div style="display:flex;justify-content:space-between;gap:8px">
-        <span style="color:#1E293B;flex:1">${{c.txt}}</span>
+        <span style="color:#EAF2EC;flex:1">${{c.txt}}</span>
         <span style="color:${{c.color}};font-weight:700;white-space:nowrap">${{(c.minutos/60).toFixed(1)}}h</span>
       </div>
-      <div style="font-size:10px;color:#94A3B8;margin-top:2px">
+      <div style="font-size:10px;color:#7E9289;margin-top:2px">
         <span style="display:inline-block;background:${{c.color}}22;color:${{c.color}};padding:1px 6px;border-radius:2px">${{c.cat}}</span>
         · ${{c.n}} mención${{c.n!==1?'es':''}}
       </div>
@@ -2760,9 +2778,9 @@ const dspEl = document.getElementById('diasSinProdTable');
   html += '</div>';
 
   // ── SECCIÓN INFERIOR: Por equipo (matriz de categorías) ──
-  html += '<div style="margin-top:14px;border-top:1px solid #E2E8F0;padding-top:12px">';
-  html += '<div style="font-weight:700;color:#1A5276;font-size:12px;margin-bottom:8px">Categoría dominante por faena</div>';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#F1F5F9">';
+  html += '<div style="margin-top:14px;border-top:1px solid #24352E;padding-top:12px">';
+  html += '<div style="font-weight:700;color:#EFB24E;font-size:12px;margin-bottom:8px">Categoría dominante por faena</div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#17241E">';
   html += '<th style="padding:4px 8px;text-align:left">Faena</th>';
   html += '<th style="padding:4px 8px;text-align:left">Categoría dominante</th>';
   html += '<th style="padding:4px 8px;text-align:right">Tiempo</th>';
@@ -2775,11 +2793,11 @@ const dspEl = document.getElementById('diasSinProdTable');
     const top = cats[0];
     const otras = cats.slice(1).map(c => `${{c.cat}} (${{(c.minutos/60).toFixed(1)}}h)`).join(' · ');
     html += `<tr>
-      <td style="padding:4px 8px;font-weight:600;color:#1A5276">${{t.replace('Millalemu ','M')}}</td>
+      <td style="padding:4px 8px;font-weight:600;color:#EFB24E">${{t.replace('Millalemu ','M')}}</td>
       <td style="padding:4px 8px"><span style="background:${{top.color}}22;color:${{top.color}};padding:2px 6px;border-radius:3px;font-weight:700">${{top.cat}}</span></td>
       <td style="padding:4px 8px;text-align:right;font-weight:700;color:${{top.color}}">${{(top.minutos/60).toFixed(1)}}h</td>
       <td style="padding:4px 8px;text-align:right">${{top.n}}</td>
-      <td style="padding:4px 8px;font-size:10px;color:#64748B">${{otras || '—'}}</td>
+      <td style="padding:4px 8px;font-size:10px;color:#8AA79C">${{otras || '—'}}</td>
     </tr>`;
   }});
   html += '</tbody></table></div>';
@@ -2793,7 +2811,7 @@ const dspEl = document.getElementById('diasSinProdTable');
 (() => {{
   const causas = D.tmParetoGlobal || [];
   if (!causas.length) {{
-    document.getElementById('tmParetoBox').innerHTML = '<div style="padding:14px;color:#64748B">Sin datos de tiempos perdidos para analizar.</div>';
+    document.getElementById('tmParetoBox').innerHTML = '<div style="padding:14px;color:#8AA79C">Sin datos de tiempos perdidos para analizar.</div>';
     return;
   }}
 
@@ -2805,11 +2823,11 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // Hallazgo box
   const halBox = `
-    <div style="background:#FEF3C7;border-left:4px solid #D97706;padding:12px 16px;border-radius:8px;font-size:13px">
-      <strong style="color:#92400E">Hallazgo 80/20:</strong>
+    <div style="background:#241D0F;border-left:4px solid #FF9A3D;padding:12px 16px;border-radius:8px;font-size:13px">
+      <strong style="color:#FF9A3D">Hallazgo 80/20:</strong>
       <span style="color:#78350F">${{vital.length}} causas (de ${{causas.length}}) concentran el ${{vital[vital.length-1].pctAcum.toFixed(0)}}% de las
       <strong>${{totalH.toFixed(1)}} hrs perdidas</strong> en el mes (${{totalEv}} eventos).</span>
-      <div style="margin-top:6px;font-size:11px;color:#92400E">Atacar estas causas tiene el mayor retorno por unidad de esfuerzo.</div>
+      <div style="margin-top:6px;font-size:11px;color:#FF9A3D">Atacar estas causas tiene el mayor retorno por unidad de esfuerzo.</div>
     </div>`;
   document.getElementById('tmParetoBox').innerHTML = halBox;
 
@@ -2824,7 +2842,7 @@ const dspEl = document.getElementById('diasSinProdTable');
           type: 'bar',
           label: 'Horas perdidas',
           data: top15.map(c => c.h),
-          backgroundColor: top15.map(c => c.pctAcum <= 80 ? '#DC2626' : '#94A3B8'),
+          backgroundColor: top15.map(c => c.pctAcum <= 80 ? '#FF625A' : '#7E9289'),
           borderRadius: 4,
           yAxisID: 'y',
         }},
@@ -2832,11 +2850,11 @@ const dspEl = document.getElementById('diasSinProdTable');
           type: 'line',
           label: '% Acumulado',
           data: top15.map(c => c.pctAcum),
-          borderColor: '#D97706',
+          borderColor: '#FF9A3D',
           backgroundColor: 'transparent',
           borderWidth: 2.5,
           pointRadius: 4,
-          pointBackgroundColor: '#D97706',
+          pointBackgroundColor: '#FF9A3D',
           tension: 0.2,
           yAxisID: 'y1',
         }}
@@ -2870,21 +2888,21 @@ const dspEl = document.getElementById('diasSinProdTable');
 (() => {{
   const heat = D.tmHeatmapCE || [];
   const el = document.getElementById('tmHeatmapCETable');
-  if (!heat.length) {{ el.innerHTML = '<div style="padding:14px;color:#64748B">Sin causas vitales para cruzar.</div>'; return; }}
+  if (!heat.length) {{ el.innerHTML = '<div style="padding:14px;color:#8AA79C">Sin causas vitales para cruzar.</div>'; return; }}
 
   const equipos = TEAMS;
   // Calcular max por causa para escala de color
   const colorScale = (val, max) => {{
-    if (val === 0 || max === 0) return '#F8FAFC';
+    if (val === 0 || max === 0) return '#0E1713';
     const r = val / max;
-    if (r >= 0.6) return '#FCA5A5';   // rojo
-    if (r >= 0.3) return '#FED7AA';   // naranja
-    if (r >= 0.1) return '#FEF3C7';   // amarillo
-    return '#ECFCCB';                  // verde claro
+    if (r >= 0.6) return '#FF8A80';   // rojo
+    if (r >= 0.3) return '#241A10';   // naranja
+    if (r >= 0.1) return '#241D0F';   // amarillo
+    return '#1A2410';                  // verde claro
   }};
 
   let h = '<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:780px">';
-  h += '<thead><tr style="background:#1A5276;color:white"><th style="padding:8px 10px;text-align:left;min-width:240px">Causa</th>';
+  h += '<thead><tr style="background:#EFB24E;color:white"><th style="padding:8px 10px;text-align:left;min-width:240px">Causa</th>';
   equipos.forEach(eq => h += `<th style="padding:8px 6px;text-align:center;font-size:10px">${{eq.replace('Millalemu ','M')}}</th>`);
   h += '<th style="padding:8px 10px;text-align:right;background:#0F3D5E">Total h</th>';
   h += '<th style="padding:8px 10px;text-align:left;background:#0F3D5E;font-size:10px">Concentración</th>';
@@ -2892,8 +2910,8 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   heat.forEach((row, idx) => {{
     const max = Math.max(...Object.values(row.porEquipo));
-    h += `<tr style="background:${{idx%2?'#F8FAFC':'#FFFFFF'}}">`;
-    h += `<td style="padding:6px 10px;font-weight:600;color:#1A5276">${{row.causa}}</td>`;
+    h += `<tr style="background:${{idx%2?'#0E1713':'#111C17'}}">`;
+    h += `<td style="padding:6px 10px;font-weight:600;color:#EFB24E">${{row.causa}}</td>`;
     equipos.forEach(eq => {{
       const v = row.porEquipo[eq] || 0;
       const bg = colorScale(v, max);
@@ -2901,11 +2919,11 @@ const dspEl = document.getElementById('diasSinProdTable');
       const wt = (v === max && v > 0) ? '700' : '400';
       h += `<td style="padding:6px;text-align:center;background:${{bg}};font-weight:${{wt}}">${{txt}}</td>`;
     }});
-    h += `<td style="padding:6px 10px;text-align:right;font-weight:700;background:#EBF5FB">${{row.totalH.toFixed(1)}}</td>`;
+    h += `<td style="padding:6px 10px;text-align:right;font-weight:700;background:#14201C">${{row.totalH.toFixed(1)}}</td>`;
     const focoLabel = row.topPct >= 50
-      ? `<span style="color:#DC2626;font-weight:600">⚠ ${{row.topEquipo.replace('Millalemu ','M')}} (${{row.topPct.toFixed(0)}}%)</span>`
-      : `<span style="color:#64748B">Distribuida</span>`;
-    h += `<td style="padding:6px 10px;background:#F8FAFC">${{focoLabel}}</td>`;
+      ? `<span style="color:#FF625A;font-weight:600">⚠ ${{row.topEquipo.replace('Millalemu ','M')}} (${{row.topPct.toFixed(0)}}%)</span>`
+      : `<span style="color:#8AA79C">Distribuida</span>`;
+    h += `<td style="padding:6px 10px;background:#0E1713">${{focoLabel}}</td>`;
     h += '</tr>';
   }});
   h += '</tbody></table>';
@@ -2919,7 +2937,7 @@ const dspEl = document.getElementById('diasSinProdTable');
   const recs = D.tmRecomendaciones || [];
   const el = document.getElementById('tmRecBox');
   if (!recs.length) {{
-    el.innerHTML = '<div style="padding:14px;color:#64748B">Sin recomendaciones accionables (insuficiente recurrencia en las causas top).</div>';
+    el.innerHTML = '<div style="padding:14px;color:#8AA79C">Sin recomendaciones accionables (insuficiente recurrencia en las causas top).</div>';
     return;
   }}
 
@@ -2928,33 +2946,33 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   let h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-bottom:12px">';
   recs.forEach(r => {{
-    h += `<div style="background:white;border-radius:8px;padding:12px 14px;border-left:4px solid #16A34A;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    h += `<div style="background:#17241E;border-radius:8px;padding:12px 14px;border-left:4px solid #43D98A;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div style="font-weight:700;color:#166534;font-size:13px">#${{r.id}} ${{r.causa}}</div>
-        <div style="background:#16A34A;color:white;padding:2px 6px;border-radius:4px;font-size:10px;white-space:nowrap">${{r.recurrencia}} días</div>
+        <div style="font-weight:700;color:#43D98A;font-size:13px">#${{r.id}} ${{r.causa}}</div>
+        <div style="background:#43D98A;color:white;padding:2px 6px;border-radius:4px;font-size:10px;white-space:nowrap">${{r.recurrencia}} días</div>
       </div>
-      <div style="font-size:11px;color:#64748B;margin-top:6px">
-        <strong>${{r.horasMes.toFixed(1)}} h</strong> perdidas en abril (${{r.pctMes.toFixed(1)}}%) · <span style="color:#92400E">${{r.foco}}</span>
+      <div style="font-size:11px;color:#8AA79C;margin-top:6px">
+        <strong>${{r.horasMes.toFixed(1)}} h</strong> perdidas en abril (${{r.pctMes.toFixed(1)}}%) · <span style="color:#FF9A3D">${{r.foco}}</span>
       </div>
-      <div style="background:#F0FDF4;padding:8px 10px;border-radius:6px;margin-top:8px;font-size:11px;line-height:1.4">
-        <div style="color:#166534;font-weight:600;margin-bottom:4px">▶ Acción:</div>
+      <div style="background:#12211A;padding:8px 10px;border-radius:6px;margin-top:8px;font-size:11px;line-height:1.4">
+        <div style="color:#43D98A;font-weight:600;margin-bottom:4px">▶ Acción:</div>
         <div style="color:#1F2937">${{r.accion}}</div>
       </div>
-      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;border-top:1px dashed #D1FAE5;padding-top:6px">
-        <span style="color:#64748B">Ahorro potencial:</span>
-        <span style="font-weight:700;color:#16A34A">${{r.ahorroPotH}} h ≈ ${{r.ahorroPotM3.toLocaleString('es-CL')}} m³</span>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;border-top:1px dashed #12211A;padding-top:6px">
+        <span style="color:#8AA79C">Ahorro potencial:</span>
+        <span style="font-weight:700;color:#43D98A">${{r.ahorroPotH}} h ≈ ${{r.ahorroPotM3.toLocaleString('es-CL')}} m³</span>
       </div>
     </div>`;
   }});
   h += '</div>';
 
   // Total potencial agregado
-  h += `<div style="background:white;border-radius:8px;padding:14px 18px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.05);border:2px dashed #16A34A">
-    <div style="font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px">Si se atacan las ${{recs.length}} causas: ahorro mensual estimado</div>
+  h += `<div style="background:#17241E;border-radius:8px;padding:14px 18px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.05);border:2px dashed #43D98A">
+    <div style="font-size:11px;color:#8AA79C;text-transform:uppercase;letter-spacing:0.5px">Si se atacan las ${{recs.length}} causas: ahorro mensual estimado</div>
     <div style="margin-top:6px;display:flex;justify-content:center;gap:30px;align-items:baseline">
-      <div><span style="font-size:32px;font-weight:800;color:#16A34A">${{totalAhorroH.toFixed(0)}}</span> <span style="color:#64748B;font-size:12px">horas</span></div>
-      <div style="color:#94A3B8">≈</div>
-      <div><span style="font-size:32px;font-weight:800;color:#16A34A">${{totalAhorroM3.toLocaleString('es-CL')}}</span> <span style="color:#64748B;font-size:12px">m³ adicionales</span></div>
+      <div><span style="font-size:32px;font-weight:800;color:#43D98A">${{totalAhorroH.toFixed(0)}}</span> <span style="color:#8AA79C;font-size:12px">horas</span></div>
+      <div style="color:#7E9289">≈</div>
+      <div><span style="font-size:32px;font-weight:800;color:#43D98A">${{totalAhorroM3.toLocaleString('es-CL')}}</span> <span style="color:#8AA79C;font-size:12px">m³ adicionales</span></div>
     </div>
   </div>`;
   el.innerHTML = h;
@@ -2969,7 +2987,7 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   if (!hist.length) {{
     document.getElementById('histKpis').innerHTML =
-      '<div style="padding:20px;color:#64748B">Sin datos históricos disponibles. Cargar historico_cierres_mensuales.csv en la carpeta del proyecto.</div>';
+      '<div style="padding:20px;color:#8AA79C">Sin datos históricos disponibles. Cargar historico_cierres_mensuales.csv en la carpeta del proyecto.</div>';
     return;
   }}
 
@@ -2991,17 +3009,17 @@ const dspEl = document.getElementById('diasSinProdTable');
   const peorMes  = mesesArr.reduce((a,b) => (b.vol/b.meta||1)<(a.vol/a.meta||1)?b:a);
   const promCumpl = mesesArr.reduce((s,m) => s + (m.vol/m.meta*100||0), 0)/mesesArr.length;
   const kpiHTML = [
-    {{label:'Meses cargados', val:mesesArr.length, sub:mesesArr[0].label+' → '+mesesArr[mesesArr.length-1].label, color:'#1A5276'}},
+    {{label:'Meses cargados', val:mesesArr.length, sub:mesesArr[0].label+' → '+mesesArr[mesesArr.length-1].label, color:'#EFB24E'}},
     {{label:'Producción acumulada', val:Math.round(totalAcum).toLocaleString('es-CL'), sub:'m³ SSC', color:'#2980B9'}},
-    {{label:'Cumplimiento promedio', val:promCumpl.toFixed(1)+'%', sub:promCumpl>=90?'En meta':'Bajo meta', color:promCumpl>=90?'#16A34A':promCumpl>=70?'#D97706':'#DC2626'}},
-    {{label:'Mejor mes', val:mejorMes.label, sub:(mejorMes.vol/mejorMes.meta*100).toFixed(1)+'% · '+Math.round(mejorMes.vol).toLocaleString('es-CL')+' m³', color:'#16A34A'}},
-    {{label:'Mes con brecha', val:peorMes.label, sub:(peorMes.vol/peorMes.meta*100).toFixed(1)+'% · '+Math.round(peorMes.vol).toLocaleString('es-CL')+' m³', color:'#DC2626'}},
+    {{label:'Cumplimiento promedio', val:promCumpl.toFixed(1)+'%', sub:promCumpl>=90?'En meta':'Bajo meta', color:promCumpl>=90?'#43D98A':promCumpl>=70?'#FF9A3D':'#FF625A'}},
+    {{label:'Mejor mes', val:mejorMes.label, sub:(mejorMes.vol/mejorMes.meta*100).toFixed(1)+'% · '+Math.round(mejorMes.vol).toLocaleString('es-CL')+' m³', color:'#43D98A'}},
+    {{label:'Mes con brecha', val:peorMes.label, sub:(peorMes.vol/peorMes.meta*100).toFixed(1)+'% · '+Math.round(peorMes.vol).toLocaleString('es-CL')+' m³', color:'#FF625A'}},
   ];
   document.getElementById('histKpis').innerHTML = kpiHTML.map(k =>
-    `<div style="flex:1;min-width:160px;background:#F8FAFC;border-left:4px solid ${{k.color}};padding:10px 14px;border-radius:6px">
-       <div style="font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:.5px">${{k.label}}</div>
+    `<div style="flex:1;min-width:160px;background:#0E1713;border-left:4px solid ${{k.color}};padding:10px 14px;border-radius:6px">
+       <div style="font-size:11px;color:#8AA79C;text-transform:uppercase;letter-spacing:.5px">${{k.label}}</div>
        <div style="font-size:22px;font-weight:800;color:${{k.color}};line-height:1.2;margin:2px 0">${{k.val}}</div>
-       <div style="font-size:11px;color:#94A3B8">${{k.sub}}</div>
+       <div style="font-size:11px;color:#7E9289">${{k.sub}}</div>
      </div>`
   ).join('');
 
@@ -3015,19 +3033,19 @@ const dspEl = document.getElementById('diasSinProdTable');
         {{
           label: 'Producción Real',
           data: mesesArr.map(m => Math.round(m.vol)),
-          backgroundColor: mesesArr.map(m => (m.vol/m.meta)>=0.9?'#16A34A':(m.vol/m.meta)>=0.7?'#D97706':'#DC2626'),
+          backgroundColor: mesesArr.map(m => (m.vol/m.meta)>=0.9?'#43D98A':(m.vol/m.meta)>=0.7?'#FF9A3D':'#FF625A'),
           borderRadius: 6,
         }},
         {{
           label: 'Meta',
           data: mesesArr.map(m => Math.round(m.meta)),
           type: 'line',
-          borderColor: '#1A5276',
+          borderColor: '#EFB24E',
           backgroundColor: 'transparent',
           borderWidth: 2.5,
           borderDash: [6,4],
           pointRadius: 5,
-          pointBackgroundColor: '#1A5276',
+          pointBackgroundColor: '#EFB24E',
         }}
       ]
     }},
@@ -3057,14 +3075,14 @@ const dspEl = document.getElementById('diasSinProdTable');
   // ── Tabla pivot Volumen ──────────────────────────────────
   const buildPivot = (valFn, fmtFn, colorFn) => {{
     let h = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
-    h += '<thead><tr style="background:#1A5276;color:white">';
+    h += '<thead><tr style="background:#EFB24E;color:white">';
     h += '<th style="padding:8px;text-align:left">Equipo</th>';
     mesesArr.forEach(m => h += `<th style="padding:8px;text-align:right">${{m.label}}</th>`);
     h += '<th style="padding:8px;text-align:right;background:#0F3D5E">Total</th>';
     h += '</tr></thead><tbody>';
     equiposSet.forEach((eq, i) => {{
-      h += `<tr style="background:${{i%2?'#F8FAFC':'#FFFFFF'}}">`;
-      h += `<td style="padding:6px 10px;font-weight:600;color:#1A5276">${{eq}}</td>`;
+      h += `<tr style="background:${{i%2?'#0E1713':'#111C17'}}">`;
+      h += `<td style="padding:6px 10px;font-weight:600;color:#EFB24E">${{eq}}</td>`;
       let total = 0, n = 0;
       mesesArr.forEach(m => {{
         const r = m.equipos[eq];
@@ -3074,11 +3092,11 @@ const dspEl = document.getElementById('diasSinProdTable');
         h += `<td style="padding:6px 10px;text-align:right;background:${{cell_color}}">${{display}}</td>`;
         if (r && r.vol) {{ total += r.vol; n++; }}
       }});
-      h += `<td style="padding:6px 10px;text-align:right;font-weight:700;background:#EBF5FB">${{Math.round(total).toLocaleString('es-CL')}}</td>`;
+      h += `<td style="padding:6px 10px;text-align:right;font-weight:700;background:#14201C">${{Math.round(total).toLocaleString('es-CL')}}</td>`;
       h += '</tr>';
     }});
     // Fila TOTAL
-    h += '<tr style="background:#1A5276;color:white;font-weight:700">';
+    h += '<tr style="background:#EFB24E;color:white;font-weight:700">';
     h += '<td style="padding:8px 10px">TOTAL FAENA</td>';
     let granTotal = 0;
     mesesArr.forEach(m => {{
@@ -3097,22 +3115,22 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   // ── Tabla pivot Cumplimiento % ──────────────────────────
   const cumplColor = r => {{
-    if (!r.meta) return '#F1F5F9';
+    if (!r.meta) return '#17241E';
     const p = r.vol/r.meta*100;
-    if (p >= 100) return '#DCFCE7';
-    if (p >= 90)  return '#ECFCCB';
-    if (p >= 70)  return '#FEF9C3';
-    if (p >= 50)  return '#FED7AA';
-    return '#FEE2E2';
+    if (p >= 100) return '#12211A';
+    if (p >= 90)  return '#1A2410';
+    if (p >= 70)  return '#24220F';
+    if (p >= 50)  return '#241A10';
+    return '#241514';
   }};
   let hPct = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
-  hPct += '<thead><tr style="background:#1A5276;color:white">';
+  hPct += '<thead><tr style="background:#EFB24E;color:white">';
   hPct += '<th style="padding:8px;text-align:left">Equipo</th>';
   mesesArr.forEach(m => hPct += `<th style="padding:8px;text-align:right">${{m.label}}</th>`);
   hPct += '<th style="padding:8px;text-align:right;background:#0F3D5E">Promedio</th></tr></thead><tbody>';
   equiposSet.forEach((eq, i) => {{
-    hPct += `<tr style="background:${{i%2?'#F8FAFC':'#FFFFFF'}}">`;
-    hPct += `<td style="padding:6px 10px;font-weight:600;color:#1A5276">${{eq}}</td>`;
+    hPct += `<tr style="background:${{i%2?'#0E1713':'#111C17'}}">`;
+    hPct += `<td style="padding:6px 10px;font-weight:600;color:#EFB24E">${{eq}}</td>`;
     let sumP = 0, n = 0;
     mesesArr.forEach(m => {{
       const r = m.equipos[eq];
@@ -3121,14 +3139,14 @@ const dspEl = document.getElementById('diasSinProdTable');
         hPct += `<td style="padding:6px 10px;text-align:right;background:${{cumplColor(r)}};font-weight:600">${{p.toFixed(1)}}%</td>`;
         sumP += p; n++;
       }} else {{
-        hPct += `<td style="padding:6px 10px;text-align:right;color:#CBD5E1">—</td>`;
+        hPct += `<td style="padding:6px 10px;text-align:right;color:#2E4038">—</td>`;
       }}
     }});
     const avgP = n > 0 ? (sumP/n).toFixed(1) : '—';
-    hPct += `<td style="padding:6px 10px;text-align:right;font-weight:700;background:#EBF5FB">${{avgP}}${{n>0?'%':''}}</td>`;
+    hPct += `<td style="padding:6px 10px;text-align:right;font-weight:700;background:#14201C">${{avgP}}${{n>0?'%':''}}</td>`;
     hPct += '</tr>';
   }});
-  hPct += '<tr style="background:#1A5276;color:white;font-weight:700">';
+  hPct += '<tr style="background:#EFB24E;color:white;font-weight:700">';
   hPct += '<td style="padding:8px 10px">CUMPL FAENA</td>';
   let sumFaena = 0;
   mesesArr.forEach(m => {{
@@ -3189,16 +3207,16 @@ const dspEl = document.getElementById('diasSinProdTable');
         scales: {{ x: {{ stacked: true }}, y: {{ stacked: true, beginAtZero: true, title: {{ display: true, text: 'horas' }} }} }}
       }}
     }});
-    let th = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="color:#64748B;text-align:right;border-bottom:2px solid #E2E8F0">'
-      + '<th style="text-align:left;padding:6px">Mes</th><th>🔧 Mant.</th><th>⚙️ Oper.</th><th>🔄 Proc.</th><th>Perdido</th><th style="color:#94A3B8">⏸️ Prog.</th><th style="text-align:left;padding-left:14px">Top causa</th></tr></thead><tbody>';
+    let th = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="color:#8AA79C;text-align:right;border-bottom:2px solid #24352E">'
+      + '<th style="text-align:left;padding:6px">Mes</th><th>🔧 Mant.</th><th>⚙️ Oper.</th><th>🔄 Proc.</th><th>Perdido</th><th style="color:#7E9289">⏸️ Prog.</th><th style="text-align:left;padding-left:14px">Top causa</th></tr></thead><tbody>';
     tmM.forEach(m => {{
       const top = (m.topCausas || '').split(';')[0] || '';
-      th += '<tr style="text-align:right;border-bottom:1px solid #EEF2F6">'
+      th += '<tr style="text-align:right;border-bottom:1px solid #17241E">'
         + '<td style="text-align:left;padding:6px;font-weight:600">' + m.mesNombre + '</td>'
         + '<td>' + m.mant.toFixed(0) + '</td><td>' + m.oper.toFixed(0) + '</td><td>' + m.proc.toFixed(0) + '</td>'
         + '<td style="font-weight:700">' + m.perdido.toFixed(0) + '</td>'
-        + '<td style="color:#94A3B8">' + m.prog.toFixed(0) + '</td>'
-        + '<td style="text-align:left;padding-left:14px;color:#475569">' + top + '</td></tr>';
+        + '<td style="color:#7E9289">' + m.prog.toFixed(0) + '</td>'
+        + '<td style="text-align:left;padding-left:14px;color:#9DB2A8">' + top + '</td></tr>';
     }});
     th += '</tbody></table>';
     document.getElementById('tmMensualTabla').innerHTML = th;
@@ -3276,7 +3294,7 @@ document.getElementById('genDate').textContent = D.generado;
       const m = parseInt(el.getAttribute('data-mes'));
       if (filtMes) {{
         if (m === parseInt(mesVal)) {{
-          el.style.background = '#DBEAFE';
+          el.style.background = '#16252E';
           el.style.fontWeight = '700';
         }} else {{
           el.style.opacity = '0.35';
