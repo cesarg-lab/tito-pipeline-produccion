@@ -108,6 +108,10 @@ def build(kpis, tmf):
             tm=dict(total=tm_tot, mant=f.get('tm_mant_min',0), oper=f.get('tm_oper_min',0), proc=f.get('tm_proc_min',0),
                     causas=[{'n':k.strip(),'min':v} for k,v in list(causas.items())[:6]]),
             diag=diagnostico_faena(f, causas, vma), parcial=parcial,
+            reto=dict(palanca=f.get('palanca_limitante'), pot=f.get('benchmark_tipo', {}),
+                      gaps=f.get('gaps_palanca', {}), proy_pot=f.get('proy_potencial_pct'),
+                      opp=f.get('oportunidad_palanca_m3'), status=f.get('meta_status'),
+                      predio=f.get('predio',''), especie=f.get('especie','')),
         )
         rowmap[f['nombre']] = f'''<tr class="clickrow" tabindex="0" role="button" data-faena="{f['nombre']}" aria-label="Ver detalle de {f['nombre']}">
   <td class="l"><span class="fa">{f['nombre']}</span><button class="rowpdf" title="Informe PDF de {f['nombre']}" onclick="event.stopPropagation();openM('{f['nombre']}')">📄 PDF</button><span class="chev">›</span></td>
@@ -200,9 +204,15 @@ def build(kpis, tmf):
     if terr: tables_html += tabla(terr, 'Terrestre', f'{len(terr)} faenas · skidder / madereo–trozado')
     if aereo: tables_html += tabla(aereo, 'Aéreo', f'{len(aereo)} faenas · torre / cable')
     detail_json = json.dumps(details, ensure_ascii=False)
+    _des = T.get('desafio', {})
+    _ng = _des.get('por_gestion', 0); _nm = _des.get('multipalanca', 0); _nr = _des.get('requiere_rodal', 0)
+    if _nr == 0 and _nm == 0 and _ng:
+        reto_global = f'<b>Meta global alcanzable por gestión:</b> los {len(F)} equipos pueden cumplir su meta cerrando su palanca-desafío — suman hasta los {miles(meta)} m³ del sistema. Cada uno se mide contra su propio potencial (mejor de su tipo).'
+    else:
+        reto_global = f'<b>Hacia la meta global de {miles(meta)} m³:</b> {_ng} equipos cumplen por gestión · {_nm} requieren varias palancas · {_nr} requieren rodal/plan (revisar meta o asignar mejor rodal).'
 
     return HTML.format(
-        detail_json=detail_json, modal_js=MODAL_JS, logo=LOGO_DATAURI,
+        detail_json=detail_json, modal_js=MODAL_JS, logo=LOGO_DATAURI, reto_global=reto_global,
         mes=kpis['mes'], sub=sub, head_main=head_stat_main, stat2=stat2,
         vma_g=dec(vma_g,3), arb_g=miles(arb_g),
         pal_dom=pal_dom, pal_n=pal_n, nfaenas=len(F),
@@ -360,6 +370,13 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .cz .cb{{height:7px;background:var(--bar-track);border-radius:4px;overflow:hidden}}
   .cz .cb>i{{display:block;height:100%;background:var(--crit);border-radius:4px}}
   .cz .cm{{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:600}}
+  .reto{{margin-top:12px;padding:11px 14px;border-radius:9px;font-size:13px;line-height:1.5;color:var(--ink-2)}}
+  .reto b{{color:var(--ink)}}
+  .reto-gestion{{background:var(--good-bg);border:1px solid var(--good)}}
+  .reto-multipalanca{{background:var(--warn-bg);border:1px solid var(--warn)}}
+  .reto-rodal{{background:var(--crit-bg);border:1px solid var(--crit)}}
+  .retobanner{{background:var(--accent-soft);border:1px solid var(--line-2);border-left:4px solid var(--accent);border-radius:12px;padding:14px 18px;margin:20px 0 0;font-size:14px;color:var(--ink-2)}}
+  .retobanner b{{color:var(--ink)}}
   .diagbox{{background:var(--accent-soft);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px}}
   .diagbox p{{margin:0 0 8px;font-size:13.5px;color:var(--ink-2)}}.diagbox p:last-child{{margin:0}}.diagbox b{{color:var(--ink)}}
   .pill-pal{{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--accent);background:var(--surface);border:1px solid var(--accent);border-radius:20px;padding:2px 10px;margin-bottom:10px}}
@@ -374,6 +391,7 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
     <h1>Uso · Ritmo · Carga · VMA por faena</h1>
     <p class="hsub">{sub}</p>
   </div>
+  <div class="retobanner">🎯 {reto_global}</div>
   <div class="hero">
     {head_main}
     {stat2}
@@ -493,11 +511,18 @@ function renderRest(d, name){
         <div class="mstat"><p class="k">Productividad</p><div class="v">${nf(d.prod,1)}<small> m³/h</small></div></div>
         <div class="mstat"><p class="k">VMA</p><div class="v">${nf(d.vma,3)}<small> m³/árb</small></div></div>
       </div>
-      <div><p class="msec-t">Descomposición vs líder de su tipo (${d.tipo})</p><div class="decomp">
+      <div><p class="msec-t">Tu desafío — actual vs tu potencial (mejor de tu tipo, ${d.tipo})</p><div class="decomp">
         ${term('Uso', d.uso, '%', b.uso_pct, 1, lim==='Uso')}
         ${term('Ritmo', d.ritmo, 'c/h', b.ritmo_ciclos_h, 2, lim==='Ritmo')}
         ${term('Carga', d.carga, 'm³/c', b.carga_m3_ciclo, 2, lim==='Carga')}
-      </div></div>
+      </div>
+      <div class="reto reto-${(d.reto&&d.reto.status)||'gestion'}">${(function(){
+        const r=d.reto||{}, pal=r.palanca||'—';
+        const pp = r.proy_pot==null?'':(r.proy_pot>=130?'supera tu meta':nf(r.proy_pot,0)+'% de tu meta');
+        if(r.status==='rodal') return `<b>Tu desafío: ${pal}.</b> Ni con el potencial de tu tipo llegás a la meta → palanca de <b>Planificación</b> (más rodal/árbol) o revisar la meta.`;
+        if(r.status==='multipalanca') return `<b>Tu desafío: ${pal}.</b> Cerrarla te acerca (+${nf(r.opp,0)} m³), pero para tu meta necesitás mejorar más de una palanca.`;
+        return `<b>Tu desafío: ${pal}.</b> Cerrándola a tu potencial sumás <b>+${nf(r.opp,0)} m³</b> → tu proyección pasa a <b>${pp}</b>. Cumplís tu meta y aportás a la meta global.`;
+      })()}</div></div>
       <div class="mrow">
         <div class="mstat"><p class="k">Hrs efectivas</p><div class="v">${nf(d.hrs_ef,0)}<small> h</small></div></div>
         <div class="mstat"><p class="k">Hrs disponibles</p><div class="v">${nf(d.hrs_disp,0)}<small> h</small></div></div>
