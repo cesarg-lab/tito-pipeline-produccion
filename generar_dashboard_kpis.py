@@ -110,7 +110,7 @@ def build(kpis, tmf):
             diag=diagnostico_faena(f, causas, vma), parcial=parcial,
         )
         rowmap[f['nombre']] = f'''<tr class="clickrow" tabindex="0" role="button" data-faena="{f['nombre']}" aria-label="Ver detalle de {f['nombre']}">
-  <td class="l"><span class="fa">{f['nombre']}</span><span class="chev">›</span></td>
+  <td class="l"><span class="fa">{f['nombre']}</span><button class="rowpdf" title="Informe PDF de {f['nombre']}" onclick="event.stopPropagation();openM('{f['nombre']}')">📄 PDF</button><span class="chev">›</span></td>
   <td><div class="usocell"><div class="usobar"><i class="{uso_fill(u)}" style="width:{uw}%"></i><span class="mark" style="left:90%"></span></div>{usoval}</div></td>
   <td class="num">{dec(f['ritmo_ciclos_h'],2)}</td>
   <td class="num">{dec(f['carga_m3_ciclo'],2)}</td>
@@ -326,6 +326,8 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .clickrow:focus-visible{{outline:2px solid var(--accent);outline-offset:-2px}}
   .chev{{color:var(--ink-3);font-weight:700;margin-left:8px;opacity:0;transition:opacity .15s}}
   .clickrow:hover .chev,.clickrow:focus-visible .chev{{opacity:1;color:var(--accent)}}
+  .rowpdf{{margin-left:10px;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:6px;padding:2px 8px;cursor:pointer;vertical-align:middle;transition:all .15s}}
+  .rowpdf:hover{{background:var(--accent);color:#fff}}
   .mback{{position:fixed;inset:0;background:rgba(16,20,15,.55);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;z-index:50;overflow-y:auto}}
   @supports (backdrop-filter:blur(2px)){{.mback{{backdrop-filter:blur(3px)}}}}
   .mback.open{{display:flex}}
@@ -394,7 +396,7 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
 </section>
 <section>
   <div class="sec-h"><h2>Las {nfaenas} faenas</h2></div>
-  <p class="sec-sub">Separadas por sistema — Ritmo y Carga solo se comparan dentro del mismo tipo. Barra de Uso: marca gris = objetivo cliente 90%. <b style="color:var(--accent)">Clic en una faena para ver su detalle del mes.</b></p>
+  <p class="sec-sub">Separadas por sistema — Ritmo y Carga solo se comparan dentro del mismo tipo. Barra de Uso: marca gris = objetivo cliente 90%. <b style="color:var(--accent)">Clic en una faena (o en 📄 PDF) para ver su detalle y descargar/imprimir su informe.</b></p>
   {tables_html}
   <div class="legend legend-solo">
     <span><span class="sw" style="background:var(--good)"></span>Uso ≥ 90% (cumple cliente)</span>
