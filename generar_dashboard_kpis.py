@@ -380,11 +380,12 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .reto-rodal{{background:var(--crit-bg);border:1px solid var(--crit)}}
   .retobanner{{background:var(--accent-soft);border:1px solid var(--line-2);border-left:4px solid var(--accent);border-radius:12px;padding:14px 18px;margin:20px 0 0;font-size:14px;color:var(--ink-2)}}
   .retobanner b{{color:var(--ink)}}
-  .daytab{{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}}
-  .daytab th{{text-align:right;padding:6px 10px;color:var(--ink-3);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line-2);background:var(--surface-2);white-space:nowrap}}
-  .daytab th:first-child{{text-align:left}}
-  .daytab td{{text-align:right;padding:5px 10px;border-bottom:1px solid var(--line)}}
-  .daytab td:first-child{{text-align:left;font-weight:600}}
+  .daytab{{width:100%;min-width:0;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums;table-layout:fixed}}
+  .daytab th{{text-align:right;padding:5px 6px;color:var(--accent);font-size:9.5px;text-transform:uppercase;letter-spacing:.02em;font-weight:700;border-bottom:1.5px solid var(--accent);white-space:nowrap}}
+  .daytab th:first-child{{text-align:left;width:15%}}
+  .daytab td{{text-align:right;padding:3.5px 6px;border-bottom:1px solid var(--line);white-space:nowrap}}
+  .daytab td:first-child{{text-align:left;font-weight:700;color:var(--accent)}}
+  .daytab tbody tr:nth-child(even){{background:var(--surface-2)}}
   .daytab tbody tr:last-child td{{border-bottom:0}}
   .diagbox{{background:var(--accent-soft);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px}}
   .diagbox p{{margin:0 0 8px;font-size:13.5px;color:var(--ink-2)}}.diagbox p:last-child{{margin:0}}.diagbox b{{color:var(--ink)}}
