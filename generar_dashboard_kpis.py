@@ -103,7 +103,7 @@ def build(kpis, tmf):
             prod=pv, prod_ef=f.get('prod_m3_h_efec',0),
             acum=f['vol_m3'], meta=f['meta_m3'], cumpl=f['cumpl_pct'],
             proy=f.get('proy_cierre_m3'), proy_pct=f.get('proy_cumpl_pct'), prom_dia=f.get('prom_diario_m3'),
-            dias=f.get('dias'), hrs_ef=f['hrs_efectivas'], hrs_disp=f['hrs_disponible'],
+            dias=f.get('dias'), dd=f.get('dias_detalle', []), hrs_ef=f['hrs_efectivas'], hrs_disp=f['hrs_disponible'],
             ciclos=f['ciclos'], arboles=f.get('arboles'), arb_ciclo=f.get('arboles_por_ciclo'),
             tm=dict(total=tm_tot, mant=f.get('tm_mant_min',0), oper=f.get('tm_oper_min',0), proc=f.get('tm_proc_min',0),
                     causas=[{'n':k.strip(),'min':v} for k,v in list(causas.items())[:6]]),
@@ -380,6 +380,12 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .reto-rodal{{background:var(--crit-bg);border:1px solid var(--crit)}}
   .retobanner{{background:var(--accent-soft);border:1px solid var(--line-2);border-left:4px solid var(--accent);border-radius:12px;padding:14px 18px;margin:20px 0 0;font-size:14px;color:var(--ink-2)}}
   .retobanner b{{color:var(--ink)}}
+  .daytab{{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}}
+  .daytab th{{text-align:right;padding:6px 10px;color:var(--ink-3);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line-2);background:var(--surface-2);white-space:nowrap}}
+  .daytab th:first-child{{text-align:left}}
+  .daytab td{{text-align:right;padding:5px 10px;border-bottom:1px solid var(--line)}}
+  .daytab td:first-child{{text-align:left;font-weight:600}}
+  .daytab tbody tr:last-child td{{border-bottom:0}}
   .diagbox{{background:var(--accent-soft);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px}}
   .diagbox p{{margin:0 0 8px;font-size:13.5px;color:var(--ink-2)}}.diagbox p:last-child{{margin:0}}.diagbox b{{color:var(--ink)}}
   .pill-pal{{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--accent);background:var(--surface);border:1px solid var(--accent);border-radius:20px;padding:2px 10px;margin-bottom:10px}}
@@ -538,6 +544,10 @@ function renderRest(d, name){
         <span class="pill-pal">Limita: ${d.diag.palanca}</span>
         <p>${d.diag.causa}</p><p><b>Acción:</b> ${d.diag.recomendacion}</p>
       </div></div>
+      ${(d.dd&&d.dd.length)?`<div><p class="msec-t">Detalle diario — ${d.dd.length} jornadas</p>
+        <div class="scroll"><table class="daytab"><thead><tr><th>Día</th><th>m³</th><th>Hrs efec.</th><th>Ciclos</th><th>m³/hr</th></tr></thead><tbody>
+        ${d.dd.map(x=>`<tr><td>${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`).join('')}
+        </tbody></table></div></div>`:''}
     </div>`);
 }
 function printFaena(){ window.print(); }
