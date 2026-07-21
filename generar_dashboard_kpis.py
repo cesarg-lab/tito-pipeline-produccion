@@ -111,6 +111,7 @@ def build(kpis, tmf):
             reto=dict(palanca=f.get('palanca_limitante'), pot=f.get('benchmark_tipo', {}),
                       gaps=f.get('gaps_palanca', {}), proy_pot=f.get('proy_potencial_pct'),
                       opp=f.get('oportunidad_palanca_m3'), status=f.get('meta_status'),
+                      tec=f.get('grupo_tec', ''), solo=(f.get('brecha_palanca_pct', 0) == 0),
                       predio=f.get('predio',''), especie=f.get('especie','')),
         )
         rowmap[f['nombre']] = f'''<tr class="clickrow" tabindex="0" role="button" data-faena="{f['nombre']}" aria-label="Ver detalle de {f['nombre']}">
@@ -122,7 +123,7 @@ def build(kpis, tmf):
   <td><div class="prodcell"><div class="prodbar"><i style="width:{pw}%"></i></div><span>{dec(pv,1)}</span></div></td>
   {acum_col}
   <td>{chip}</td>
-  <td class="l"><span class="pal">{f.get('palanca_limitante','—')}</span></td>
+  <td class="l">{f'<span class="pal">{f.get("palanca_limitante","—")}</span><span class="opp">↑ +{miles(f.get("oportunidad_palanca_m3") or 0)} m³ a potencial</span>' if f.get('oportunidad_palanca_m3') else '<span class="pal" style="color:var(--ink-3);font-weight:500;font-size:11.5px">propio récord</span>'}</td>
 </tr>'''
 
     # ---- VMA reframe ----
@@ -193,7 +194,7 @@ def build(kpis, tmf):
     # ---- tablas agrupadas por tipo (Terrestre / Aéreo) ----
     thead = (f'<thead><tr><th class="l">Faena</th><th>Uso</th><th>Ritmo<br><span>c/h</span></th>'
              f'<th>Carga<br><span>m³/ciclo</span></th><th>VMA<br><span>m³/árbol</span></th>'
-             f'<th>Product.<br><span>m³/h disp</span></th><th>{col_acum}</th><th>{col_chip}</th><th class="l">Limita</th></tr></thead>')
+             f'<th>Product.<br><span>m³/h disp</span></th><th>{col_acum}</th><th>{col_chip}</th><th class="l">Desafío<br><span>vs tu potencial</span></th></tr></thead>')
     def tabla(subset, titulo, subt):
         body = ''.join(rowmap[f['nombre']] for f in sorted(subset, key=lambda x: x['cumpl_pct']))
         return (f'<div class="grpwrap"><h3 class="grp">{titulo}<span>{subt}</span></h3>'
@@ -205,11 +206,12 @@ def build(kpis, tmf):
     if aereo: tables_html += tabla(aereo, 'Aéreo', f'{len(aereo)} faenas · torre / cable')
     detail_json = json.dumps(details, ensure_ascii=False)
     _des = T.get('desafio', {})
-    _ng = _des.get('por_gestion', 0); _nm = _des.get('multipalanca', 0); _nr = _des.get('requiere_rodal', 0)
+    _ng = _des.get('por_gestion', 0); _nm = _des.get('multipalanca', 0); _nr = _des.get('requiere_rodal', 0); _sp = _des.get('sin_par', 0)
+    _sp_txt = f' · {_sp} sin par de su tecnología (se mide contra su propio récord)' if _sp else ''
     if _nr == 0 and _nm == 0 and _ng:
-        reto_global = f'<b>Meta global alcanzable por gestión:</b> los {len(F)} equipos pueden cumplir su meta cerrando su palanca-desafío — suman hasta los {miles(meta)} m³ del sistema. Cada uno se mide contra su propio potencial (mejor de su tipo).'
+        reto_global = f'<b>Meta global alcanzable por gestión:</b> los {_ng} equipos con par pueden cumplir su meta cerrando su palanca-desafío — hacia los {miles(meta)} m³ del sistema. Cada uno se mide contra el mejor de su MISMA tecnología (skidder / torre){_sp_txt}.'
     else:
-        reto_global = f'<b>Hacia la meta global de {miles(meta)} m³:</b> {_ng} equipos cumplen por gestión · {_nm} requieren varias palancas · {_nr} requieren rodal/plan (revisar meta o asignar mejor rodal).'
+        reto_global = f'<b>Hacia la meta global de {miles(meta)} m³:</b> {_ng} cumplen por gestión · {_nm} requieren varias palancas · {_nr} requieren rodal/plan{_sp_txt}.'
 
     return HTML.format(
         detail_json=detail_json, modal_js=MODAL_JS, logo=LOGO_DATAURI, reto_global=reto_global,
@@ -309,7 +311,8 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .chip{{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:650;padding:3px 9px;border-radius:20px;font-variant-numeric:tabular-nums}}
   .c-good{{background:var(--good-bg);color:var(--good)}}.c-warn{{background:var(--warn-bg);color:var(--warn)}}.c-crit{{background:var(--crit-bg);color:var(--crit)}}
   .dot{{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}}
-  .pal{{font-size:12px;font-weight:600;color:var(--ink-2)}}
+  .pal{{font-size:12.5px;font-weight:700;color:var(--ink)}}
+  .opp{{display:block;font-size:11px;font-weight:600;color:var(--accent);margin-top:1px;white-space:nowrap}}
   .warnflag{{color:var(--anom);font-weight:700}}
   .legend{{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3);background:var(--surface-2)}}
   .legend span{{display:inline-flex;align-items:center;gap:6px}}
@@ -511,15 +514,16 @@ function renderRest(d, name){
         <div class="mstat"><p class="k">Productividad</p><div class="v">${nf(d.prod,1)}<small> m³/h</small></div></div>
         <div class="mstat"><p class="k">VMA</p><div class="v">${nf(d.vma,3)}<small> m³/árb</small></div></div>
       </div>
-      <div><p class="msec-t">Tu desafío — actual vs tu potencial (mejor de tu tipo, ${d.tipo})</p><div class="decomp">
+      <div><p class="msec-t">Tu desafío — actual vs tu potencial (mejor ${(d.reto&&d.reto.tec)||''} de tu tecnología)</p><div class="decomp">
         ${term('Uso', d.uso, '%', b.uso_pct, 1, lim==='Uso')}
         ${term('Ritmo', d.ritmo, 'c/h', b.ritmo_ciclos_h, 2, lim==='Ritmo')}
         ${term('Carga', d.carga, 'm³/c', b.carga_m3_ciclo, 2, lim==='Carga')}
       </div>
-      <div class="reto reto-${(d.reto&&d.reto.status)||'gestion'}">${(function(){
+      <div class="reto reto-${(d.reto&&d.reto.solo)?'multipalanca':((d.reto&&d.reto.status)||'gestion')}">${(function(){
         const r=d.reto||{}, pal=r.palanca||'—';
+        if(r.solo) return `<b>Sin par de tu tecnología (${r.tec||'—'}).</b> Te medís contra tu propio récord — se va poblando mes a mes. Por ahora tu potencial es tu mejor desempeño.`;
         const pp = r.proy_pot==null?'':(r.proy_pot>=130?'supera tu meta':nf(r.proy_pot,0)+'% de tu meta');
-        if(r.status==='rodal') return `<b>Tu desafío: ${pal}.</b> Ni con el potencial de tu tipo llegás a la meta → palanca de <b>Planificación</b> (más rodal/árbol) o revisar la meta.`;
+        if(r.status==='rodal') return `<b>Tu desafío: ${pal}.</b> Ni con el potencial de tu tecnología llegás a la meta → palanca de <b>Planificación</b> (más rodal/árbol) o revisar la meta.`;
         if(r.status==='multipalanca') return `<b>Tu desafío: ${pal}.</b> Cerrarla te acerca (+${nf(r.opp,0)} m³), pero para tu meta necesitás mejorar más de una palanca.`;
         return `<b>Tu desafío: ${pal}.</b> Cerrándola a tu potencial sumás <b>+${nf(r.opp,0)} m³</b> → tu proyección pasa a <b>${pp}</b>. Cumplís tu meta y aportás a la meta global.`;
       })()}</div></div>

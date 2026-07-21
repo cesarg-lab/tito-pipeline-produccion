@@ -25,7 +25,11 @@ from normalizar_produccion import normalizar
 
 TEAM_MAP = {'S123':'M1.1','S58':'M1.2','S223':'M1.3','S246':'M1.4','MG5':'M5','TEA02':'M7','TEA08':'M9','T125':'M11','TEA30':'M1.3'}
 NOMBRE   = {'M1.1':'Millalemu 1.1','M1.2':'Millalemu 1.2','M1.3':'Millalemu 1.3','M1.4':'Millalemu 1.4','M5':'Millalemu 5','M7':'Millalemu 7','M9':'Millalemu 9','M11':'Millalemu 11'}
-TERRESTRE = {'M1.1','M1.2','M1.3','M1.4'}
+TERRESTRE = {'M1.1','M1.2','M1.3','M1.4'}   # ZONA (para el display de tablas): Terrestre vs Aéreo
+# TECNOLOGÍA (para el potencial): skidder/madereo vs torre. M7/M9/M5 son skidder aunque estén en zona aérea;
+# el único sistema distinto es M11 (torre). El potencial se compara solo dentro de la misma tecnología.
+GRUPO_TEC = {'M1.1':'Skidder','M1.2':'Skidder','M1.3':'Skidder','M1.4':'Skidder',
+             'M5':'Skidder','M7':'Skidder','M9':'Skidder','M11':'Torre'}
 # Metas: mismo origen que GENERAR_HTML/GENERAR_RESUMEN (Excel CONFIGURACIÓN, celdas E24-E31),
 # con los mismos defaults, para que el cumplimiento calce EXACTO con el dashboard de producción.
 _TEAMS_FULL = ['Millalemu 1.1','Millalemu 1.2','Millalemu 1.3','Millalemu 1.4','Millalemu 5','Millalemu 7','Millalemu 9','Millalemu 11']
@@ -179,6 +183,7 @@ def main():
         proy = vol + prom * DR
         tmt = tm_mes[tm_mes['Team'] == t]
         faenas.append(dict(team=t, nombre=NOMBRE[t], tipo=('Terrestre' if t in TERRESTRE else 'Aéreo'),
+            grupo_tec=GRUPO_TEC.get(t, 'Skidder'),
             meta_m3=METAS[t], vol_m3=round(vol, 1), cumpl_pct=round(vol / METAS[t] * 100, 1),
             proy_cierre_m3=round(proy, 0), proy_cumpl_pct=round(proy / METAS[t] * 100, 1), prom_diario_m3=round(prom, 1),
             dias=int(ndias), folios=int(nfolios), arboles=int(arb),
@@ -192,8 +197,8 @@ def main():
         top = tmt.groupby('Descripción')['Tiempo (Min)'].sum().sort_values(ascending=False).head(6)
         tmf[NOMBRE[t]] = {'total_min': int(tmt['Tiempo (Min)'].sum()), 'top_causas': {k: int(v) for k, v in top.items()}}
 
-    for tipo in ['Terrestre', 'Aéreo']:
-        grp = [f for f in faenas if f['tipo'] == tipo]
+    for tec in ['Skidder', 'Torre']:   # potencial = mejor de tu MISMA tecnología
+        grp = [f for f in faenas if f['grupo_tec'] == tec]
         if not grp:
             continue
         # Potencial por palanca = máx(mejor mes propio, líder de su tipo). Con 1 mes de
@@ -216,7 +221,10 @@ def main():
             f['oportunidad_palanca_m3'] = round(max(new_prod - f['prod_m3_h_disp'], 0) * 10.5 * DR, 0)
             # ¿el potencial de tipo (todas las palancas al mejor) llega a la meta?
             pot_full = (bu / 100) * br * bc * 10.5 * DR + f['vol_m3']
-            f['meta_status'] = ('gestion' if f['proy_potencial_pct'] >= 100 else ('multipalanca' if pot_full >= f['meta_m3'] else 'rodal'))
+            if len(grp) == 1:   # singleton (M11 torre) — sin par de su tecnología
+                f['meta_status'] = 'solo'
+            else:
+                f['meta_status'] = ('gestion' if f['proy_potencial_pct'] >= 100 else ('multipalanca' if pot_full >= f['meta_m3'] else 'rodal'))
 
     acum = sum(f['vol_m3'] for f in faenas); meta = sum(f['meta_m3'] for f in faenas)
     proy = sum(f['proy_cierre_m3'] for f in faenas); arbt = sum(f['arboles'] for f in faenas)
@@ -228,7 +236,8 @@ def main():
             desafio=dict(
                 por_gestion=sum(1 for f in faenas if f.get('meta_status') == 'gestion'),
                 multipalanca=sum(1 for f in faenas if f.get('meta_status') == 'multipalanca'),
-                requiere_rodal=sum(1 for f in faenas if f.get('meta_status') == 'rodal'))),
+                requiere_rodal=sum(1 for f in faenas if f.get('meta_status') == 'rodal'),
+                sin_par=sum(1 for f in faenas if f.get('meta_status') == 'solo'))),
         fuente="NOC · Productividad Genérico (Uso/Ritmo/Carga + VMA, una sola fuente)", faenas=faenas)
     (BASE / "kpis.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding='utf-8')
     (BASE / "tm_por_faena.json").write_text(json.dumps(tmf, ensure_ascii=False, indent=2), encoding='utf-8')
