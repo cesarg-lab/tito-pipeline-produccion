@@ -89,6 +89,16 @@ def subir_dashboard():
         with open(HTML_FILE, "rb") as f:
             ftp.storbinary(f"STOR {REMOTE_NAME}", f)
 
+        # Dashboard de KPIs Uso/Ritmo/Carga/VMA (se muestra en la pestaña "KPIs" vía iframe)
+        kpis_html = os.path.join(BASE_DIR, "Dashboard_KPIs.html")
+        if os.path.exists(kpis_html):
+            k_size = os.path.getsize(kpis_html) / 1024
+            print(f"📤 Subiendo Dashboard_KPIs.html ({k_size:.1f} KB)...")
+            with open(kpis_html, "rb") as f:
+                ftp.storbinary("STOR Dashboard_KPIs.html", f)
+        else:
+            print("⚠️  Dashboard_KPIs.html no existe — el paso de KPIs no corrió (no crítico)")
+
         # data.json (resumen optimizado para Tito JARVIS)
         json_path = os.path.join(BASE_DIR, "data.json")
         if os.path.exists(json_path):

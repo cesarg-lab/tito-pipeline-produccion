@@ -51,6 +51,11 @@ echo ""
 echo "▶️  [2.5/9] Archivando mes anterior en el histórico si falta..."
 python3 archivar_mes_anterior.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  archivar_mes_anterior falló (no crítico, sigue)"
 
+# ── 2.7 KPIs Uso/Ritmo/Carga/VMA + su dashboard (no crítico) ──────────────
+echo ""
+echo "▶️  [2.7/9] Calculando KPIs Uso/Ritmo/Carga/VMA y generando Dashboard_KPIs.html..."
+( python3 compute_kpis.py && python3 generar_dashboard_kpis.py kpis.json tm_por_faena.json Dashboard_KPIs.html ) 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  KPIs fallaron (no crítico, el pipeline sigue)"
+
 # ── 3. Generar HTML ───────────────────────────────────────────────────────
 echo ""
 echo "▶️  [3/9] Generando Dashboard HTML..."
@@ -153,12 +158,37 @@ else
     RESUMEN="📊 Pipeline ejecutado correctamente"
 fi
 
+# Titular de KPIs Uso/Ritmo/Carga/VMA (si el paso 2.7 corrió)
+KPIS=""
+if [ -f "kpis.json" ]; then
+    KPIS=$(python3 -c "
+import json
+from collections import Counter
+d = json.load(open('kpis.json'))
+t = d.get('totales', {})
+fa = d.get('faenas', [])
+pal = Counter(f.get('palanca_limitante','?') for f in fa)
+pdom = pal.most_common(1)[0][0] if pal else '-'
+uso = [f['uso_pct'] for f in fa]
+usoprom = sum(uso)/len(uso) if uso else 0
+peor = min(fa, key=lambda x: x['cumpl_pct']) if fa else None
+print('📈 <b>KPIs Uso/Ritmo/Carga</b>')
+print(f\"• Proyección cierre: {t.get('proy_cumpl_pct',0):.0f}%\")
+print(f\"• Uso promedio: {usoprom:.0f}% (exigencia cliente 90%)\")
+print(f\"• Palanca que más limita: {pdom}\")
+if peor: print(f\"• Faena a vigilar: {peor['nombre']} ({peor['cumpl_pct']:.0f}%)\")
+" 2>/dev/null || echo "")
+fi
+
 MENSAJE="✅ <b>Pipeline Producción OK</b>
 🕐 ${FECHA_INICIO} → ${FECHA_FIN}
 
 ${RESUMEN}
 
-🔗 http://produccion.millalemu.com"
+${KPIS}
+
+🔗 Dashboard: http://produccion.millalemu.com
+📈 KPIs: http://produccion.millalemu.com/Dashboard_KPIs.html"
 
 if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
