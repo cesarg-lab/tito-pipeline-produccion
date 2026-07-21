@@ -419,12 +419,14 @@ for t in TEAMS:
     proy = round(acum + prom * DR, 1)
     hrs = round(td['HrsEf'].sum(), 1)
     turno_min = round(td['Turno_seg'].sum() / 60, 1) if len(td) > 0 else 0
+    arb = int(prod.loc[prod['Team'] == t, 'Arb'].sum()) if 'Arb' in prod.columns else 0
     team_kpis.append({
         't': t, 'a': acum, 'm': meta,
         'c': round((acum/meta)*100,1) if meta else 0,
         'p': prom, 'pr': proy, 'b': round(proy-meta,1),
         'ci': round((proy/meta)*100,1) if meta else 0,
         'r': round(acum/hrs,2) if hrs else 0,
+        'arb': arb, 'vma': round(acum/arb, 3) if arb else 0,
         'h': hrs, 'tm': _tmcat(t, 'Mantención'),
         'tt': _tmcat(t, 'Mantención') + _tmcat(t, 'Operacional') + _tmcat(t, 'Proceso'),
         'turno': turno_min,
@@ -1826,6 +1828,7 @@ D.kpis.forEach((k, i) => {{
         <div><span class="label">Proy.</span><br><span class="value">${{fmt(k.pr)}}</span></div>
         <div><span class="label">m³/hr</span><br><span class="value">${{k.r}}</span></div>
         <div><span class="label">Ritmo Cierre</span><br><span class="value" style="color:${{(() => {{ const ritmo=Math.round((k.m-k.a)/Math.max(cfg.dr,1)); return ritmo>k.p?BAD:NEUTRAL; }})()}}">${{(() => {{ const ritmo=Math.round((k.m-k.a)/Math.max(cfg.dr,1)); return fmt(ritmo); }})()}} <span style="font-size:9px">m³/d</span></span></div>
+        <div><span class="label">VMA</span><br><span class="value" style="color:var(--primary)">${{k.vma ? k.vma.toFixed(3) : '—'}} <span style="font-size:9px">m³/árb</span></span></div>
       </div>
       <div class="disp-bar" style="background:${{dispBg}}">
         <span style="font-size:10px;color:#55606c">Disp. Mecánica</span>
