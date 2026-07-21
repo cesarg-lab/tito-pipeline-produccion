@@ -21,6 +21,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 from normalizar_produccion import normalizar  # noqa: E402
 
+# VMA por faena desde kpis.json (lo genera compute_kpis con árboles del PG;
+# Base2NOC no trae árboles, así la ficha muestra el mismo VMA que la pestaña KPIs).
+_kpi_vma = {}
+try:
+    _kj = os.path.join(BASE_DIR, "kpis.json")
+    if os.path.exists(_kj):
+        with open(_kj, encoding="utf-8") as _f:
+            for _row in json.load(_f).get("faenas", []):
+                _kpi_vma[_row.get("team")] = _row.get("vma_m3_arbol", 0)
+except Exception:
+    _kpi_vma = {}
+
 # ── Argumento opcional: --snapshot YYYY-MM ──────────────────────
 # Si se invoca con --snapshot 2026-04, lee desde _snapshots/2026-04/
 # y genera Dashboard_Cosecha_2026-04.html (no toca el del mes en curso).
@@ -426,7 +438,7 @@ for t in TEAMS:
         'p': prom, 'pr': proy, 'b': round(proy-meta,1),
         'ci': round((proy/meta)*100,1) if meta else 0,
         'r': round(acum/hrs,2) if hrs else 0,
-        'arb': arb, 'vma': round(acum/arb, 3) if arb else 0,
+        'vma': _kpi_vma.get(t) or (round(acum/arb, 3) if arb else 0),
         'h': hrs, 'tm': _tmcat(t, 'Mantención'),
         'tt': _tmcat(t, 'Mantención') + _tmcat(t, 'Operacional') + _tmcat(t, 'Proceso'),
         'turno': turno_min,
