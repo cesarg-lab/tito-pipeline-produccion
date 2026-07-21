@@ -103,7 +103,7 @@ def build(kpis, tmf):
             prod=pv, prod_ef=f.get('prod_m3_h_efec',0),
             acum=f['vol_m3'], meta=f['meta_m3'], cumpl=f['cumpl_pct'],
             proy=f.get('proy_cierre_m3'), proy_pct=f.get('proy_cumpl_pct'), prom_dia=f.get('prom_diario_m3'),
-            dias=f.get('dias'), dd=f.get('dias_detalle', []), hrs_ef=f['hrs_efectivas'], hrs_disp=f['hrs_disponible'],
+            dias=f.get('dias'), dd=f.get('dias_detalle', []), turnos=f.get('turnos', []), hrs_ef=f['hrs_efectivas'], hrs_disp=f['hrs_disponible'],
             ciclos=f['ciclos'], arboles=f.get('arboles'), arb_ciclo=f.get('arboles_por_ciclo'),
             tm=dict(total=tm_tot, mant=f.get('tm_mant_min',0), oper=f.get('tm_oper_min',0), proc=f.get('tm_proc_min',0),
                     causas=[{'n':k.strip(),'min':v} for k,v in list(causas.items())[:6]]),
@@ -380,6 +380,18 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .reto-rodal{{background:var(--crit-bg);border:1px solid var(--crit)}}
   .retobanner{{background:var(--accent-soft);border:1px solid var(--line-2);border-left:4px solid var(--accent);border-radius:12px;padding:14px 18px;margin:20px 0 0;font-size:14px;color:var(--ink-2)}}
   .retobanner b{{color:var(--ink)}}
+  .turnos{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
+  .turno{{background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:12px 14px}}
+  .turno.tmejor{{background:var(--good-bg);border-color:var(--good)}}
+  .tj{{font-size:13.5px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}}
+  .tbadge{{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:var(--good);padding:1px 6px;border-radius:20px}}
+  .tbar{{height:7px;background:var(--bar-track);border-radius:4px;overflow:hidden;margin-bottom:7px}}
+  .tbar>i{{display:block;height:100%;background:var(--accent);border-radius:4px}}
+  .turno.tmejor .tbar>i{{background:var(--good)}}
+  .tv{{font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--ink);font-variant-numeric:tabular-nums}}
+  .tv small{{font-size:11px;font-weight:600;color:var(--ink-3)}}
+  .tsub{{font-size:11.5px;color:var(--ink-3);margin-top:3px}}
+  .tnote{{margin:10px 0 0;font-size:13px;color:var(--ink-2)}}.tnote b{{color:var(--ink)}}
   .daytab{{width:100%;min-width:0;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums;table-layout:fixed}}
   .daytab th{{text-align:right;padding:5px 6px;color:var(--accent);font-size:9.5px;text-transform:uppercase;letter-spacing:.02em;font-weight:700;border-bottom:1.5px solid var(--accent);white-space:nowrap}}
   .daytab th:first-child{{text-align:left;width:15%}}
@@ -547,6 +559,18 @@ function renderRest(d, name){
         <span class="pill-pal">Limita: ${d.diag.palanca}</span>
         <p>${d.diag.causa}</p><p><b>Acción:</b> ${d.diag.recomendacion}</p>
       </div></div>
+      ${(d.turnos&&d.turnos.length>=2)?(function(){
+        const T=d.turnos, mx=Math.max(...T.map(z=>z.m3_dia),1);
+        const cards=T.map((t,i)=>`<div class="turno ${i===0?'tmejor':''}">
+          <div class="tj">${t.jefe}${i===0?' <span class="tbadge">mejor</span>':''}</div>
+          <div class="tbar"><i style="width:${Math.round(t.m3_dia/mx*100)}%"></i></div>
+          <div class="tv">${nf(t.m3_dia,0)} <small>m³/día</small></div>
+          <div class="tsub">${nf(t.m3,0)} m³ · ${nf(t.dias,0)} días · ${nf(t.m3_hr,1)} m³/hr</div>
+        </div>`).join('');
+        const dif=(T[1].m3_dia>0)?Math.round((T[0].m3_dia/T[1].m3_dia-1)*100):0;
+        return `<div><p class="msec-t">Turnos 7×7 — quién rinde mejor</p><div class="turnos">${cards}</div>
+          ${dif>0?`<p class="tnote">El turno de <b>${T[0].jefe}</b> produjo <b>${dif}% más m³/día</b> que el de ${T[1].jefe} en el período.</p>`:''}</div>`;
+      })():''}
       ${(d.dd&&d.dd.length)?(function(){
         const dd=d.dd, n=dd.length;
         const sv=dd.reduce((a,x)=>a+x.vol,0), sh=dd.reduce((a,x)=>a+x.hrs,0), sc=dd.reduce((a,x)=>a+x.cic,0);
