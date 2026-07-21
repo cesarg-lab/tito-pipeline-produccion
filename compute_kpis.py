@@ -196,11 +196,27 @@ def main():
         grp = [f for f in faenas if f['tipo'] == tipo]
         if not grp:
             continue
-        bu = max(f['uso_pct'] for f in grp); br = max(f['ritmo_ciclos_h'] for f in grp); bc = max(f['carga_m3_ciclo'] for f in grp)
+        # Potencial por palanca = máx(mejor mes propio, líder de su tipo). Con 1 mes de
+        # datos = líder de su tipo (referencia MENSUAL, confiable; el mejor-día es ruidoso).
+        bu = min(max(f['uso_pct'] for f in grp), 105)  # cap Uso a 105% (sobre-jornada no es potencial)
+        br = max(f['ritmo_ciclos_h'] for f in grp); bc = max(f['carga_m3_ciclo'] for f in grp)
         for f in grp:
-            gaps = {'Uso': (bu - f['uso_pct']) / bu if bu else 0, 'Ritmo': (br - f['ritmo_ciclos_h']) / br if br else 0, 'Carga': (bc - f['carga_m3_ciclo']) / bc if bc else 0}
+            uso_ref = min(f['uso_pct'], 105)
+            gaps = {'Uso': (bu - uso_ref) / bu if bu else 0, 'Ritmo': (br - f['ritmo_ciclos_h']) / br if br else 0, 'Carga': (bc - f['carga_m3_ciclo']) / bc if bc else 0}
+            gaps = {k: max(v, 0) for k, v in gaps.items()}
             f['palanca_limitante'] = max(gaps, key=gaps.get); f['brecha_palanca_pct'] = round(gaps[f['palanca_limitante']] * 100, 1)
-            f['benchmark_tipo'] = {'uso_pct': bu, 'ritmo_ciclos_h': br, 'carga_m3_ciclo': bc}
+            f['benchmark_tipo'] = {'uso_pct': round(bu, 1), 'ritmo_ciclos_h': round(br, 2), 'carga_m3_ciclo': round(bc, 3)}
+            f['gaps_palanca'] = {k: round(v * 100, 1) for k, v in gaps.items()}
+            # Desafío = cerrar la palanca limitante a su potencial (una sola palanca), el resto del mes.
+            pal = f['palanca_limitante']; uf = uso_ref / 100; rit = f['ritmo_ciclos_h']; car = f['carga_m3_ciclo']
+            new_prod = (bu / 100) * rit * car if pal == 'Uso' else (uf * br * car if pal == 'Ritmo' else uf * rit * bc)
+            f['potencial_prod_m3h'] = round(new_prod, 2)
+            proy_pot = f['vol_m3'] + new_prod * 10.5 * DR
+            f['proy_potencial_pct'] = round(proy_pot / f['meta_m3'] * 100, 1) if f['meta_m3'] else 0
+            f['oportunidad_palanca_m3'] = round(max(new_prod - f['prod_m3_h_disp'], 0) * 10.5 * DR, 0)
+            # ¿el potencial de tipo (todas las palancas al mejor) llega a la meta?
+            pot_full = (bu / 100) * br * bc * 10.5 * DR + f['vol_m3']
+            f['meta_status'] = ('gestion' if f['proy_potencial_pct'] >= 100 else ('multipalanca' if pot_full >= f['meta_m3'] else 'rodal'))
 
     acum = sum(f['vol_m3'] for f in faenas); meta = sum(f['meta_m3'] for f in faenas)
     proy = sum(f['proy_cierre_m3'] for f in faenas); arbt = sum(f['arboles'] for f in faenas)
@@ -208,7 +224,11 @@ def main():
         dias_con_datos=DD, dias_habiles_mes=DT, dias_restantes=DR,
         totales=dict(acum_m3=round(acum, 0), meta_m3=meta, cumpl_pct=round(acum / meta * 100, 1) if meta else 0,
             proy_cierre_m3=round(proy, 0), proy_cumpl_pct=round(proy / meta * 100, 1) if meta else 0,
-            vma_ponderado=round(acum / arbt, 3) if arbt else 0, arboles=arbt),
+            vma_ponderado=round(acum / arbt, 3) if arbt else 0, arboles=arbt,
+            desafio=dict(
+                por_gestion=sum(1 for f in faenas if f.get('meta_status') == 'gestion'),
+                multipalanca=sum(1 for f in faenas if f.get('meta_status') == 'multipalanca'),
+                requiere_rodal=sum(1 for f in faenas if f.get('meta_status') == 'rodal'))),
         fuente="NOC · Productividad Genérico (Uso/Ritmo/Carga + VMA, una sola fuente)", faenas=faenas)
     (BASE / "kpis.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding='utf-8')
     (BASE / "tm_por_faena.json").write_text(json.dumps(tmf, ensure_ascii=False, indent=2), encoding='utf-8')
