@@ -182,8 +182,14 @@ def main():
         prom = vol / ndias if ndias > 0 else 0
         proy = vol + prom * DR
         tmt = tm_mes[tm_mes['Team'] == t]
+        # Detalle diario para la cartilla (jornada a jornada)
+        dias_det = []
+        for _day, _x in d.groupby(d['Fecha_dt'].dt.day):
+            _gx = _x.groupby('Número Noc'); _v = _x['Vol'].sum(); _he = _gx['HrsEf'].first().sum(); _ci = _gx['Ciclos'].first().sum()
+            dias_det.append({'d': int(_day), 'vol': round(_v), 'hrs': round(_he, 1), 'cic': int(_ci), 'rend': round(_v / _he, 1) if _he else 0})
+        dias_det.sort(key=lambda z: z['d'])
         faenas.append(dict(team=t, nombre=NOMBRE[t], tipo=('Terrestre' if t in TERRESTRE else 'Aéreo'),
-            grupo_tec=GRUPO_TEC.get(t, 'Skidder'),
+            grupo_tec=GRUPO_TEC.get(t, 'Skidder'), dias_detalle=dias_det,
             meta_m3=METAS[t], vol_m3=round(vol, 1), cumpl_pct=round(vol / METAS[t] * 100, 1),
             proy_cierre_m3=round(proy, 0), proy_cumpl_pct=round(proy / METAS[t] * 100, 1), prom_diario_m3=round(prom, 1),
             dias=int(ndias), folios=int(nfolios), arboles=int(arb),
