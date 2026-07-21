@@ -55,6 +55,11 @@ def diagnostico_faena(f, causas, vma):
         rec = f"Recuperar Uso atacando las detenciones principales: {top_txt}."
     return dict(palanca=pal, causa=causa, recomendacion=rec, benchmark=b)
 
+import base64 as _b64
+_lp = Path(__file__).parent / "millalemu-logo.png"
+LOGO_DATAURI = ("data:image/png;base64," + _b64.b64encode(_lp.read_bytes()).decode()) if _lp.exists() else ""
+
+
 def build(kpis, tmf):
     F = kpis['faenas']
     parcial = kpis.get('parcial', False)
@@ -197,7 +202,7 @@ def build(kpis, tmf):
     detail_json = json.dumps(details, ensure_ascii=False)
 
     return HTML.format(
-        detail_json=detail_json, modal_js=MODAL_JS,
+        detail_json=detail_json, modal_js=MODAL_JS, logo=LOGO_DATAURI,
         mes=kpis['mes'], sub=sub, head_main=head_stat_main, stat2=stat2,
         vma_g=dec(vma_g,3), arb_g=miles(arb_g),
         pal_dom=pal_dom, pal_n=pal_n, nfaenas=len(F),
@@ -212,45 +217,51 @@ def build(kpis, tmf):
 
 # CSS + esqueleto (idéntico al diseño validado)
 HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>window.KPI_LOGO="{logo}";window.KPI_MES="{mes}";</script>
 <style>
-  :root{{--bg:#0A100D;--bg2:#0E1713;--surface:#111C17;--surface-2:#17241E;--surface-3:#1F2E27;--ink:#EAF2EC;--ink-2:#A6BAB0;--ink-3:#6E827A;--line:#20302A;--line-2:#2E403841;--line-2:#2E4038;--accent:#EFB24E;--accent-2:#C6892C;--accent-soft:rgba(239,178,78,.11);--glow:rgba(239,178,78,.55);--good:#43D98A;--good-bg:rgba(67,217,138,.13);--warn:#FF9A3D;--warn-bg:rgba(255,154,61,.14);--crit:#FF625A;--crit-bg:rgba(255,98,90,.14);--anom:#BE93FF;--anom-bg:rgba(190,147,255,.15);--bar-track:#1B2922;--shadow:0 10px 34px rgba(0,0,0,.5);}}
-  :root[data-theme="light"],:root[data-theme="dark"],:root{{color-scheme:dark}}
+  :root{{--bg:#eef1f6;--surface:#ffffff;--surface-2:#f6f8fa;--surface-3:#e2e6ea;--ink:#1c2530;--ink-2:#55606c;--ink-3:#8a949f;--line:#e2e6ea;--line-2:#cdd4da;--accent:#417505;--accent-2:#2a4d07;--accent-soft:#41750514;--good:#2e9b3f;--good-bg:#2e9b3f16;--warn:#8a6200;--warn-bg:#e8a20020;--crit:#d8392b;--crit-bg:#d8392b16;--anom:#7a5bd0;--anom-bg:#7a5bd018;--bar-track:#e2e6ea;--shadow:0 1px 2px rgba(15,23,42,.04),0 3px 12px rgba(15,23,42,.06);}}
+  @media (prefers-color-scheme:dark){{:root{{--bg:#0F172A;--surface:#1c2530;--surface-2:#25334A;--surface-3:#55606c;--ink:#e2e6ea;--ink-2:#cdd4da;--ink-3:#94A3B8;--line:#55606c;--line-2:#475569;--accent:#8bbf4f;--accent-2:#6aab2e;--accent-soft:#8bbf4f22;--good:#43b054;--good-bg:#2e9b3f22;--warn:#e8a200;--warn-bg:#e8a20020;--crit:#e46a5f;--crit-bg:#d8392b1c;--anom:#9a86d6;--anom-bg:#7a5bd022;--bar-track:#55606c;--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.3);}}}}
+  :root[data-theme="light"]{{--bg:#eef1f6;--surface:#ffffff;--surface-2:#f6f8fa;--surface-3:#e2e6ea;--ink:#1c2530;--ink-2:#55606c;--ink-3:#8a949f;--line:#e2e6ea;--line-2:#cdd4da;--accent:#417505;--accent-2:#2a4d07;--accent-soft:#41750514;--good:#2e9b3f;--good-bg:#2e9b3f16;--warn:#8a6200;--warn-bg:#e8a20020;--crit:#d8392b;--crit-bg:#d8392b16;--anom:#7a5bd0;--anom-bg:#7a5bd018;--bar-track:#e2e6ea;--shadow:0 1px 2px rgba(15,23,42,.04),0 3px 12px rgba(15,23,42,.06);}}
+  :root[data-theme="dark"]{{--bg:#0F172A;--surface:#1c2530;--surface-2:#25334A;--surface-3:#55606c;--ink:#e2e6ea;--ink-2:#cdd4da;--ink-3:#94A3B8;--line:#55606c;--line-2:#475569;--accent:#8bbf4f;--accent-2:#6aab2e;--accent-soft:#8bbf4f22;--good:#43b054;--good-bg:#2e9b3f22;--warn:#e8a200;--warn-bg:#e8a20020;--crit:#e46a5f;--crit-bg:#d8392b1c;--anom:#9a86d6;--anom-bg:#7a5bd022;--bar-track:#55606c;--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.3);}}
   *{{box-sizing:border-box}}html{{-webkit-text-size-adjust:100%}}
-  body{{margin:0;color:var(--ink);font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,Roboto,sans-serif;font-size:15px;line-height:1.55;letter-spacing:-.002em;-webkit-font-smoothing:antialiased;
-    background:radial-gradient(1200px 600px at 78% -8%,rgba(239,178,78,.10),transparent 60%),radial-gradient(900px 500px at 6% 4%,rgba(67,217,138,.06),transparent 55%),var(--bg)}}
+  body{{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.55;letter-spacing:-.002em;-webkit-font-smoothing:antialiased}}
   .mono{{font-variant-numeric:tabular-nums}}
-  .wrap{{max-width:1160px;margin:0 auto;padding:0 24px 96px}}
-  /* ── Hero cinematográfico ── */
-  .hero-band{{position:relative;margin:22px 0 0;border-radius:22px;overflow:hidden;border:1px solid var(--line-2);
-    background:linear-gradient(158deg,#12201A 0%,#0C1512 60%,#0A100D 100%);box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.03)}}
-  #topo{{position:absolute;inset:0;width:100%;height:100%;opacity:.55;pointer-events:none}}
-  .hero-inner{{position:relative;padding:34px 34px 30px;z-index:1}}
-  .heyebrow{{display:inline-flex;align-items:center;gap:9px;font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 14px}}
-  .heyebrow::before{{content:"";width:22px;height:1px;background:linear-gradient(90deg,var(--accent),transparent)}}
-  .livedot{{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 10px var(--good);animation:pulse 2.4s ease-in-out infinite}}
-  @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.35}}}}
-  @media(prefers-reduced-motion:reduce){{.livedot{{animation:none}}}}
-  h1{{font-size:clamp(28px,5vw,52px);line-height:1.02;margin:0 0 10px;font-weight:800;text-wrap:balance;letter-spacing:-.025em;color:#fff;
-    text-shadow:0 2px 30px rgba(0,0,0,.4)}}
-  h1 .accentword{{color:var(--accent)}}
-  .hsub{{color:var(--ink-2);font-size:15px;margin:0 0 4px;max-width:60ch}}
-  .hero{{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:13px;margin:26px 0 0}}
+  .wrap{{max-width:1120px;margin:0 auto;padding:0 24px 80px}}
+  header{{padding:28px 0 4px}}
+  .hdr{{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:16px;padding:24px 30px;color:#fff;box-shadow:var(--shadow)}}
+  .heyebrow{{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;opacity:.82;font-weight:600;margin:0 0 8px}}
+  h1{{font-size:clamp(22px,3.6vw,32px);line-height:1.1;margin:0 0 6px;font-weight:800;text-wrap:balance;letter-spacing:-.5px;color:#fff}}
+  .hsub{{color:#fff;opacity:.9;font-size:14.5px;margin:0}}
+  .hdr{{position:relative}}
+  .hlogo{{position:absolute;top:22px;right:26px;width:46px;height:46px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.22)}}
+  .mprint{{background:var(--accent);border:1px solid var(--accent);color:#fff;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}}
+  .mprint:hover{{filter:brightness(1.08)}}
+  .print-head{{display:none}}
+  @media print {{
+    body>*{{display:none !important}}
+    #mback{{display:block !important;position:static;background:#fff;padding:0;inset:auto;overflow:visible}}
+    .modal{{box-shadow:none !important;max-width:100% !important;border:0 !important;border-radius:0 !important;animation:none !important}}
+    .mclose,.mprint{{display:none !important}}
+    .print-head{{display:flex !important;align-items:center;gap:12px;padding:2px 0 14px;border-bottom:2px solid var(--accent);margin:0 0 6px}}
+    .print-head img{{width:46px;height:46px;border-radius:8px;flex:0 0 auto}}
+    .print-head b{{font-size:16px;color:#1c2530}} .print-head span{{display:block;color:#55606c;font-size:11.5px;margin-top:2px}}
+    @page{{margin:15mm}}
+  }}
+  .hero{{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:14px;margin:28px 0 0}}
   @media(max-width:820px){{.hero{{grid-template-columns:1fr 1fr}}}}
-  .stat{{background:rgba(255,255,255,.028);border:1px solid rgba(255,255,255,.075);border-radius:15px;padding:17px 18px 15px;backdrop-filter:blur(7px);transition:border-color .2s}}
-  .stat:hover{{border-color:rgba(255,255,255,.16)}}
-  .stat .k{{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:650;margin:0 0 8px}}
-  .stat .v{{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1;color:#fff}}
-  .stat .v small{{font-size:15px;font-weight:600;color:var(--ink-2);letter-spacing:0}}
+  .stat{{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;box-shadow:var(--shadow)}}
+  .stat .k{{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:650;margin:0 0 8px}}
+  .stat .v{{font-size:34px;font-weight:720;letter-spacing:-.02em;line-height:1}}
+  .stat .v small{{font-size:16px;font-weight:600;color:var(--ink-2)}}
   .stat .note{{font-size:12.5px;color:var(--ink-3);margin:8px 0 0}}
-  .stat.lead{{background:linear-gradient(155deg,rgba(239,178,78,.16),rgba(239,178,78,.03) 65%);border-color:rgba(239,178,78,.38);box-shadow:0 0 34px rgba(239,178,78,.10)}}
-  .stat.lead .v{{font-size:46px;color:var(--accent);text-shadow:0 0 26px var(--glow)}}
-  .stat.lead .v small{{color:rgba(239,178,78,.7)}}
-  .meter{{height:7px;background:rgba(0,0,0,.35);border-radius:5px;margin:13px 0 0;overflow:hidden;border:1px solid rgba(255,255,255,.05)}}
-  .meter>span{{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent-2),var(--accent));box-shadow:0 0 12px var(--glow)}}
+  .stat.lead{{background:linear-gradient(160deg,var(--accent-soft),transparent 70%),var(--surface)}}
+  .meter{{height:7px;background:var(--bar-track);border-radius:5px;margin:12px 0 0;overflow:hidden}}
+  .meter>span{{display:block;height:100%;border-radius:5px;background:var(--accent)}}
   section{{margin:40px 0 0}}
-  .sec-h{{display:flex;align-items:center;gap:11px;margin:0 0 4px}}
-  .sec-h::before{{content:"";width:10px;height:10px;border-radius:3px;background:var(--accent);box-shadow:0 0 12px var(--glow);flex:0 0 auto}}
-  h2{{font-size:20px;font-weight:750;letter-spacing:-.015em;margin:0;color:#fff}}
+  .sec-h{{display:flex;align-items:baseline;gap:12px;margin:0 0 4px}}
+  h2{{font-size:19px;font-weight:700;letter-spacing:-.01em;margin:0}}
   .sec-sub{{color:var(--ink-3);font-size:13.5px;margin:2px 0 18px}}
   .identity{{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow);display:flex;flex-wrap:wrap;align-items:center;gap:14px 10px}}
   .formula{{font-size:15px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}}
@@ -280,11 +291,11 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .usobar>i{{position:absolute;left:0;top:0;bottom:0;border-radius:5px}}
   .usobar>.mark{{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-3);opacity:.5}}
   .usoval{{width:52px;text-align:right;font-weight:650;font-size:14px}}
-  .fill-good{{background:var(--good);box-shadow:0 0 9px rgba(67,217,138,.5)}}.fill-warn{{background:var(--warn);box-shadow:0 0 9px rgba(255,154,61,.5)}}.fill-crit{{background:var(--crit);box-shadow:0 0 9px rgba(255,98,90,.5)}}
+  .fill-good{{background:var(--good)}}.fill-warn{{background:var(--warn)}}.fill-crit{{background:var(--crit)}}
   .fill-anom{{background:repeating-linear-gradient(45deg,var(--anom),var(--anom) 4px,transparent 4px,transparent 7px);background-color:var(--anom-bg)}}
   .prodcell{{display:flex;align-items:center;gap:9px;justify-content:flex-end}}
   .prodbar{{width:64px;height:9px;border-radius:5px;background:var(--bar-track);overflow:hidden;flex:0 0 auto}}
-  .prodbar>i{{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent-2),var(--accent));box-shadow:0 0 8px var(--glow)}}
+  .prodbar>i{{display:block;height:100%;border-radius:5px;background:var(--accent)}}
   .chip{{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:650;padding:3px 9px;border-radius:20px;font-variant-numeric:tabular-nums}}
   .c-good{{background:var(--good-bg);color:var(--good)}}.c-warn{{background:var(--warn-bg);color:var(--warn)}}.c-crit{{background:var(--crit-bg);color:var(--crit)}}
   .dot{{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}}
@@ -355,19 +366,17 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
 </style>
 <div class="wrap">
 <header>
-  <div class="hero-band">
-    <canvas id="topo"></canvas>
-    <div class="hero-inner">
-      <p class="heyebrow"><span class="livedot"></span>Forestal Millalemu · Puesto de Control de Cosecha</p>
-      <h1>Uso · Ritmo · Carga · <span class="accentword">VMA</span></h1>
-      <p class="hsub">{sub}</p>
-      <div class="hero">
-        {head_main}
-        {stat2}
-        <div class="stat"><p class="k">VMA ponderado</p><div class="v mono">{vma_g}<small> m³/árb</small></div><p class="note">{arb_g} árboles madereados</p></div>
-        <div class="stat"><p class="k">Palanca que más limita</p><div class="v" style="font-size:26px">{pal_dom}</div><p class="note">limita {pal_n} de {nfaenas} faenas · Uso bajo transversal</p></div>
-      </div>
-    </div>
+  <div class="hdr">
+    <img src="{logo}" alt="Millalemu" class="hlogo">
+    <p class="heyebrow">Forestal Millalemu · Control de Cosecha</p>
+    <h1>Uso · Ritmo · Carga · VMA por faena</h1>
+    <p class="hsub">{sub}</p>
+  </div>
+  <div class="hero">
+    {head_main}
+    {stat2}
+    <div class="stat"><p class="k">VMA ponderado</p><div class="v mono">{vma_g}<small> m³/árb</small></div><p class="note">{arb_g} árboles madereados</p></div>
+    <div class="stat"><p class="k">Palanca que más limita</p><div class="v" style="font-size:26px">{pal_dom}</div><p class="note">limita {pal_n} de {nfaenas} faenas · Uso bajo transversal</p></div>
   </div>
 </header>
 <section>
@@ -462,8 +471,19 @@ function render(name){
   const causasHtml = causas.map(c=>`<div class="cz"><span class="cn">${c.n}</span><span class="cb"><i style="width:${Math.round(c.min/cmax*100)}%"></i></span><span class="cm">${nf(c.min,0)}</span></div>`).join('');
   const tmBlock = causas.length ? `<div><p class="msec-t">Tiempos perdidos — ${nf(d.tm.total,0)} min (mant ${nf(d.tm.mant,0)} · oper ${nf(d.tm.oper,0)} · proc ${nf(d.tm.proc,0)})</p><div class="causa-list">${causasHtml}</div></div>` : '';
   modal.innerHTML = `
+    <div class="print-head">${window.KPI_LOGO?`<img src="${window.KPI_LOGO}" alt="Millalemu">`:''}<div><b>Informe de Faena — ${d.nombre}</b><span>Forestal Millalemu · Control de Cosecha · ${window.KPI_MES||''}</span></div></div>
     <div class="mhead"><div><h3 id="mtitle">${d.nombre}</h3><span class="tp">${d.tipo}</span></div>
-      <button class="mclose" aria-label="Cerrar" onclick="closeM()">✕</button></div>
+      <button class="mprint" style="margin-left:auto" onclick="printFaena()" title="Imprimir o guardar como PDF">🖨 Imprimir / PDF</button>
+      <button class="mclose" aria-label="Cerrar" onclick="closeM()">✕</button></div>`;
+  return renderRest(d, name);
+}
+function renderRest(d, name){
+  const b = d.diag.benchmark||{}, lim = d.diag.palanca;
+  const proyTxt = d.parcial ? `${nf(d.proy_pct,0)}%` : `${nf(d.cumpl,1)}%`;
+  const causas = d.tm.causas||[]; const cmax = causas.length?causas[0].min:1;
+  const causasHtml = causas.map(c=>`<div class="cz"><span class="cn">${c.n}</span><span class="cb"><i style="width:${Math.round(c.min/cmax*100)}%"></i></span><span class="cm">${nf(c.min,0)}</span></div>`).join('');
+  const tmBlock = causas.length ? `<div><p class="msec-t">Tiempos perdidos — ${nf(d.tm.total,0)} min (mant ${nf(d.tm.mant,0)} · oper ${nf(d.tm.oper,0)} · proc ${nf(d.tm.proc,0)})</p><div class="causa-list">${causasHtml}</div></div>` : '';
+  modal.insertAdjacentHTML('beforeend', `
     <div class="mbody">
       <div class="mrow">
         <div class="mstat"><p class="k">Acumulado</p><div class="v">${nf(d.acum,0)}<small> / ${nf(d.meta,0)} m³</small></div></div>
@@ -487,8 +507,9 @@ function render(name){
         <span class="pill-pal">Limita: ${d.diag.palanca}</span>
         <p>${d.diag.causa}</p><p><b>Acción:</b> ${d.diag.recomendacion}</p>
       </div></div>
-    </div>`;
+    </div>`);
 }
+function printFaena(){ window.print(); }
 function openM(name){ lastFocus=document.activeElement; render(name); back.classList.add('open'); document.body.style.overflow='hidden'; const c=modal.querySelector('.mclose'); if(c)c.focus(); }
 function closeM(){ back.classList.remove('open'); document.body.style.overflow=''; if(lastFocus)lastFocus.focus(); }
 back.addEventListener('click', e=>{ if(e.target===back) closeM(); });
@@ -498,46 +519,6 @@ document.querySelectorAll('.clickrow').forEach(r=>{
   r.addEventListener('click', ()=>openM(n));
   r.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openM(n); }});
 });
-
-// ── Curvas de nivel topográficas (fondo del hero) ──
-(function(){
-  const c = document.getElementById('topo'); if(!c) return;
-  const ctx = c.getContext('2d');
-  const reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
-  let w = 0, h = 0;
-  function resize(){
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const r = c.getBoundingClientRect();
-    w = r.width; h = r.height;
-    c.width = Math.max(1, w * dpr); c.height = Math.max(1, h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-  resize(); window.addEventListener('resize', resize);
-  const LINES = 28;
-  function draw(t){
-    ctx.clearRect(0, 0, w, h);
-    for (let i = 0; i < LINES; i++){
-      const p = i / LINES;
-      const baseY = h * 0.10 + p * h * 1.08;
-      ctx.beginPath();
-      for (let x = 0; x <= w; x += 8){
-        const k = x / (w || 1);
-        const y = baseY
-          + Math.sin(k * 3.1 + i * 0.55 + t * 0.00016) * 18 * (1 - p * 0.4)
-          + Math.sin(k * 7.3 - i * 0.30 + t * 0.00009) * 9
-          + Math.cos(k * 1.7 + t * 0.00011) * 14;
-        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-      const a = 0.05 + 0.10 * (1 - Math.abs(p - 0.32));
-      const gold = (i % 5 === 0);
-      ctx.strokeStyle = gold ? 'rgba(239,178,78,' + (a * 1.5) + ')' : 'rgba(120,190,160,' + a + ')';
-      ctx.lineWidth = gold ? 1.1 : 0.7;
-      ctx.stroke();
-    }
-  }
-  if (reduce){ draw(0); }
-  else { (function loop(t){ draw(t); requestAnimationFrame(loop); })(0); }
-})();
 '''
 
 if __name__ == '__main__':
