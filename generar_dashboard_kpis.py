@@ -386,7 +386,9 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .daytab td{{text-align:right;padding:3.5px 6px;border-bottom:1px solid var(--line);white-space:nowrap}}
   .daytab td:first-child{{text-align:left;font-weight:700;color:var(--accent)}}
   .daytab tbody tr:nth-child(even){{background:var(--surface-2)}}
-  .daytab tbody tr:last-child td{{border-bottom:0}}
+  .daytab tbody tr.tot td{{border-top:2px solid var(--accent);border-bottom:0;font-weight:800;color:var(--accent);background:var(--surface);padding-top:6px}}
+  .trend{{margin-top:2px}}
+  .trend svg{{display:block;width:100%;height:122px;overflow:visible}}
   .diagbox{{background:var(--accent-soft);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px}}
   .diagbox p{{margin:0 0 8px;font-size:13.5px;color:var(--ink-2)}}.diagbox p:last-child{{margin:0}}.diagbox b{{color:var(--ink)}}
   .pill-pal{{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--accent);background:var(--surface);border:1px solid var(--accent);border-radius:20px;padding:2px 10px;margin-bottom:10px}}
@@ -545,10 +547,24 @@ function renderRest(d, name){
         <span class="pill-pal">Limita: ${d.diag.palanca}</span>
         <p>${d.diag.causa}</p><p><b>Acción:</b> ${d.diag.recomendacion}</p>
       </div></div>
-      ${(d.dd&&d.dd.length)?`<div><p class="msec-t">Detalle diario — ${d.dd.length} jornadas</p>
-        <div class="scroll"><table class="daytab"><thead><tr><th>Día</th><th>m³</th><th>Hrs efec.</th><th>Ciclos</th><th>m³/hr</th></tr></thead><tbody>
-        ${d.dd.map(x=>`<tr><td>${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`).join('')}
-        </tbody></table></div></div>`:''}
+      ${(d.dd&&d.dd.length)?(function(){
+        const dd=d.dd, n=dd.length;
+        const sv=dd.reduce((a,x)=>a+x.vol,0), sh=dd.reduce((a,x)=>a+x.hrs,0), sc=dd.reduce((a,x)=>a+x.cic,0);
+        const mx=Math.max(...dd.map(x=>x.vol),1), avg=sv/n;
+        const W=560,H=118,pad=16,bw=(W-pad*2)/n, ay=H-pad-(avg/mx)*(H-pad*2);
+        const bars=dd.map((x,i)=>{const bh=(x.vol/mx)*(H-pad*2),bx=pad+i*bw;return `<rect x="${(bx+1).toFixed(1)}" y="${(H-pad-bh).toFixed(1)}" width="${Math.max(bw-2,1).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="var(--accent)" opacity="0.85"/>`+((i%3===0||i===n-1)?`<text x="${(bx+bw/2).toFixed(1)}" y="${H-3}" text-anchor="middle" font-size="8" fill="var(--ink-3)">${x.d}</text>`:'');}).join('');
+        const rows=dd.map(x=>`<tr><td>${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`).join('');
+        return `<div class="trend"><p class="msec-t">Tendencia del mes — m³ por día</p>
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+            <line x1="${pad}" y1="${ay.toFixed(1)}" x2="${W-pad}" y2="${ay.toFixed(1)}" stroke="var(--ink-3)" stroke-dasharray="3 3" stroke-width="1"/>
+            <text x="${W-pad}" y="${(ay-3).toFixed(1)}" text-anchor="end" font-size="8" fill="var(--ink-3)">prom ${nf(avg,0)} m³/día</text>
+            ${bars}
+          </svg></div>
+          <div style="margin-top:16px"><p class="msec-t">Detalle diario — ${n} jornadas</p>
+          <div class="scroll"><table class="daytab"><thead><tr><th>Día</th><th>m³</th><th>Hrs efec.</th><th>Ciclos</th><th>m³/hr</th></tr></thead><tbody>${rows}
+          <tr class="tot"><td>Total</td><td>${nf(sv,0)}</td><td>${nf(sh,1)}</td><td>${nf(sc,0)}</td><td>${sh?nf(sv/sh,1):'—'}</td></tr>
+          </tbody></table></div></div>`;
+      })():''}
     </div>`);
 }
 function printFaena(){ window.print(); }
