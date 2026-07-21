@@ -42,3 +42,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+Dashboard_KPIs.html
+kpis.json
+tm_por_faena.json

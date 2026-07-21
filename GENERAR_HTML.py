@@ -1351,6 +1351,12 @@ html = f"""<!DOCTYPE html>
   </div>
 </div>
 
+<div class="section" id="sec-kpis">
+  <iframe id="kpiFrame" src="Dashboard_KPIs.html" title="KPIs Uso / Ritmo / Carga / VMA por faena"
+    style="width:100%;border:0;height:1200px;background:#F8FAFC;border-radius:12px"
+    onload="try{{this.style.height=(this.contentWindow.document.body.scrollHeight+40)+'px'}}catch(e){{}}"></iframe>
+</div>
+
 <div class="section" id="sec-grid">
   <div class="grid-container"><h3 style="margin-bottom:12px;font-size:14px;color:var(--primary)">Control Mensual por Equipo</h3><table id="gridTable"></table></div>
 </div>
@@ -1469,8 +1475,8 @@ document.getElementById('headerKpis').innerHTML = `
 `;
 
 // Navigation
-const sections = ['resumen','grid','tiempos','analisis','comparativo'];
-const labels = ['Resumen por Equipo','Tabla de Producciones','Tiempos Perdidos','Análisis Operacional','Comparativo Mensual'];
+const sections = ['resumen','kpis','grid','tiempos','analisis','comparativo'];
+const labels = ['Resumen por Equipo','KPIs Uso/Ritmo/Carga','Tabla de Producciones','Tiempos Perdidos','Análisis Operacional','Comparativo Mensual'];
 const nav = document.getElementById('nav');
 sections.forEach((s,i) => {{
   const btn = document.createElement('button');
@@ -1481,6 +1487,7 @@ sections.forEach((s,i) => {{
     document.getElementById('sec-'+s).classList.add('active');
     document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    if (s === 'kpis') {{ const kf = document.getElementById('kpiFrame'); if (kf) setTimeout(() => {{ try {{ kf.style.height = (kf.contentWindow.document.body.scrollHeight + 40) + 'px'; }} catch (e) {{}} }}, 60); }}
   }};
   nav.appendChild(btn);
 }});
