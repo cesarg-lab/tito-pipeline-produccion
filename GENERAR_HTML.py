@@ -1509,7 +1509,7 @@ document.getElementById('headerKpis').innerHTML = `
   <div class="kpi" style="min-width:100px"><div class="kpi-label">Acumulado</div><div class="kpi-value" style="font-size:22px">${{fmt(Math.round(cfg.ta))}}</div><div class="kpi-unit">m³ SSC</div></div>
   <div class="kpi" style="min-width:100px"><div class="kpi-label">Meta</div><div class="kpi-value" style="font-size:22px">${{fmt(cfg.tm)}}</div><div class="kpi-unit">m³ SSC</div></div>
   <div class="kpi" style="min-width:170px"><div class="kpi-label" style="font-weight:700">${{tituloKpi}}</div><div class="kpi-value" style="color:${{cierreColor}};font-size:52px;line-height:1;font-weight:900">${{cumplTotal}}%</div></div>
-  <div class="kpi" style="min-width:150px"><div class="kpi-label" style="font-weight:700">${{tituloProy}}</div><div class="kpi-value" style="font-size:38px;line-height:1;font-weight:800">${{fmt(Math.round(proyTotal))}}</div><div class="kpi-unit" style="color:${{brechaColor}};font-weight:700">${{sufijoBrecha}}</div></div>
+  <div class="kpi" style="min-width:150px"><div class="kpi-label" style="font-weight:700">${{tituloProy}}</div><div class="kpi-value" style="color:${{cierreColor}};font-size:38px;line-height:1;font-weight:800">${{fmt(Math.round(proyTotal))}}</div><div class="kpi-unit" style="color:${{brechaColor}};font-weight:700">${{sufijoBrecha}}</div></div>
 `;
 
 // Navigation
