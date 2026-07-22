@@ -217,10 +217,15 @@ def main():
             _gx = _x.groupby('Número Noc'); _v = _x['Vol'].sum(); _he = _gx['HrsEf'].first().sum(); _ci = _gx['Ciclos'].first().sum()
             dias_det.append({'d': int(_day), 'vol': round(_v), 'hrs': round(_he, 1), 'cic': int(_ci), 'rend': round(_v / _he, 1) if _he else 0})
         dias_det.sort(key=lambda z: z['d'])
-        # Atribución por turno/jefe (7×7): cada día se asigna al jefe que estaba;
-        # día de cambio ('T 1/2') se reparte 50/50 entre los dos jefes.
+        # Anotar el jefe/turno (0=jefeA, 1=jefeB) de cada jornada — para colorear la grilla.
+        _tsched = TURNOS.get(NOMBRE[t], [])
+        jefes_orden = [_tsched[0]['jefe'], _tsched[1]['jefe']] if len(_tsched) == 2 else []
+        for x in dias_det:
+            x['turno'] = (0 if _tsched and x['d'] in _tsched[0]['full']
+                          else (1 if len(_tsched) == 2 and x['d'] in _tsched[1]['full'] else None))
+        # Atribución por turno/jefe (7×7): cada día se asigna al jefe que estaba.
         turnos_faena = []
-        for jt in TURNOS.get(NOMBRE[t], []):
+        for jt in _tsched:
             jv = jh = jc = jd = 0.0
             for x in dias_det:
                 w = 1.0 if x['d'] in jt['full'] else (0.5 if x['d'] in jt['half'] else 0.0)
@@ -231,7 +236,7 @@ def main():
                     ciclos=int(round(jc)), m3_dia=round(jv / jd, 1), m3_hr=round(jv / jh, 1) if jh else 0))
         turnos_faena.sort(key=lambda z: -z['m3_dia'])   # mejor turno primero
         faenas.append(dict(team=t, nombre=NOMBRE[t], tipo=('Terrestre' if t in TERRESTRE else 'Aéreo'),
-            grupo_tec=GRUPO_TEC.get(t, 'Skidder'), dias_detalle=dias_det, turnos=turnos_faena,
+            grupo_tec=GRUPO_TEC.get(t, 'Skidder'), dias_detalle=dias_det, turnos=turnos_faena, jefes_orden=jefes_orden,
             meta_m3=METAS[t], vol_m3=round(vol, 1), cumpl_pct=round(vol / METAS[t] * 100, 1),
             proy_cierre_m3=round(proy, 0), proy_cumpl_pct=round(proy / METAS[t] * 100, 1), prom_diario_m3=round(prom, 1),
             dias=int(ndias), folios=int(nfolios), arboles=int(arb),

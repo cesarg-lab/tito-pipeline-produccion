@@ -103,7 +103,7 @@ def build(kpis, tmf):
             prod=pv, prod_ef=f.get('prod_m3_h_efec',0),
             acum=f['vol_m3'], meta=f['meta_m3'], cumpl=f['cumpl_pct'],
             proy=f.get('proy_cierre_m3'), proy_pct=f.get('proy_cumpl_pct'), prom_dia=f.get('prom_diario_m3'),
-            dias=f.get('dias'), dd=f.get('dias_detalle', []), turnos=f.get('turnos', []), hrs_ef=f['hrs_efectivas'], hrs_disp=f['hrs_disponible'],
+            dias=f.get('dias'), dd=f.get('dias_detalle', []), turnos=f.get('turnos', []), jefes=f.get('jefes_orden', []), hrs_ef=f['hrs_efectivas'], hrs_disp=f['hrs_disponible'],
             ciclos=f['ciclos'], arboles=f.get('arboles'), arb_ciclo=f.get('arboles_por_ciclo'),
             tm=dict(total=tm_tot, mant=f.get('tm_mant_min',0), oper=f.get('tm_oper_min',0), proc=f.get('tm_proc_min',0),
                     causas=[{'n':k.strip(),'min':v} for k,v in list(causas.items())[:6]]),
@@ -401,6 +401,11 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .daytab tbody tr.tot td{{border-top:2px solid var(--accent);border-bottom:0;font-weight:800;color:var(--accent);background:var(--surface);padding-top:6px}}
   .trend{{margin-top:2px}}
   .trend svg{{display:block;width:100%;height:122px;overflow:visible}}
+  .jleg{{display:flex;gap:16px;font-size:12px;color:var(--ink-2);margin:0 0 9px}}
+  .jleg>span{{display:inline-flex;align-items:center;gap:6px}}
+  .js{{width:11px;height:11px;border-radius:3px;flex:0 0 auto;display:inline-block}}
+  .daytab td.jd0{{border-left:3px solid var(--accent)}}
+  .daytab td.jd1{{border-left:3px solid #1f74c4;color:#1f74c4}}
   .diagbox{{background:var(--accent-soft);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px}}
   .diagbox p{{margin:0 0 8px;font-size:13.5px;color:var(--ink-2)}}.diagbox p:last-child{{margin:0}}.diagbox b{{color:var(--ink)}}
   .pill-pal{{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--accent);background:var(--surface);border:1px solid var(--accent);border-radius:20px;padding:2px 10px;margin-bottom:10px}}
@@ -576,9 +581,11 @@ function renderRest(d, name){
         const sv=dd.reduce((a,x)=>a+x.vol,0), sh=dd.reduce((a,x)=>a+x.hrs,0), sc=dd.reduce((a,x)=>a+x.cic,0);
         const mx=Math.max(...dd.map(x=>x.vol),1), avg=sv/n;
         const W=560,H=118,pad=16,bw=(W-pad*2)/n, ay=H-pad-(avg/mx)*(H-pad*2);
-        const bars=dd.map((x,i)=>{const bh=(x.vol/mx)*(H-pad*2),bx=pad+i*bw;return `<rect x="${(bx+1).toFixed(1)}" y="${(H-pad-bh).toFixed(1)}" width="${Math.max(bw-2,1).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="var(--accent)" opacity="0.85"/>`+((i%3===0||i===n-1)?`<text x="${(bx+bw/2).toFixed(1)}" y="${H-3}" text-anchor="middle" font-size="8" fill="var(--ink-3)">${x.d}</text>`:'');}).join('');
-        const rows=dd.map(x=>`<tr><td>${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`).join('');
-        return `<div class="trend"><p class="msec-t">Tendencia del mes — m³ por día</p>
+        const tcol=(t)=>t===1?'#1f74c4':'var(--accent)';
+        const bars=dd.map((x,i)=>{const bh=(x.vol/mx)*(H-pad*2),bx=pad+i*bw;return `<rect x="${(bx+1).toFixed(1)}" y="${(H-pad-bh).toFixed(1)}" width="${Math.max(bw-2,1).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${tcol(x.turno)}" opacity="0.9"/>`+((i%3===0||i===n-1)?`<text x="${(bx+bw/2).toFixed(1)}" y="${H-3}" text-anchor="middle" font-size="8" fill="var(--ink-3)">${x.d}</text>`:'');}).join('');
+        const rows=dd.map(x=>`<tr><td class="${x.turno===1?'jd1':(x.turno===0?'jd0':'')}">${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`).join('');
+        const jleg=(d.jefes&&d.jefes.length===2)?`<div class="jleg"><span><span class="js" style="background:var(--accent)"></span>${d.jefes[0]}</span><span><span class="js" style="background:#1f74c4"></span>${d.jefes[1]}</span></div>`:'';
+        return `<div class="trend"><p class="msec-t">Tendencia del mes — m³ por día (color = turno del jefe)</p>${jleg}
           <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
             <line x1="${pad}" y1="${ay.toFixed(1)}" x2="${W-pad}" y2="${ay.toFixed(1)}" stroke="var(--ink-3)" stroke-dasharray="3 3" stroke-width="1"/>
             <text x="${W-pad}" y="${(ay-3).toFixed(1)}" text-anchor="end" font-size="8" fill="var(--ink-3)">prom ${nf(avg,0)} m³/día</text>
