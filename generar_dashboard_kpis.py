@@ -228,7 +228,7 @@ def build(kpis, tmf):
     )
 
 # CSS + esqueleto (idéntico al diseño validado)
-HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</title>
+HTML = r'''<meta charset="utf-8"><title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script>window.KPI_LOGO="{logo}";window.KPI_MES="{mes}";</script>
@@ -258,9 +258,24 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
     .modal{{box-shadow:none !important;max-width:100% !important;border:0 !important;border-radius:0 !important;animation:none !important}}
     .mclose,.mprint{{display:none !important}}
     .print-head{{display:flex !important;align-items:center;gap:12px;padding:2px 0 14px;border-bottom:2px solid var(--accent);margin:0 0 6px}}
-    .print-head img{{width:46px;height:46px;border-radius:8px;flex:0 0 auto}}
-    .print-head b{{font-size:16px;color:#1c2530}} .print-head span{{display:block;color:#55606c;font-size:11.5px;margin-top:2px}}
-    @page{{margin:15mm}}
+    .print-head img{{width:42px;height:42px;border-radius:8px;flex:0 0 auto}}
+    .print-head b{{font-size:15px;color:#1c2530}} .print-head span{{display:block;color:#55606c;font-size:11px;margin-top:1px}}
+    /* ── Compactar todo a UNA página + sacar comentarios redundantes ── */
+    .reto,.tnote,.trend{{display:none !important}}          /* tendencia = redundante con la tabla diaria (m³/día por turno) */
+    .diagbox p:first-of-type{{display:none !important}}     /* oculta la 'causa' (comentario); deja pill + acción */
+    .mbody{{gap:6px !important;padding:5px 2px !important}}
+    .mhead{{padding:0 0 6px !important}} .mhead h3{{font-size:15px !important}}
+    .msec-t{{margin-bottom:3px !important;font-size:9.5px !important}}
+    .mrow{{gap:6px !important}} .mstat{{padding:5px 8px !important}}
+    .mstat .k{{font-size:8.5px !important;margin-bottom:2px !important}} .mstat .v{{font-size:14px !important}}
+    .decomp{{gap:3px !important}} .dterm .lab{{font-size:11px !important}} .dval{{font-size:11px !important;margin-top:2px !important}}
+    .turnos{{gap:7px !important}} .turno{{padding:6px 9px !important}} .tv{{font-size:14px !important}} .tbar{{margin-bottom:4px !important}} .tj{{font-size:12px !important;margin-bottom:4px !important}} .tsub{{font-size:10px !important}}
+    .diagbox{{padding:7px 11px !important}} .diagbox p{{font-size:10px !important;margin:0 !important}} .pill-pal{{margin-bottom:4px !important}}
+    .causa-list{{gap:2px !important}} .cz{{font-size:9.5px !important}}
+    .daytab{{font-size:9px !important}} .daytab th{{padding:2px 5px !important;font-size:8px !important}} .daytab td{{padding:1px 5px !important}}
+    .daytab tbody tr.tot td{{padding-top:3px !important}}
+    .daygrid{{gap:4px 16px !important}}
+    @page{{margin:8mm}}
   }}
   .hero{{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:14px;margin:28px 0 0}}
   @media(max-width:820px){{.hero{{grid-template-columns:1fr 1fr}}}}
@@ -408,6 +423,8 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .js{{width:11px;height:11px;border-radius:3px;flex:0 0 auto;display:inline-block}}
   .daytab td.jd0{{border-left:3px solid var(--accent)}}
   .daytab td.jd1{{border-left:3px solid #1f74c4;color:#1f74c4}}
+  .daygrid{{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;align-items:start}}
+  @media (max-width:520px){{.daygrid{{grid-template-columns:1fr}}}}
   .diagbox{{background:var(--accent-soft);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px}}
   .diagbox p{{margin:0 0 8px;font-size:13.5px;color:var(--ink-2)}}.diagbox p:last-child{{margin:0}}.diagbox b{{color:var(--ink)}}
   .pill-pal{{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--accent);background:var(--surface);border:1px solid var(--accent);border-radius:20px;padding:2px 10px;margin-bottom:10px}}
@@ -586,7 +603,12 @@ function renderRest(d, name){
         const W=560,H=118,pad=16,bw=(W-pad*2)/n, ay=H-pad-(avg/mx)*(H-pad*2);
         const tcol=(t)=>t===1?'#1f74c4':'#417505';
         const bars=dd.map((x,i)=>{const bh=(x.vol/mx)*(H-pad*2),bx=pad+i*bw;return `<rect x="${(bx+1).toFixed(1)}" y="${(H-pad-bh).toFixed(1)}" width="${Math.max(bw-2,1).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${tcol(x.turno)}" opacity="0.9"/>`+((i%3===0||i===n-1)?`<text x="${(bx+bw/2).toFixed(1)}" y="${H-3}" text-anchor="middle" font-size="8" fill="var(--ink-3)">${x.d}</text>`:'');}).join('');
-        const rows=dd.map(x=>`<tr><td class="${x.turno===1?'jd1':(x.turno===0?'jd0':'')}">${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`).join('');
+        const mkrow=(x)=>`<tr><td class="${x.turno===1?'jd1':(x.turno===0?'jd0':'')}">${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`;
+        const half=Math.ceil(n/2);
+        const thd=`<thead><tr><th>Día</th><th>m³</th><th>Hrs</th><th>Cic</th><th>m³/hr</th></tr></thead>`;
+        const totrow=`<tr class="tot"><td>Total</td><td>${nf(sv,0)}</td><td>${nf(sh,1)}</td><td>${nf(sc,0)}</td><td>${sh?nf(sv/sh,1):'—'}</td></tr>`;
+        const colL=`<table class="daytab">${thd}<tbody>${dd.slice(0,half).map(mkrow).join('')}</tbody></table>`;
+        const colR=`<table class="daytab">${thd}<tbody>${dd.slice(half).map(mkrow).join('')}${totrow}</tbody></table>`;
         const jleg=(d.jefes&&d.jefes.length===2)?`<div class="jleg"><span><span class="js" style="background:var(--accent)"></span>${d.jefes[0]}</span><span><span class="js" style="background:#1f74c4"></span>${d.jefes[1]}</span></div>`:'';
         return `<div class="trend"><p class="msec-t">Tendencia del mes — m³ por día (color = turno del jefe)</p>${jleg}
           <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
@@ -595,9 +617,7 @@ function renderRest(d, name){
             ${bars}
           </svg></div>
           <div style="margin-top:16px"><p class="msec-t">Detalle diario — ${n} jornadas</p>
-          <div class="scroll"><table class="daytab"><thead><tr><th>Día</th><th>m³</th><th>Hrs efec.</th><th>Ciclos</th><th>m³/hr</th></tr></thead><tbody>${rows}
-          <tr class="tot"><td>Total</td><td>${nf(sv,0)}</td><td>${nf(sh,1)}</td><td>${nf(sc,0)}</td><td>${sh?nf(sv/sh,1):'—'}</td></tr>
-          </tbody></table></div></div>`;
+          <div class="daygrid">${colL}${colR}</div></div>`;
       })():''}
     </div>`);
 }
