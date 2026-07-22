@@ -2392,7 +2392,7 @@ const dspEl = document.getElementById('diasSinProdTable');
 
   TEAMS.forEach((t, i) => {{
     const r = totales[i];
-    const metaColor = r.pctMeta >= 100 ? '#1e6e2c' : r.pctMeta >= 80 ? '#2e9b3f' : r.pctMeta >= 50 ? '#e8a200' : '#d8392b';
+    const metaColor = r.pctMeta >= 100 ? '#1e6e2c' : r.pctMeta >= 90 ? '#2e9b3f' : r.pctMeta >= 60 ? '#e8a200' : '#d8392b';
     html += `<tr>
       <td style="padding:4px 8px;font-weight:600;color:#417505;white-space:nowrap;position:sticky;left:0;background:white">${{t.replace('Millalemu ','M')}}</td>`;
     days.forEach(d => {{
@@ -2413,7 +2413,7 @@ const dspEl = document.getElementById('diasSinProdTable');
   const volTot = totales.reduce((s, r) => s + r.vol, 0);
   const metaTot = totales.reduce((s, r) => s + r.metaAcum, 0);
   const pctTot = metaTot > 0 ? (volTot / metaTot * 100) : 0;
-  const pctTotColor = pctTot >= 100 ? '#1e6e2c' : pctTot >= 80 ? '#2e9b3f' : pctTot >= 50 ? '#e8a200' : '#d8392b';
+  const pctTotColor = pctTot >= 100 ? '#1e6e2c' : pctTot >= 90 ? '#2e9b3f' : pctTot >= 60 ? '#e8a200' : '#d8392b';
   html += `<tr style="background:#f6f8fa;font-weight:700">
     <td style="padding:6px 8px;color:#417505;position:sticky;left:0;background:#f6f8fa">TOTAL</td>
     <td colspan="${{days.length}}" style="padding:6px 8px;text-align:center;color:#55606c;font-size:10px;font-weight:500">${{days.length}} días transcurridos</td>
