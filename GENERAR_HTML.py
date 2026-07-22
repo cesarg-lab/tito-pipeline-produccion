@@ -1497,9 +1497,11 @@ const promDia = cfg.ta / cfg.dd;
 const mesCerrado = cfg.dd >= cfg.dt;
 const proyTotal = mesCerrado ? cfg.ta : (cfg.ta + promDia * cfg.dr);
 const cumplTotal = (proyTotal / cfg.tm * 100).toFixed(1);
-const cierreColor = parseFloat(cumplTotal)>=80?'#A3E635':parseFloat(cumplTotal)>=60?'#fcf3da':'#FCA5A5';
+// Semáforo con buen contraste sobre blanco (los tonos pálidos se lavaban).
+// Verde = bueno a partir de 90% (regla del usuario); 60-90 ámbar; <60 rojo.
+const cierreColor = parseFloat(cumplTotal)>=90?'#1f8a2e':parseFloat(cumplTotal)>=60?'#b8730a':'#d8392b';
 const brechaVal = proyTotal - cfg.tm;
-const brechaColor = brechaVal >= 0 ? '#A3E635' : '#FCA5A5';
+const brechaColor = brechaVal >= 0 ? '#1f8a2e' : '#d8392b';
 const tituloKpi = mesCerrado ? 'Cierre Real' : 'Cierre Proy.';
 const tituloProy = mesCerrado ? 'Total Mes' : 'Proyección';
 const sufijoBrecha = brechaVal >= 0 ? 'Sobre meta' : (mesCerrado ? 'Brecha real: ' : 'Brecha: ') + fmt(Math.round(brechaVal));
