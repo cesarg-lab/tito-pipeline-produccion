@@ -29,7 +29,13 @@ try:
     if os.path.exists(_kj):
         with open(_kj, encoding="utf-8") as _f:
             for _row in json.load(_f).get("faenas", []):
-                _kpi_vma[_row.get("team")] = _row.get("vma_m3_arbol", 0)
+                _v = _row.get("vma_m3_arbol", 0)
+                # keyear por nombre largo ("Millalemu 1.1") Y código ("M1.1"):
+                # TEAMS usa el nombre largo, así el lookup _kpi_vma.get(t) calza.
+                if _row.get("nombre"):
+                    _kpi_vma[_row["nombre"]] = _v
+                if _row.get("team"):
+                    _kpi_vma[_row["team"]] = _v
 except Exception:
     _kpi_vma = {}
 
