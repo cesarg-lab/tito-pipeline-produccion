@@ -225,14 +225,14 @@ def main():
                           else (1 if len(_tsched) == 2 and x['d'] in _tsched[1]['full'] else None))
         # Atribución por turno/jefe (7×7): cada día se asigna al jefe que estaba.
         turnos_faena = []
-        for jt in _tsched:
+        for i_t, jt in enumerate(_tsched):
             jv = jh = jc = jd = 0.0
             for x in dias_det:
                 w = 1.0 if x['d'] in jt['full'] else (0.5 if x['d'] in jt['half'] else 0.0)
                 if w:
                     jv += x['vol'] * w; jh += x['hrs'] * w; jc += x['cic'] * w; jd += w
             if jd > 0:
-                turnos_faena.append(dict(jefe=jt['jefe'], dias=round(jd, 1), m3=round(jv), hrs=round(jh, 1),
+                turnos_faena.append(dict(jefe=jt['jefe'], turno=i_t, dias=round(jd, 1), m3=round(jv), hrs=round(jh, 1),
                     ciclos=int(round(jc)), m3_dia=round(jv / jd, 1), m3_hr=round(jv / jh, 1) if jh else 0))
         turnos_faena.sort(key=lambda z: -z['m3_dia'])   # mejor turno primero
         faenas.append(dict(team=t, nombre=NOMBRE[t], tipo=('Terrestre' if t in TERRESTRE else 'Aéreo'),

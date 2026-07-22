@@ -385,6 +385,7 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .turno.tmejor{{background:var(--good-bg);border-color:var(--good)}}
   .tj{{font-size:13.5px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}}
   .tbadge{{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:var(--good);padding:1px 6px;border-radius:20px}}
+  .tmedal{{font-size:16px;line-height:1}}
   .tbar{{height:7px;background:var(--bar-track);border-radius:4px;overflow:hidden;margin-bottom:7px}}
   .tbar>i{{display:block;height:100%;background:var(--accent);border-radius:4px}}
   .turno.tmejor .tbar>i{{background:var(--good)}}
@@ -566,12 +567,13 @@ function renderRest(d, name){
       </div></div>
       ${(d.turnos&&d.turnos.length>=2)?(function(){
         const T=d.turnos, mx=Math.max(...T.map(z=>z.m3_dia),1);
-        const cards=T.map((t,i)=>`<div class="turno ${i===0?'tmejor':''}">
-          <div class="tj">${t.jefe}${i===0?' <span class="tbadge">mejor</span>':''}</div>
-          <div class="tbar"><i style="width:${Math.round(t.m3_dia/mx*100)}%"></i></div>
+        const tc=(t)=>t===1?'#1f74c4':'var(--accent)';
+        const cards=T.map((t,i)=>{const c=tc(t.turno);return `<div class="turno" style="border:${i===0?'2px':'1px'} solid ${c}">
+          <div class="tj"><span class="js" style="background:${c}"></span>${i===0?'<span class="tmedal">🥇</span> ':''}${t.jefe}${i===0?' <span class="tbadge" style="background:'+c+'">mejor turno</span>':''}</div>
+          <div class="tbar"><i style="width:${Math.round(t.m3_dia/mx*100)}%;background:${c}"></i></div>
           <div class="tv">${nf(t.m3_dia,0)} <small>m³/día</small></div>
           <div class="tsub">${nf(t.m3,0)} m³ · ${nf(t.dias,0)} días · ${nf(t.m3_hr,1)} m³/hr</div>
-        </div>`).join('');
+        </div>`;}).join('');
         const dif=(T[1].m3_dia>0)?Math.round((T[0].m3_dia/T[1].m3_dia-1)*100):0;
         return `<div><p class="msec-t">Turnos 7×7 — quién rinde mejor</p><div class="turnos">${cards}</div>
           ${dif>0?`<p class="tnote">El turno de <b>${T[0].jefe}</b> produjo <b>${dif}% más m³/día</b> que el de ${T[1].jefe} en el período.</p>`:''}</div>`;
