@@ -1,0 +1,46 @@
+{
+  "ref": "2026-07-01",
+  "ciclo_dias": 14,
+  "faenas": {
+    "Millalemu 1.1": {
+      "jefeA": "Samuel Gonzalez",
+      "jefeB": "José Espinoza",
+      "posR": 6
+    },
+    "Millalemu 1.2": {
+      "jefeA": "José Solar",
+      "jefeB": "Victor Montoya",
+      "posR": 6
+    },
+    "Millalemu 1.3": {
+      "jefeA": "Kevín Cofré",
+      "jefeB": "Roberto Saldias",
+      "posR": 0
+    },
+    "Millalemu 1.4": {
+      "jefeA": "Jorge Henriquez",
+      "jefeB": "Pedro Abarzua",
+      "posR": 5
+    },
+    "Millalemu 5": {
+      "jefeA": "Patricio Miranda",
+      "jefeB": "David Flores",
+      "posR": 4
+    },
+    "Millalemu 7": {
+      "jefeA": "Marcelo Estrada",
+      "jefeB": "Juan Sepulveda",
+      "posR": 13
+    },
+    "Millalemu 9": {
+      "jefeA": "Jaime Carrasco",
+      "jefeB": "Orson Nuñez",
+      "posR": 0
+    },
+    "Millalemu 11": {
+      "jefeA": "Rodrigo Riveras",
+      "jefeB": "Juan Guevara",
+      "posR": 5
+    }
+  }
+}

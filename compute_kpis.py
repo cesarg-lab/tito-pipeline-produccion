@@ -126,44 +126,35 @@ def _fetch_pg_api():
         return None
 
 
-def _turnos_por_faena():
-    """Lee turnos_jefes.xlsx → {faena: [{jefe, full:set, half:set}, ...]}. {} si no está.
-    'T' = día completo del jefe; 'T 1/2' = día de cambio (medio día, ambos jefes)."""
+def _turnos_schedule(anio, mes):
+    """Genera el calendario de turnos 7×7 del mes desde turnos_config.json (rotación
+    CORRELATIVA — se auto-continúa para cualquier mes, no hay que recargar Excel).
+    Ciclo de 14 días desde la referencia; pos<7 → jefeA, si no → jefeB.
+    Devuelve {faena: [{jefe, full:set, half:set}]}. La config se derivó del Excel una vez."""
     try:
-        from openpyxl import load_workbook
-        xls = BASE / "turnos_jefes.xlsx"
-        if not xls.exists():
+        from datetime import date
+        cfg_f = BASE / "turnos_config.json"
+        if not cfg_f.exists():
             return {}
-        ws = load_workbook(str(xls), data_only=True).active
-        rows = list(ws.iter_rows(values_only=True))
-        dayrow = next((r for r in rows[:4] if sum(1 for c in r if isinstance(c, (int, float))) >= 20), None)
-        if not dayrow:
-            return {}
-        col2day = {i: int(c) for i, c in enumerate(dayrow) if isinstance(c, (int, float))}
-        turnos = {}; faena = None
-        for r in rows:
-            fa = r[1] if len(r) > 1 else None; jefe = r[2] if len(r) > 2 else None
-            if isinstance(fa, str) and fa.strip().startswith('Millalemu'):
-                faena = fa.strip()
-            if isinstance(jefe, str) and jefe.strip() and faena:
-                full, half = set(), set()
-                for i, day in col2day.items():
-                    v = r[i] if i < len(r) else None
-                    if isinstance(v, str):
-                        if '1/2' in v:
-                            half.add(day)
-                        elif v.strip().upper() == 'T':
-                            full.add(day)
-                if full or half:
-                    turnos.setdefault(faena, []).append({'jefe': jefe.strip(), 'full': full, 'half': half})
-        return turnos
+        cfg = json.loads(cfg_f.read_text(encoding='utf-8'))
+        ref = date.fromisoformat(cfg.get('ref', '2026-07-01')); ciclo = int(cfg.get('ciclo_dias', 14))
+        mitad = ciclo // 2
+        dm = calendar.monthrange(anio, mes)[1]
+        out = {}
+        for fa, c in cfg.get('faenas', {}).items():
+            da, db = set(), set()
+            for d in range(1, dm + 1):
+                pos = (c['posR'] + (date(anio, mes, d) - ref).days) % ciclo
+                (da if pos < mitad else db).add(d)
+            out[fa] = [{'jefe': c['jefeA'], 'full': da, 'half': set()},
+                       {'jefe': c['jefeB'], 'full': db, 'half': set()}]
+        return out
     except Exception as e:
-        print(f"   ⚠️  turnos: {e}")
+        print(f"   ⚠️  turnos config: {e}")
         return {}
 
 
 def main():
-    TURNOS = _turnos_por_faena()
     prod = _fetch_pg_api()
     if prod is None:
         prod = normalizar(pd.read_csv(CSV_PROD, sep=';', encoding='utf-8-sig'))
@@ -185,6 +176,7 @@ def main():
 
     ultimo = prod['Fecha_dt'].max()
     MES, ANIO = int(ultimo.month), int(ultimo.year)
+    TURNOS = _turnos_schedule(ANIO, MES)   # rotación 7×7 correlativa para el mes en curso
     prod_mes = prod[(prod['Fecha_dt'].dt.month == MES) & (prod['Fecha_dt'].dt.year == ANIO) & prod['Team'].notna()].copy()
 
     tm = pd.read_csv(CSV_TM, sep=';', encoding='utf-8-sig')
