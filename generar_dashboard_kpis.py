@@ -129,7 +129,7 @@ def build(kpis, tmf):
     # ---- VMA reframe ----
     lo = min(F, key=vmaval); hi = max(F, key=vmaval)
     fastest = max(F, key=lambda x: x['ritmo_ciclos_h'])
-    vma_ul = (f'<li><b>{fastest["nombre"]}</b> corre al Ritmo más alto ({dec(fastest["ritmo_ciclos_h"],2)} c/h) '
+    vma_ul = (f'<li><b>{fastest["nombre"]}</b> corre al Ritmo más alto ({dec(fastest["ritmo_ciclos_h"],2)} ciclos/hora) '
               f'en parte <b>porque sus árboles son chicos</b> (VMA {dec(vmaval(fastest),3)}): con árboles pequeños necesita muchos ciclos para juntar volumen.</li>'
               f'<li><b>{lo["nombre"]}</b> parte con la peor mano del bosque — <b>VMA {dec(vmaval(lo),3)}, el más bajo</b> '
               f'(≈{dec(lo.get("arboles_por_ciclo") or 0,0)} árboles/ciclo). Su bajo rendimiento es en parte estructural, no solo fallas.</li>'
@@ -192,7 +192,7 @@ def build(kpis, tmf):
     col_acum = "Acum. m³" if parcial else "Volumen m³"
     col_chip = "Proy. cierre" if parcial else "Cumpl."
     # ---- tablas agrupadas por tipo (Terrestre / Aéreo) ----
-    thead = (f'<thead><tr><th class="l">Faena</th><th>Uso</th><th>Ritmo<br><span>c/h</span></th>'
+    thead = (f'<thead><tr><th class="l">Faena</th><th>Uso</th><th>Ritmo<br><span>ciclos/h</span></th>'
              f'<th>Carga<br><span>m³/ciclo</span></th><th>VMA<br><span>m³/árbol</span></th>'
              f'<th>Product.<br><span>m³/h disp</span></th><th>{col_acum}</th><th>{col_chip}</th><th class="l">Desafío<br><span>vs tu potencial</span></th></tr></thead>')
     def tabla(subset, titulo, subt):
@@ -503,7 +503,7 @@ HTML = r'''<meta charset="utf-8"><title>Cosecha Millalemu · Uso · Ritmo · Car
   <div class="alerts">
     <div class="alert crit"><div class="ic">🔴</div><div class="body">
       <h4>{peor} — la más atrasada del mes ({peor_cp}% proyectado, {peor_vol} m³ acumulados)</h4>
-      <p>Combina Ritmo lento ({peor_ritmo} c/h) y el VMA más bajo ({peor_vma}) con Uso deprimido ({peor_uso}%) por {peor_causas}. Cuando opera va lento <i>y</i> se detiene mucho: la faena que más gestión exige.</p>
+      <p>Combina Ritmo lento ({peor_ritmo} ciclos/hora) y el VMA más bajo ({peor_vma}) con Uso deprimido ({peor_uso}%) por {peor_causas}. Cuando opera va lento <i>y</i> se detiene mucho: la faena que más gestión exige.</p>
     </div></div>
     {alert_ocultos}
     {alert_anom}
@@ -561,8 +561,8 @@ function renderRest(d, name){
       </div>
       <div><p class="msec-t">Tu desafío — actual vs tu potencial (mejor ${(d.reto&&d.reto.tec)||''} de tu tecnología)</p><div class="decomp">
         ${term('Uso', d.uso, '%', b.uso_pct, 1, lim==='Uso')}
-        ${term('Ritmo', d.ritmo, 'c/h', b.ritmo_ciclos_h, 2, lim==='Ritmo')}
-        ${term('Carga', d.carga, 'm³/c', b.carga_m3_ciclo, 2, lim==='Carga')}
+        ${term('Ritmo', d.ritmo, 'ciclos/hora', b.ritmo_ciclos_h, 2, lim==='Ritmo')}
+        ${term('Carga', d.carga, 'm³/ciclo', b.carga_m3_ciclo, 2, lim==='Carga')}
       </div>
       <div class="reto reto-${(d.reto&&d.reto.solo)?'multipalanca':((d.reto&&d.reto.status)||'gestion')}">${(function(){
         const r=d.reto||{}, pal=r.palanca||'—';
