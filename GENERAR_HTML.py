@@ -1980,7 +1980,8 @@ let thead = '<thead><tr><th style="text-align:left">KPI / Día</th>';
 TEAMS.forEach(t => thead += `<th>${{t.replace('Millalemu ','M')}}</th>`);
 thead += '<th style="border-left:3px solid #FFFFFF;font-weight:800">Total</th></tr></thead>';
 
-const pctColor = pct => pct >= 80 ? '#2e9b3f' : pct >= 60 ? '#e8a200' : BAD;
+// Verde solo sobre 90% (regla del usuario), coherente con el semáforo del encabezado.
+const pctColor = pct => pct >= 90 ? '#2e9b3f' : pct >= 60 ? '#e8a200' : BAD;
 const kpiDefs = [
   // % Proy al inicio — lo más accionable
   {{ label: '% Proyección', fn: k => {{ const p=(k.pr/k.m*100); return p.toFixed(0)+'%'; }},
