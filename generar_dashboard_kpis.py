@@ -238,7 +238,7 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   :root[data-theme="light"]{{--bg:#eef1f6;--surface:#ffffff;--surface-2:#f6f8fa;--surface-3:#e2e6ea;--ink:#1c2530;--ink-2:#55606c;--ink-3:#8a949f;--line:#e2e6ea;--line-2:#cdd4da;--accent:#417505;--accent-2:#2a4d07;--accent-soft:#41750514;--good:#2e9b3f;--good-bg:#2e9b3f16;--warn:#8a6200;--warn-bg:#e8a20020;--crit:#d8392b;--crit-bg:#d8392b16;--anom:#7a5bd0;--anom-bg:#7a5bd018;--bar-track:#e2e6ea;--shadow:0 1px 2px rgba(15,23,42,.04),0 3px 12px rgba(15,23,42,.06);}}
   :root[data-theme="dark"]{{--bg:#0F172A;--surface:#1c2530;--surface-2:#25334A;--surface-3:#55606c;--ink:#e2e6ea;--ink-2:#cdd4da;--ink-3:#94A3B8;--line:#55606c;--line-2:#475569;--accent:#8bbf4f;--accent-2:#6aab2e;--accent-soft:#8bbf4f22;--good:#43b054;--good-bg:#2e9b3f22;--warn:#e8a200;--warn-bg:#e8a20020;--crit:#e46a5f;--crit-bg:#d8392b1c;--anom:#9a86d6;--anom-bg:#7a5bd022;--bar-track:#55606c;--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.3);}}
   *{{box-sizing:border-box}}html{{-webkit-text-size-adjust:100%}}
-  body{{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.55;letter-spacing:-.002em;-webkit-font-smoothing:antialiased}}
+  body{{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.55;letter-spacing:-.002em;-webkit-font-smoothing:antialiased;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   .mono{{font-variant-numeric:tabular-nums}}
   .wrap{{max-width:1120px;margin:0 auto;padding:0 24px 80px}}
   header{{padding:28px 0 4px}}
@@ -252,6 +252,7 @@ HTML = r'''<title>Cosecha Millalemu · Uso · Ritmo · Carga · VMA — {mes}</t
   .mprint:hover{{filter:brightness(1.08)}}
   .print-head{{display:none}}
   @media print {{
+    html,body,#mback,#mback *{{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}}
     body>*{{display:none !important}}
     #mback{{display:block !important;position:static;background:#fff;padding:0;inset:auto;overflow:visible}}
     .modal{{box-shadow:none !important;max-width:100% !important;border:0 !important;border-radius:0 !important;animation:none !important}}
@@ -583,7 +584,7 @@ function renderRest(d, name){
         const sv=dd.reduce((a,x)=>a+x.vol,0), sh=dd.reduce((a,x)=>a+x.hrs,0), sc=dd.reduce((a,x)=>a+x.cic,0);
         const mx=Math.max(...dd.map(x=>x.vol),1), avg=sv/n;
         const W=560,H=118,pad=16,bw=(W-pad*2)/n, ay=H-pad-(avg/mx)*(H-pad*2);
-        const tcol=(t)=>t===1?'#1f74c4':'var(--accent)';
+        const tcol=(t)=>t===1?'#1f74c4':'#417505';
         const bars=dd.map((x,i)=>{const bh=(x.vol/mx)*(H-pad*2),bx=pad+i*bw;return `<rect x="${(bx+1).toFixed(1)}" y="${(H-pad-bh).toFixed(1)}" width="${Math.max(bw-2,1).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${tcol(x.turno)}" opacity="0.9"/>`+((i%3===0||i===n-1)?`<text x="${(bx+bw/2).toFixed(1)}" y="${H-3}" text-anchor="middle" font-size="8" fill="var(--ink-3)">${x.d}</text>`:'');}).join('');
         const rows=dd.map(x=>`<tr><td class="${x.turno===1?'jd1':(x.turno===0?'jd0':'')}">${x.d}</td><td>${nf(x.vol,0)}</td><td>${nf(x.hrs,1)}</td><td>${nf(x.cic,0)}</td><td>${nf(x.rend,1)}</td></tr>`).join('');
         const jleg=(d.jefes&&d.jefes.length===2)?`<div class="jleg"><span><span class="js" style="background:var(--accent)"></span>${d.jefes[0]}</span><span><span class="js" style="background:#1f74c4"></span>${d.jefes[1]}</span></div>`:'';
