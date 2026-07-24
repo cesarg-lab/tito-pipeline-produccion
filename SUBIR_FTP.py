@@ -99,6 +99,16 @@ def subir_dashboard():
         else:
             print("⚠️  Dashboard_KPIs.html no existe — el paso de KPIs no corrió (no crítico)")
 
+        # Tableros de Faena pre-llenados (módulo de productividad; el jefe los traspasa a la pizarra)
+        tableros_html = os.path.join(BASE_DIR, "Tableros_Faena.html")
+        if os.path.exists(tableros_html):
+            t_size = os.path.getsize(tableros_html) / 1024
+            print(f"📤 Subiendo Tableros_Faena.html ({t_size:.1f} KB)...")
+            with open(tableros_html, "rb") as f:
+                ftp.storbinary("STOR Tableros_Faena.html", f)
+        else:
+            print("⚠️  Tableros_Faena.html no existe — el paso de tableros no corrió (no crítico)")
+
         # data.json (resumen optimizado para Tito JARVIS)
         json_path = os.path.join(BASE_DIR, "data.json")
         if os.path.exists(json_path):
