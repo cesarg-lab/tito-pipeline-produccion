@@ -56,6 +56,11 @@ echo ""
 echo "▶️  [2.7/9] Calculando KPIs Uso/Ritmo/Carga/VMA y generando Dashboard_KPIs.html..."
 ( python3 compute_kpis.py && python3 generar_dashboard_kpis.py kpis.json tm_por_faena.json Dashboard_KPIs.html ) 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  KPIs fallaron (no crítico, el pipeline sigue)"
 
+# ── 2.8. Tableros de Faena pre-llenados (módulo de productividad) ──────────
+echo ""
+echo "▶️  [2.8/9] Generando Tableros de Faena pre-llenados (VMA+especie por proceso)..."
+python3 generar_tablero_faena.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  Tableros de faena fallaron (no crítico, el pipeline sigue)"
+
 # ── 3. Generar HTML ───────────────────────────────────────────────────────
 echo ""
 echo "▶️  [3/9] Generando Dashboard HTML..."
