@@ -144,33 +144,54 @@ BIBLIO={
    "propios mejores días."),
 }
 
-def html_tablas(cell, metas, cap, teo):
-    """Tablas de productividad: REAL (nuestros datos, Habitual/Meta) + TEÓRICO (modelo por
-    tramo y especie) + la referencia BIBLIOGRÁFICA."""
-    secc=""
+def html_tablas(cell, metas, cap, teo, d):
+    """Tablas de productividad con filtro General / por faena. Columnas auto-explicativas:
+    Habitual (mediana), Meta (mejor cuartil), Carga (m³/viaje), Ritmo (viajes/h), Días (muestra)."""
+    THR="<tr><th class=l>Tramo VMA (m³/árbol)</th><th>Días</th><th>Habitual</th><th>Meta</th><th>Carga (m³/viaje)</th><th>Ritmo (viajes/h)</th>"
+    # ---------- VISTA GENERAL (todas las faenas juntas) ----------
+    gen=""
     for tec in ['SKIDDER 6X6 GRAPPLE','TORRE']:
         hay=False
         for esp in ['PIRA','EUGL','EUNI']:
             filas=[(tr,cell[(tec,esp,tr)]) for tr in LB if (tec,esp,tr) in cell]
             if not filas: continue
             hay=True
-            secc+=f"<h3>{TECN.get(tec,tec)} · {ESPN.get(esp,esp)} <span style='font-weight:400;color:#889'>· REAL (nuestros datos)</span></h3><table>"
-            secc+="<tr><th class=l>Tramo VMA (m³/árbol)</th><th>n días</th><th>Habitual</th><th>Meta</th><th>Carga</th><th>Ritmo</th><th>Faenas</th></tr>"
+            gen+=f"<h3>{TECN.get(tec,tec)} · {ESPN.get(esp,esp)} <span style='font-weight:400;color:#889'>· REAL</span></h3><table>{THR}<th>Faenas</th></tr>"
             for tr,c in filas:
                 par="1 (propio récord)" if c['faenas']==1 else str(c['faenas'])
-                secc+=f"<tr><td class=l>{tr}</td><td>{c['n']}</td><td>{c['p50']}</td><td class=hi>{c['p75']}</td><td>{c['carga']}</td><td>{c['ritmo']}</td><td class=sm>{par}</td></tr>"
-            secc+="</table>"
-        # Tabla TEÓRICA (modelo): rendimiento esperado por tramo, las 3 especies juntas.
+                gen+=f"<tr><td class=l>{tr}</td><td>{c['n']}</td><td>{c['p50']}</td><td class=hi>{c['p75']}</td><td>{c['carga']}</td><td>{c['ritmo']}</td><td class=sm>{par}</td></tr>"
+            gen+="</table>"
         if any((tec,e,tr) in teo for e in ['PIRA','EUGL','EUNI'] for tr in LB):
-            secc+=f"<h3>{TECN.get(tec,tec)} <span style='font-weight:400;color:#1A5276'>· TEÓRICO (modelo, m³/h esperado)</span></h3><table>"
-            secc+="<tr><th class=l>Tramo VMA (m³/árbol)</th><th>Pino</th><th>Euca globulus</th><th>Euca nitens</th></tr>"
+            gen+=f"<h3>{TECN.get(tec,tec)} <span style='font-weight:400;color:#1A5276'>· TEÓRICO (m³/h esperado)</span></h3><table>"
+            gen+="<tr><th class=l>Tramo VMA (m³/árbol)</th><th>Pino</th><th>Euca globulus</th><th>Euca nitens</th></tr>"
             for tr in LB:
                 if not any((tec,e,tr) in teo for e in ['PIRA','EUGL','EUNI']): continue
                 def cel(e): return str(teo[(tec,e,tr)]) if (tec,e,tr) in teo else '—'
-                secc+=f"<tr><td class=l>{tr}</td><td class=teo>{cel('PIRA')}</td><td class=teo>{cel('EUGL')}</td><td class=teo>{cel('EUNI')}</td></tr>"
-            secc+="</table>"
+                gen+=f"<tr><td class=l>{tr}</td><td class=teo>{cel('PIRA')}</td><td class=teo>{cel('EUGL')}</td><td class=teo>{cel('EUNI')}</td></tr>"
+            gen+="</table>"
         if hay and tec in BIBLIO:
-            secc+=f"<div class=biblio><b>📖 Referencia bibliográfica ({TECN.get(tec,tec)}):</b> {BIBLIO[tec]}</div>"
+            gen+=f"<div class=biblio><b>📖 Referencia bibliográfica ({TECN.get(tec,tec)}):</b> {BIBLIO[tec]}</div>"
+    # ---------- VISTAS POR FAENA (solo los datos de esa faena) ----------
+    faenas=[f for f in ['M1.1','M1.2','M1.3','M1.4','M5','M7','M9','M11'] if f in set(d.faena)]
+    fv=""
+    for fa in faenas:
+        df=d[d.faena==fa]
+        tec=df.tec.mode().iat[0]; esp=df.especie.mode().iat[0]
+        fv+=f"<div data-view='{fa}' hidden><h3>{NOMBRE.get(fa,fa)} · {TECN.get(tec,tec)} · {ESPN.get(esp,esp)} <span style='font-weight:400;color:#889'>· REAL (solo esta faena)</span></h3><table>{THR}</tr>"
+        for tr in LB:
+            x=df[df.tramo.astype(str)==tr]
+            if len(x)==0: continue
+            fv+=f"<tr><td class=l>{tr}</td><td>{len(x)}</td><td>{x.rend.median():.1f}</td><td class=hi>{x.rend.quantile(.75):.1f}</td><td>{x.carga.median():.2f}</td><td>{x.ritmo.median():.2f}</td></tr>"
+        fv+="</table>"
+        capfa=cap.get(fa)
+        if capfa: fv+=f"<div class=biblio>Ritmo del procesador de esta faena: <b>{capfa:.0f} m³/día</b> → 3 días de volteo = {capfa*3:,.0f} m³ · 2 días de madereo = {capfa*2:,.0f} m³.</div>"
+        fv+="</div>"
+    opts="<option value='general'>General — todas las faenas</option>"+"".join(f"<option value='{fa}'>{NOMBRE.get(fa,fa)}</option>" for fa in faenas)
+    filtro=(f"<div style='margin:8px 0 14px'><label style='font-size:13px;font-weight:600;color:#3a4a5a'>Ver: "
+            f"<select id=selfaena onchange=filtrar() style='font-size:14px;padding:6px 10px;border-radius:8px;border:1px solid #cfd6dd'>{opts}</select>"
+            "</label></div>")
+    secc=filtro+f"<div data-view='general'>{gen}</div>"+fv
+    JS="<script>function filtrar(){var v=document.getElementById('selfaena').value;document.querySelectorAll('[data-view]').forEach(function(e){e.hidden=(e.getAttribute('data-view')!==v)});}</script>"
     return (f"<!doctype html><html lang=es><head><meta charset=utf-8><title>Tablas de Productividad</title><style>{CSS}"
             "h3{font-size:13px;color:#1b3a05;margin:14px 0 4px}"
             ".wrap{max-width:900px;margin:14px auto;padding:16px 20px;background:#fff;border-radius:10px;color:#233}"
@@ -187,8 +208,10 @@ def html_tablas(cell, metas, cap, teo):
             "• <b>TEÓRICO</b> (azul claro) = modelo esperado por tramo y especie, para las 3 especies "
             "y todos los tramos (llena donde no hay dato medido).<br>"
             "• <b>📖 Bibliografía</b> (recuadro azul) = lo que dicen los estudios de ingeniería.<br>"
-            "<b>rendimiento = carga × ritmo</b>. Día por hora de inicio del turno.</div>"
-            f"{secc}</div></body></html>")
+            "<b>rendimiento = carga × ritmo</b> · <b>Carga</b> = m³ que mueve por viaje · <b>Ritmo</b> = viajes por "
+            "hora · <b>Días</b> = cuántos días de datos hay detrás (más días = más confiable). Día por hora de "
+            "inicio del turno.</div>"
+            f"{secc}{JS}</div></body></html>")
 
 LOGO=""
 _p=BASE/"millalemu-logo.png"
@@ -280,7 +303,7 @@ def main():
     print(f"✅ Tableros_Faena.html — {len(faenas)} faenas, mes {mes}, {len(html):,} bytes")
     print(f"   capacidades (trozado p90): {cap}")
     # Tablas de productividad teóricas (VMA×especie) — página de consulta.
-    tablas=html_tablas(cell, metas, cap, teorico(d))
+    tablas=html_tablas(cell, metas, cap, teorico(d), d)
     (BASE/"Tablas_Productividad.html").write_text(tablas,encoding="utf-8")
     print(f"✅ Tablas_Productividad.html — {len(cell)} celdas VMA×especie, {len(tablas):,} bytes")
     return 0
