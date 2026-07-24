@@ -98,6 +98,36 @@ def tabla_p75(g):
     return d,cell
 
 
+TRAMO_MID={'<0,15':0.10,'0,15-0,25':0.20,'0,25-0,35':0.30,'0,35-0,50':0.42,'0,50-0,75':0.62,'>0,75':0.90}
+
+def teorico(d):
+    """Modelo teórico: rendimiento esperado (m³/h) por tec × especie × tramo, para LAS 3
+    especies y TODOS los tramos — incluso donde no hay dato medido. Ajusta rend = a + b·VMA
+    por (tec, especie) con nuestros datos (la relación árbol→rendimiento de la bibliografía);
+    donde una especie tiene pocos puntos, usa el ajuste de la tecnología escalado por el
+    factor de esa especie. Devuelve {(tec,esp,tramo): m³/h}."""
+    import numpy as _np
+    out={}
+    for tec in ['SKIDDER 6X6 GRAPPLE','TORRE']:
+        dt=d[d.tec==tec]
+        if len(dt)<5: continue
+        # ajuste base de la tecnología (todas las especies)
+        ab=_np.polyfit(dt.VMA.values, dt.rend.values, 1)
+        rend_tec=dt.rend.median()
+        for esp in ['PIRA','EUGL','EUNI']:
+            de=dt[dt.especie==esp]
+            if len(de)>=5:
+                a=_np.polyfit(de.VMA.values, de.rend.values, 1)
+                pred=lambda v,a=a: a[0]*v+a[1]
+            else:
+                # escala el ajuste de la tecnología por el nivel de la especie (o 1 si no hay dato)
+                factor=(de.rend.median()/rend_tec) if len(de)>0 and rend_tec>0 else 1.0
+                pred=lambda v,f=factor: (ab[0]*v+ab[1])*f
+            for tr,mid in TRAMO_MID.items():
+                out[(tec,esp,tr)]=max(0.0, round(float(pred(mid)),1))
+    return out
+
+
 ESPN={'PIRA':'Pino radiata','EUGL':'Eucalipto globulus','EUNI':'Eucalipto nitens'}
 TECN={'SKIDDER 6X6 GRAPPLE':'Skidder 6×6 grapple','TORRE':'Torre de madereo'}
 # Referencia BIBLIOGRÁFICA por tecnología (el "teórico" de los estudios). La literatura da
@@ -114,8 +144,9 @@ BIBLIO={
    "propios mejores días."),
 }
 
-def html_tablas(cell, metas, cap):
-    """Tablas de productividad: el REAL (nuestros datos, p50/p75) + la referencia BIBLIOGRÁFICA."""
+def html_tablas(cell, metas, cap, teo):
+    """Tablas de productividad: REAL (nuestros datos, Habitual/Meta) + TEÓRICO (modelo por
+    tramo y especie) + la referencia BIBLIOGRÁFICA."""
     secc=""
     for tec in ['SKIDDER 6X6 GRAPPLE','TORRE']:
         hay=False
@@ -124,25 +155,39 @@ def html_tablas(cell, metas, cap):
             if not filas: continue
             hay=True
             secc+=f"<h3>{TECN.get(tec,tec)} · {ESPN.get(esp,esp)} <span style='font-weight:400;color:#889'>· REAL (nuestros datos)</span></h3><table>"
-            secc+="<tr><th class=l>Tramo VMA</th><th>n días</th><th>Rend p50</th><th>Rend p75</th><th>Carga</th><th>Ritmo</th><th>Faenas</th></tr>"
+            secc+="<tr><th class=l>Tramo VMA (m³/árbol)</th><th>n días</th><th>Habitual</th><th>Meta</th><th>Carga</th><th>Ritmo</th><th>Faenas</th></tr>"
             for tr,c in filas:
                 par="1 (propio récord)" if c['faenas']==1 else str(c['faenas'])
                 secc+=f"<tr><td class=l>{tr}</td><td>{c['n']}</td><td>{c['p50']}</td><td class=hi>{c['p75']}</td><td>{c['carga']}</td><td>{c['ritmo']}</td><td class=sm>{par}</td></tr>"
             secc+="</table>"
+        # Tabla TEÓRICA (modelo): rendimiento esperado por tramo, las 3 especies juntas.
+        if any((tec,e,tr) in teo for e in ['PIRA','EUGL','EUNI'] for tr in LB):
+            secc+=f"<h3>{TECN.get(tec,tec)} <span style='font-weight:400;color:#1A5276'>· TEÓRICO (modelo, m³/h esperado)</span></h3><table>"
+            secc+="<tr><th class=l>Tramo VMA (m³/árbol)</th><th>Pino</th><th>Euca globulus</th><th>Euca nitens</th></tr>"
+            for tr in LB:
+                if not any((tec,e,tr) in teo for e in ['PIRA','EUGL','EUNI']): continue
+                def cel(e): return str(teo[(tec,e,tr)]) if (tec,e,tr) in teo else '—'
+                secc+=f"<tr><td class=l>{tr}</td><td class=teo>{cel('PIRA')}</td><td class=teo>{cel('EUGL')}</td><td class=teo>{cel('EUNI')}</td></tr>"
+            secc+="</table>"
         if hay and tec in BIBLIO:
             secc+=f"<div class=biblio><b>📖 Referencia bibliográfica ({TECN.get(tec,tec)}):</b> {BIBLIO[tec]}</div>"
     return (f"<!doctype html><html lang=es><head><meta charset=utf-8><title>Tablas de Productividad</title><style>{CSS}"
-            "h3{font-size:13px;color:#1b3a05;margin:14px 0 4px} .wrap{max-width:900px;margin:0 auto;padding:14px 18px}"
-            "td.hi{background:#eaf3e0;font-weight:700;color:#2d5202} td.sm{font-size:11px;color:#667}"
+            "h3{font-size:13px;color:#1b3a05;margin:14px 0 4px}"
+            ".wrap{max-width:900px;margin:14px auto;padding:16px 20px;background:#fff;border-radius:10px;color:#233}"
+            "td{background:#fff;color:#233} td.hi{background:#eaf3e0;font-weight:700;color:#2d5202} td.sm{font-size:11px;color:#667}"
+            "td.teo{background:#f4f7fb;color:#1A5276;font-weight:600}"
             "h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#417505;margin:18px 0 6px;border-bottom:1px solid #cdd;padding-bottom:3px}"
             ".nota{background:#fff;border:1px solid #e0e5ea;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#44505e;line-height:1.5}"
             ".biblio{background:#f4f7fb;border:1px solid #d3ddea;border-left:4px solid #1A5276;border-radius:8px;padding:10px 14px;font-size:12px;color:#33475b;line-height:1.5;margin:6px 0 16px}</style></head><body>"
             f"<div class=wrap><h2>Tablas de Productividad por VMA · especie · tecnología</h2>"
-            "<div class=nota>Dos referencias por tecnología: <b>REAL</b> (la tabla verde, de NUESTROS datos del NOC — "
-            "<b>p50</b> mediana, <b>p75</b> mejor cuartil = lo ya logrado en ese rodal) y la <b>📖 bibliografía</b> "
-            "(el recuadro azul, lo que dicen los estudios de ingeniería). La real dice cuánto damos hoy; la "
-            "bibliográfica, cuánto se puede dar según la técnica. <b>rendimiento = carga × ritmo</b>. Día por hora "
-            "de inicio del turno.</div>"
+            "<div class=nota>Tres miradas del rendimiento (m³/h) según el rodal — <b>tamaño de árbol (VMA)</b>, "
+            "<b>especie</b> y <b>tecnología</b>:<br>"
+            "• <b>REAL</b> (verde) = nuestros datos del NOC. <b>Habitual</b> = lo típico (mediana). "
+            "<b>Meta</b> = lo mejor que ya se logró en ese rodal (cuartil superior).<br>"
+            "• <b>TEÓRICO</b> (azul claro) = modelo esperado por tramo y especie, para las 3 especies "
+            "y todos los tramos (llena donde no hay dato medido).<br>"
+            "• <b>📖 Bibliografía</b> (recuadro azul) = lo que dicen los estudios de ingeniería.<br>"
+            "<b>rendimiento = carga × ritmo</b>. Día por hora de inicio del turno.</div>"
             f"{secc}</div></body></html>")
 
 LOGO=""
@@ -235,7 +280,7 @@ def main():
     print(f"✅ Tableros_Faena.html — {len(faenas)} faenas, mes {mes}, {len(html):,} bytes")
     print(f"   capacidades (trozado p90): {cap}")
     # Tablas de productividad teóricas (VMA×especie) — página de consulta.
-    tablas=html_tablas(cell, metas, cap)
+    tablas=html_tablas(cell, metas, cap, teorico(d))
     (BASE/"Tablas_Productividad.html").write_text(tablas,encoding="utf-8")
     print(f"✅ Tablas_Productividad.html — {len(cell)} celdas VMA×especie, {len(tablas):,} bytes")
     return 0
