@@ -119,6 +119,16 @@ def subir_dashboard():
         else:
             print("⚠️  Tablas_Productividad.html no existe (no crítico)")
 
+        # Informe de Faena (tablero Arauco, mitad productividad; 1 hoja A4 por faena, imprimible)
+        informe_html = os.path.join(BASE_DIR, "Informe_Faena.html")
+        if os.path.exists(informe_html):
+            i_size = os.path.getsize(informe_html) / 1024
+            print(f"📤 Subiendo Informe_Faena.html ({i_size:.1f} KB)...")
+            with open(informe_html, "rb") as f:
+                ftp.storbinary("STOR Informe_Faena.html", f)
+        else:
+            print("⚠️  Informe_Faena.html no existe — el paso de informe no corrió (no crítico)")
+
         # data.json (resumen optimizado para Tito JARVIS)
         json_path = os.path.join(BASE_DIR, "data.json")
         if os.path.exists(json_path):

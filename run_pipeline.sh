@@ -61,6 +61,11 @@ echo ""
 echo "▶️  [2.8/9] Generando Tableros de Faena pre-llenados (VMA+especie por proceso)..."
 python3 generar_tablero_faena.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  Tableros de faena fallaron (no crítico, el pipeline sigue)"
 
+# ── 2.9. Informe de Faena (tablero Arauco, mitad productividad, imprimible A4) ──
+echo ""
+echo "▶️  [2.9/9] Generando Informe de Faena (tablero Arauco, mitad productividad, 1 hoja A4/faena)..."
+python3 generar_informe_faena.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  Informe de faena falló (no crítico, el pipeline sigue)"
+
 # ── 3. Generar HTML ───────────────────────────────────────────────────────
 echo ""
 echo "▶️  [3/9] Generando Dashboard HTML..."

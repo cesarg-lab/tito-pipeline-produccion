@@ -45,3 +45,8 @@ Thumbs.db
 Dashboard_KPIs.html
 kpis.json
 tm_por_faena.json
+
+# Módulo de productividad (generados, se suben por FTP)
+Tableros_Faena.html
+Tablas_Productividad.html
+Informe_Faena.html
