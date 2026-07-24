@@ -22,6 +22,13 @@ METAS_DEFAULT = {'M1.1':8000,'M1.2':8000,'M1.3':8000,'M1.4':8000,'M5':7000,'M7':
 USO, HDISP = 0.90, 10.5
 TR=[0,.15,.25,.35,.50,.75,9]; LB=['<0,15','0,15-0,25','0,25-0,35','0,35-0,50','0,50-0,75','>0,75']
 
+# Tecnologías reales de la flota (3): el SKIDDER/GRAPPLE/FORWINCH del NOC son el MISMO
+# skidder 6×6 de garra (FORWINCH = con winche para pendiente) → una sola tecnología de
+# madereo. La torre (Alpine) es la otra. El volteo (feller/shovel) no tiene volumen en el
+# NOC (solo trozado), se calibra con lo que informa el jefe/operador.
+TEC_NORM={'SKIDDER':'SKIDDER 6X6 GRAPPLE','GRAPPLE':'SKIDDER 6X6 GRAPPLE',
+          'FORWINCH':'SKIDDER 6X6 GRAPPLE','TORRE500':'TORRE'}
+
 def num(s): return pd.to_numeric(pd.Series(s).astype(str).str.replace(',','.'),errors='coerce')
 
 def cargar_pg():
@@ -59,7 +66,8 @@ def base_diaria(df):
     d=pd.DataFrame({
       'dia': df['hora_inicio'].astype(str).str[:10],   # DIA TRABAJADO
       'faena': df['equipo'].astype(str).str.strip().map(TEAM_MAP),
-      'tec': df['tipo_equipo'].astype(str).str.strip().str.upper(),
+      'tec': df['tipo_equipo'].astype(str).str.strip().str.upper()
+               .map(TEC_NORM).fillna(df['tipo_equipo'].astype(str).str.strip().str.upper()),
       'especie': df['desc_especie'].astype(str).str.strip().str.upper(),
       'predio': df['codigo_predio'].astype(str).str.strip(),
       'vol': num(df['m3ssc_pu']).fillna(0)+num(df['m3ssc_as']).fillna(0),
@@ -91,12 +99,12 @@ def tabla_p75(g):
 
 
 ESPN={'PIRA':'Pino radiata','EUGL':'Eucalipto globulus','EUNI':'Eucalipto nitens'}
-TECN={'SKIDDER':'Skidder','GRAPPLE':'Grapple','FORWINCH':'Forwinch','TORRE500':'Torre (Alpine)'}
+TECN={'SKIDDER 6X6 GRAPPLE':'Skidder 6×6 grapple','TORRE':'Torre de madereo'}
 
 def html_tablas(cell, metas, cap):
     """Página de tablas de productividad teóricas (VMA×especie) + camino a la meta por faena."""
     secc=""
-    for tec in ['SKIDDER','GRAPPLE','FORWINCH','TORRE500']:
+    for tec in ['SKIDDER 6X6 GRAPPLE','TORRE']:
         for esp in ['PIRA','EUGL','EUNI']:
             filas=[(tr,cell[(tec,esp,tr)]) for tr in LB if (tec,esp,tr) in cell]
             if not filas: continue
