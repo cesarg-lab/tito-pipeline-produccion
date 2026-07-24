@@ -100,29 +100,49 @@ def tabla_p75(g):
 
 ESPN={'PIRA':'Pino radiata','EUGL':'Eucalipto globulus','EUNI':'Eucalipto nitens'}
 TECN={'SKIDDER 6X6 GRAPPLE':'Skidder 6×6 grapple','TORRE':'Torre de madereo'}
+# Referencia BIBLIOGRÁFICA por tecnología (el "teórico" de los estudios). La literatura da
+# relaciones y rangos, no una tabla por celda para nuestro rodal chileno de pendiente.
+BIBLIO={
+ 'SKIDDER 6X6 GRAPPLE':("Eriksson & Lindroos (2014): el <b>tamaño del árbol explica ~57%</b> del "
+   "rendimiento — casi se DUPLICA del árbol chico al grande. Esa es la relación que se ve en la "
+   "columna p75. <b>OJO:</b> los estudios de skidder de garra dan 80-114 m³/h, pero en plantación "
+   "PLANA y distancias cortas → <b>NO comparable</b> con nuestro terreno de pendiente. Vale la "
+   "relación con el VMA, no el número absoluto."),
+ 'TORRE':("Alpine + carro garra en pino radiata (NZ): <b>25-100 m³/h</b>, mandado por el tamaño de "
+   "pieza (Koller K602 = 32 m³/PMH a pieza de 2,33 m³). M11 trabaja euca (pieza chica) → cae al "
+   "extremo BAJO del rango, que es lo esperado. Al ser el único yarder, su techo se mide contra sus "
+   "propios mejores días."),
+}
 
 def html_tablas(cell, metas, cap):
-    """Página de tablas de productividad teóricas (VMA×especie) + camino a la meta por faena."""
+    """Tablas de productividad: el REAL (nuestros datos, p50/p75) + la referencia BIBLIOGRÁFICA."""
     secc=""
     for tec in ['SKIDDER 6X6 GRAPPLE','TORRE']:
+        hay=False
         for esp in ['PIRA','EUGL','EUNI']:
             filas=[(tr,cell[(tec,esp,tr)]) for tr in LB if (tec,esp,tr) in cell]
             if not filas: continue
-            secc+=f"<h3>{TECN.get(tec,tec)} · {ESPN.get(esp,esp)}</h3><table>"
+            hay=True
+            secc+=f"<h3>{TECN.get(tec,tec)} · {ESPN.get(esp,esp)} <span style='font-weight:400;color:#889'>· REAL (nuestros datos)</span></h3><table>"
             secc+="<tr><th class=l>Tramo VMA</th><th>n días</th><th>Rend p50</th><th>Rend p75</th><th>Carga</th><th>Ritmo</th><th>Faenas</th></tr>"
             for tr,c in filas:
                 par="1 (propio récord)" if c['faenas']==1 else str(c['faenas'])
                 secc+=f"<tr><td class=l>{tr}</td><td>{c['n']}</td><td>{c['p50']}</td><td class=hi>{c['p75']}</td><td>{c['carga']}</td><td>{c['ritmo']}</td><td class=sm>{par}</td></tr>"
             secc+="</table>"
+        if hay and tec in BIBLIO:
+            secc+=f"<div class=biblio><b>📖 Referencia bibliográfica ({TECN.get(tec,tec)}):</b> {BIBLIO[tec]}</div>"
     return (f"<!doctype html><html lang=es><head><meta charset=utf-8><title>Tablas de Productividad</title><style>{CSS}"
             "h3{font-size:13px;color:#1b3a05;margin:14px 0 4px} .wrap{max-width:900px;margin:0 auto;padding:14px 18px}"
             "td.hi{background:#eaf3e0;font-weight:700;color:#2d5202} td.sm{font-size:11px;color:#667}"
             "h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#417505;margin:18px 0 6px;border-bottom:1px solid #cdd;padding-bottom:3px}"
-            ".nota{background:#fff;border:1px solid #e0e5ea;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#44505e;line-height:1.5}</style></head><body>"
+            ".nota{background:#fff;border:1px solid #e0e5ea;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#44505e;line-height:1.5}"
+            ".biblio{background:#f4f7fb;border:1px solid #d3ddea;border-left:4px solid #1A5276;border-radius:8px;padding:10px 14px;font-size:12px;color:#33475b;line-height:1.5;margin:6px 0 16px}</style></head><body>"
             f"<div class=wrap><h2>Tablas de Productividad por VMA · especie · tecnología</h2>"
-            "<div class=nota>Rendimiento (m³/h) razonable de exigir según el rodal: <b>tamaño de árbol (VMA)</b>, "
-            "<b>especie</b> y <b>tecnología</b>. <b>Rend p75</b> = meta de referencia (ya logrado en ese rodal). "
-            "<b>rendimiento = carga × ritmo</b>. Base: NOC, día por hora de inicio del turno.</div>"
+            "<div class=nota>Dos referencias por tecnología: <b>REAL</b> (la tabla verde, de NUESTROS datos del NOC — "
+            "<b>p50</b> mediana, <b>p75</b> mejor cuartil = lo ya logrado en ese rodal) y la <b>📖 bibliografía</b> "
+            "(el recuadro azul, lo que dicen los estudios de ingeniería). La real dice cuánto damos hoy; la "
+            "bibliográfica, cuánto se puede dar según la técnica. <b>rendimiento = carga × ritmo</b>. Día por hora "
+            "de inicio del turno.</div>"
             f"{secc}</div></body></html>")
 
 LOGO=""
