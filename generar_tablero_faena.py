@@ -83,8 +83,39 @@ def tabla_p75(g):
     d['tramo']=pd.cut(d.VMA,TR,labels=LB)
     cell={}
     for (tec,esp,tr),x in d.groupby(['tec','especie','tramo'],observed=True):
-        if len(x)>=3: cell[(tec,esp,tr)]=dict(p75=round(x.rend.quantile(.75),1),faenas=x.faena.nunique())
+        if len(x)>=3:
+            cell[(tec,esp,tr)]=dict(p75=round(x.rend.quantile(.75),1),faenas=x.faena.nunique(),
+                p50=round(x.rend.median(),1),carga=round(x.carga.median(),2),
+                ritmo=round(x.ritmo.median(),2),n=len(x))
     return d,cell
+
+
+ESPN={'PIRA':'Pino radiata','EUGL':'Eucalipto globulus','EUNI':'Eucalipto nitens'}
+TECN={'SKIDDER':'Skidder','GRAPPLE':'Grapple','FORWINCH':'Forwinch','TORRE500':'Torre (Alpine)'}
+
+def html_tablas(cell, metas, cap):
+    """Página de tablas de productividad teóricas (VMA×especie) + camino a la meta por faena."""
+    secc=""
+    for tec in ['SKIDDER','GRAPPLE','FORWINCH','TORRE500']:
+        for esp in ['PIRA','EUGL','EUNI']:
+            filas=[(tr,cell[(tec,esp,tr)]) for tr in LB if (tec,esp,tr) in cell]
+            if not filas: continue
+            secc+=f"<h3>{TECN.get(tec,tec)} · {ESPN.get(esp,esp)}</h3><table>"
+            secc+="<tr><th class=l>Tramo VMA</th><th>n días</th><th>Rend p50</th><th>Rend p75</th><th>Carga</th><th>Ritmo</th><th>Faenas</th></tr>"
+            for tr,c in filas:
+                par="1 (propio récord)" if c['faenas']==1 else str(c['faenas'])
+                secc+=f"<tr><td class=l>{tr}</td><td>{c['n']}</td><td>{c['p50']}</td><td class=hi>{c['p75']}</td><td>{c['carga']}</td><td>{c['ritmo']}</td><td class=sm>{par}</td></tr>"
+            secc+="</table>"
+    return (f"<!doctype html><html lang=es><head><meta charset=utf-8><title>Tablas de Productividad</title><style>{CSS}"
+            "h3{font-size:13px;color:#1b3a05;margin:14px 0 4px} .wrap{max-width:900px;margin:0 auto;padding:14px 18px}"
+            "td.hi{background:#eaf3e0;font-weight:700;color:#2d5202} td.sm{font-size:11px;color:#667}"
+            "h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#417505;margin:18px 0 6px;border-bottom:1px solid #cdd;padding-bottom:3px}"
+            ".nota{background:#fff;border:1px solid #e0e5ea;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#44505e;line-height:1.5}</style></head><body>"
+            f"<div class=wrap><h2>Tablas de Productividad por VMA · especie · tecnología</h2>"
+            "<div class=nota>Rendimiento (m³/h) razonable de exigir según el rodal: <b>tamaño de árbol (VMA)</b>, "
+            "<b>especie</b> y <b>tecnología</b>. <b>Rend p75</b> = meta de referencia (ya logrado en ese rodal). "
+            "<b>rendimiento = carga × ritmo</b>. Base: NOC, día por hora de inicio del turno.</div>"
+            f"{secc}</div></body></html>")
 
 LOGO=""
 _p=BASE/"millalemu-logo.png"
@@ -175,6 +206,10 @@ def main():
     out=BASE/"Tableros_Faena.html"; out.write_text(html,encoding="utf-8")
     print(f"✅ Tableros_Faena.html — {len(faenas)} faenas, mes {mes}, {len(html):,} bytes")
     print(f"   capacidades (trozado p90): {cap}")
+    # Tablas de productividad teóricas (VMA×especie) — página de consulta.
+    tablas=html_tablas(cell, metas, cap)
+    (BASE/"Tablas_Productividad.html").write_text(tablas,encoding="utf-8")
+    print(f"✅ Tablas_Productividad.html — {len(cell)} celdas VMA×especie, {len(tablas):,} bytes")
     return 0
 
 if __name__=="__main__":

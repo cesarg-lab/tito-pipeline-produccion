@@ -1393,6 +1393,18 @@ html = f"""<!DOCTYPE html>
     onload="try{{this.style.height=(this.contentWindow.document.body.scrollHeight+40)+'px'}}catch(e){{}}"></iframe>
 </div>
 
+<div class="section" id="sec-tablero">
+  <iframe id="tableroFrame" src="Tableros_Faena.html" title="Tablero de Faena pre-llenado por proceso"
+    style="width:100%;border:0;height:1400px;background:#eef1f6;border-radius:12px"
+    onload="try{{this.style.height=(this.contentWindow.document.body.scrollHeight+40)+'px'}}catch(e){{}}"></iframe>
+</div>
+
+<div class="section" id="sec-tablas">
+  <iframe id="tablasFrame" src="Tablas_Productividad.html" title="Tablas de productividad por VMA y especie"
+    style="width:100%;border:0;height:1200px;background:#eef1f6;border-radius:12px"
+    onload="try{{this.style.height=(this.contentWindow.document.body.scrollHeight+40)+'px'}}catch(e){{}}"></iframe>
+</div>
+
 <div class="section" id="sec-grid">
   <div class="grid-container"><h3 style="margin-bottom:12px;font-size:14px;color:var(--primary)">Control Mensual por Equipo</h3><table id="gridTable"></table></div>
 </div>
@@ -1513,8 +1525,8 @@ document.getElementById('headerKpis').innerHTML = `
 `;
 
 // Navigation
-const sections = ['resumen','kpis','grid','tiempos','analisis','comparativo'];
-const labels = ['Resumen por Equipo','KPIs Uso/Ritmo/Carga','Tabla de Producciones','Tiempos Perdidos','Análisis Operacional','Comparativo Mensual'];
+const sections = ['resumen','kpis','tablero','tablas','grid','tiempos','analisis','comparativo'];
+const labels = ['Resumen por Equipo','KPIs Uso/Ritmo/Carga','Tablero de Faena','Tablas de Productividad','Tabla de Producciones','Tiempos Perdidos','Análisis Operacional','Comparativo Mensual'];
 const nav = document.getElementById('nav');
 sections.forEach((s,i) => {{
   const btn = document.createElement('button');
@@ -1526,6 +1538,7 @@ sections.forEach((s,i) => {{
     document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     if (s === 'kpis') {{ const kf = document.getElementById('kpiFrame'); if (kf) setTimeout(() => {{ try {{ kf.style.height = (kf.contentWindow.document.body.scrollHeight + 40) + 'px'; }} catch (e) {{}} }}, 60); }}
+    if (s === 'tablero' || s === 'tablas') {{ const f = document.getElementById(s === 'tablero' ? 'tableroFrame' : 'tablasFrame'); if (f) setTimeout(() => {{ try {{ f.style.height = (f.contentWindow.document.body.scrollHeight + 40) + 'px'; }} catch (e) {{}} }}, 60); }}
   }};
   nav.appendChild(btn);
 }});

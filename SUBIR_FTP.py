@@ -109,6 +109,16 @@ def subir_dashboard():
         else:
             print("⚠️  Tableros_Faena.html no existe — el paso de tableros no corrió (no crítico)")
 
+        # Tablas de productividad teóricas (VMA×especie; pestaña de consulta)
+        tablas_html = os.path.join(BASE_DIR, "Tablas_Productividad.html")
+        if os.path.exists(tablas_html):
+            tt_size = os.path.getsize(tablas_html) / 1024
+            print(f"📤 Subiendo Tablas_Productividad.html ({tt_size:.1f} KB)...")
+            with open(tablas_html, "rb") as f:
+                ftp.storbinary("STOR Tablas_Productividad.html", f)
+        else:
+            print("⚠️  Tablas_Productividad.html no existe (no crítico)")
+
         # data.json (resumen optimizado para Tito JARVIS)
         json_path = os.path.join(BASE_DIR, "data.json")
         if os.path.exists(json_path):
