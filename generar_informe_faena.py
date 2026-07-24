@@ -361,8 +361,9 @@ def main():
     faenas = [f for f in FAENA_ORDER if f in set(gm.faena)]
     cmms = datos_cmms()
 
+    logo_img = ('<img src="' + LOGO + '">') if LOGO else ''
     idx = (f"<div class=sheet style=\"page-break-after:auto\">"
-           f"<header>{'<img src=\"'+LOGO+'\">' if LOGO else ''}<div>"
+           f"<header>{logo_img}<div>"
            f"<h1>Informe de Faena — {MESES[int(mes_key[5:7])]} {mes_key[:4]}</h1>"
            f"<div class=sub>Tablero de Gestión Diaria (formato Arauco) · mitad productividad · "
            f"{len(faenas)} faenas · una hoja A4 por faena</div></div></header>"
