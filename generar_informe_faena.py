@@ -186,6 +186,59 @@ def horas_preuso(fa, cmms, real_por_dia):
     return out
 
 
+def cruce_clasificado(av, tp_faena, hp):
+    """CRUCE de dos fuentes independientes sobre el mismo hecho: la GM detenida.
+
+      · El OPERADOR declara en su pre-uso las horas que la GM estuvo parada (turno_perdida).
+      · El JEFE declara en el CMMS los m³ que quedaron sin clasificar (avance_faena).
+
+    Con el rendimiento del clasificado ya medido, una predice a la otra:
+        horas de pana × rend ≈ m³ sin clasificar
+    Si una dice pana y la otra no reporta madera pendiente (o al revés), es una
+    incongruencia que hay que mirar: alguna de las dos capturas está fallando.
+
+    Devuelve el HTML de la línea, o "" si no hay con qué cruzar (no se inventa nada).
+    """
+    if not av:
+        return ""
+    dia_av = int(av['fecha'][8:10])
+    horas_pana = sum(t['horas'] for t in tp_faena
+                     if t['proceso'] == 'CLASIFICADO' and t['dia'] == dia_av)
+    declarado = av.get('sin_clasificar')
+    if declarado is None:
+        # El jefe todavía no informa el pendiente (campo nuevo). Solo se reclama cuando
+        # SÍ hubo pana: si no la hubo, no hay nada que declarar y el aviso sería ruido.
+        if horas_pana:
+            return (f"<br><b>Cruce del clasificado:</b> el operador declaró "
+                    f"<b>{horas_pana:g} h</b> de GM detenida, pero "
+                    f"<b style='color:#B9770E'>el jefe no informó los m³ que quedaron sin "
+                    f"clasificar</b> ese día.")
+        return ""
+    rend = (hp.get('CLASIFICADO') or {}).get('rend')
+
+    if horas_pana and rend:
+        esperado = horas_pana * rend
+        # ±40%: es un estimado al ojo contra un cálculo de horas, no una medición.
+        cuadra = declarado > 0 and abs(declarado - esperado) <= 0.4 * max(esperado, declarado)
+        col = '#1E8449' if cuadra else '#B9770E'
+        veredicto = 'cuadra' if cuadra else 'NO cuadra — revisar'
+        return (f"<br><b>Cruce del clasificado:</b> el operador declaró "
+                f"<b>{horas_pana:g} h</b> de GM detenida × {rend:.1f} m³/h ≈ "
+                f"<b>{esperado:,.0f} m³</b> · el jefe informó <b>{declarado:,.0f} m³</b> "
+                f"sin clasificar → <b style='color:{col}'>{veredicto}</b>.")
+    if horas_pana and not rend:
+        return (f"<br><b>Cruce del clasificado:</b> el operador declaró <b>{horas_pana:g} h</b> "
+                f"de GM detenida y el jefe informó <b>{declarado:,.0f} m³</b> sin clasificar. "
+                f"Falta el rendimiento del clasificado (pre-uso de la GM en días seguidos) "
+                f"para contrastar las cifras.")
+    if declarado > 0:
+        return (f"<br><b>Cruce del clasificado:</b> el jefe informó <b>{declarado:,.0f} m³</b> "
+                f"sin clasificar, pero <b style='color:#B9770E'>nadie declaró tiempo perdido "
+                f"de la GM</b> ese día en el pre-uso.")
+    return ("<br><b>Cruce del clasificado:</b> sin madera pendiente y sin tiempo perdido "
+            "de la GM — las dos fuentes coinciden.")
+
+
 def cobertura_preuso(hp, ult_dia):
     """Nota de procedencia bajo la tabla de Productividad: con cuántos turnos se midió el Uso/Rend
     real. Deja a la vista el gate de adopción — la celda solo se llena si hay pre-uso diario."""
@@ -425,9 +478,20 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
                 col = '#1E8449' if dias >= obj_dias else ('#B9770E' if dias >= obj_dias * .6 else '#943126')
                 return (f"<b style='color:{col}'>{m3:,.0f} m³ = {dias:.1f} días</b>"
                         f" (obj. ≥ {obj_dias})")
+            # El pendiente de clasificado va al REVÉS: es deuda, no colchón (menos es
+            # mejor). Mismos umbrales que el semáforo del CMMS: verde ≤ medio día de
+            # producción acumulada, rojo pasado un día entero sin clasificar.
+            def deuda(m3):
+                dias = m3 / ritmo if ritmo else 0
+                col = '#1E8449' if dias <= .5 else ('#B9770E' if dias <= 1 else '#943126')
+                return (f"<b style='color:{col}'>{m3:,.0f} m³ = {dias:.1f} días</b>"
+                        f" (obj. ≤ 0,5)")
+            sc = av.get('sin_clasificar')
+            extra = f" · <b>sin clasificar</b> {deuda(sc)}" if sc is not None else ""
             objetivos += (f"<br><b>Reportado por el jefe</b> ({av['fecha']}): "
                           f"volteado adelantado {colchon(av['volteado'], 3)} · "
-                          f"en cancha {colchon(av['cancha'], 2)}.")
+                          f"en cancha {colchon(av['cancha'], 2)}{extra}.")
+            objetivos += cruce_clasificado(av, tp_faena, hp)
     else:
         objetivos = "Ritmo del procesador: sin capacidad cargada (sin dato de trozado del mes)."
     guia = guia_tabla(tec, especie_cod, cell, teo)
@@ -516,7 +580,10 @@ def datos_cmms():
     try:
         for r in rpc('informe_avance_dias'):     # viene ordenado por faena, fecha desc
             fid = r['faena_id']; dia = int(r['fecha'][8:10])
-            v = {'volteado': float(r['m3_volteado']), 'cancha': float(r['m3_cancha'])}
+            # sin_clasificar: None = ese día no se informó (es campo nuevo), ≠ 0 declarado.
+            sc = r.get('m3_sin_clasificar')
+            v = {'volteado': float(r['m3_volteado']), 'cancha': float(r['m3_cancha']),
+                 'sin_clasificar': None if sc is None else float(sc)}
             out['avance_dias'].setdefault(fid, {})[dia] = v
             if fid not in out['avance']:         # primer registro = el más reciente = buffer
                 out['avance'][fid] = {**v, 'fecha': r['fecha']}
