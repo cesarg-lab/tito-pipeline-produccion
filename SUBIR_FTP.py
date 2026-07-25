@@ -99,27 +99,16 @@ def subir_dashboard():
         else:
             print("⚠️  Dashboard_KPIs.html no existe — el paso de KPIs no corrió (no crítico)")
 
-        # Tableros de Faena pre-llenados (módulo de productividad; el jefe los traspasa a la pizarra)
-        tableros_html = os.path.join(BASE_DIR, "Tableros_Faena.html")
-        if os.path.exists(tableros_html):
-            t_size = os.path.getsize(tableros_html) / 1024
-            print(f"📤 Subiendo Tableros_Faena.html ({t_size:.1f} KB)...")
-            with open(tableros_html, "rb") as f:
-                ftp.storbinary("STOR Tableros_Faena.html", f)
-        else:
-            print("⚠️  Tableros_Faena.html no existe — el paso de tableros no corrió (no crítico)")
+        # Limpieza: borrar los HTML antiguos del servidor (consolidados en el Informe).
+        for viejo in ("Tableros_Faena.html", "Tablas_Productividad.html"):
+            try:
+                ftp.delete(viejo)
+                print(f"🗑️  Borrado del servidor: {viejo} (consolidado en el Informe)")
+            except ftplib.all_errors:
+                pass  # ya no existe: ok
 
-        # Tablas de productividad teóricas (VMA×especie; pestaña de consulta)
-        tablas_html = os.path.join(BASE_DIR, "Tablas_Productividad.html")
-        if os.path.exists(tablas_html):
-            tt_size = os.path.getsize(tablas_html) / 1024
-            print(f"📤 Subiendo Tablas_Productividad.html ({tt_size:.1f} KB)...")
-            with open(tablas_html, "rb") as f:
-                ftp.storbinary("STOR Tablas_Productividad.html", f)
-        else:
-            print("⚠️  Tablas_Productividad.html no existe (no crítico)")
-
-        # Informe de Faena (tablero Arauco, mitad productividad; 1 hoja A4 por faena, imprimible)
+        # Informe de Faena (tablero Arauco + guía productividad; 1 hoja A4 por faena, imprimible)
+        # Entregable ÚNICO: reemplaza a Tableros_Faena.html y Tablas_Productividad.html.
         informe_html = os.path.join(BASE_DIR, "Informe_Faena.html")
         if os.path.exists(informe_html):
             i_size = os.path.getsize(informe_html) / 1024
