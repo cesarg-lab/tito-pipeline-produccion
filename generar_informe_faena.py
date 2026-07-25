@@ -466,6 +466,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
     saldo = float(meta_mes)
     for d in range(1, n_mes+1):
         es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
+        saldo_previo = saldo        # lo que faltaba al EMPEZAR el día → da la meta de ese día
         saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
         # Días FUTUROS (después de hoy): fila en blanco — el tablero se llena solo hasta hoy.
         if d > ult_dia:
@@ -478,16 +479,18 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         m_real = f"<td class=nf>{av['cancha']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
         vol = f"<td class=bl></td><td class=bl></td>{v_real}{tp_cell(d,'VOLTEO')}"
         mad = f"<td class=bl></td><td class=bl></td>{m_real}{tp_cell(d,'MADEREO')}"
-        # PROCESADO: pre-llenado NOC. M.Ac = plan lineal (dónde deberías ir). M.Día:
-        # días pasados = plan del día; HOY = meta día DINÁMICA (lo que exige llegar a la meta
-        # con lo ya procesado). Cambia día a día con el real.
+        # PROCESADO: pre-llenado del NOC.
+        # M.Día es DINÁMICA TODOS los días, no solo hoy: es lo que ese día había que trozar para
+        # llegar a la meta, dado lo que se llevaba trozado hasta el día ANTERIOR, repartido en
+        # los días que quedaban desde ahí. Si un día se produce poco, la meta de los siguientes
+        # SUBE; si se produce de más, baja. El plan lineal fijo (meta ÷ días del mes) no servía:
+        # no sabe cómo viene el mes.
         pm_ac = fmt(saldo)
         if not es_op:
             pm_di = "—"
-        elif d == ult_dia:
-            pm_di = fmt(pg['meta_dia_req'])            # dinámica: lo que exige de hoy a fin de mes
         else:
-            pm_di = fmt(meta_dia)                      # plan del día ya transcurrido
+            dias_desde_d = len([x for x in ops if x >= d]) or 1
+            pm_di = fmt(max(0.0, saldo_previo) / dias_desde_d)
         rr = f"<td class=nf>{fmt(real)}</td>" if real is not None else "<td class=bl></td>"
         pro = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}{tp_cell(d,'PROCESADO')}"
         # CLASIFICADO: lo hace la GM (excavadora) sobre lo que trozó el PM. Si NO está en pana
@@ -614,7 +617,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
 <h2>Producción General</h2>{pgen}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta del mes: parte en la meta y baja con lo producido (llega a 0 solo si se cumple). <b>M.Día de hoy en adelante es dinámica</b>: lo que la meta exige por día con lo ya procesado (se recalcula cada día). Día = por hora de inicio del turno.</div>
+<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta del mes: parte en la meta y baja con lo producido (llega a 0 solo si se cumple). <b>M.Día es DINÁMICA todos los días</b>: lo que ese día había que trozar para llegar a la meta, según lo que se llevaba hasta el día anterior y los días que quedaban. Si un día se produce poco, la meta de los siguientes sube; si se produce de más, baja. Día = por hora de inicio del turno.</div>
 <h2>Productividad — Plan (guía VMA+especie) vs Real (NOC)</h2>{prodv}
 <h2>Guía de Productividad</h2>{guia_block}
 {estados}
