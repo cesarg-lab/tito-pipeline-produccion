@@ -864,21 +864,17 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     else:
         objetivos = "Ritmo del procesador: sin capacidad cargada (sin dato de trozado del mes)."
     guia = guia_tabla(tec, especie_cod, cell, teo)
-    guia_block = (f"<div class=guia>{objetivos}</div>"
-                  f"<div class=two><div><b style='font-size:10.5px;color:#1A5276'>"
-                  f"Guía VMA×especie · {TECN.get(tec, tec)} · {ESPN.get(especie_cod, especie_cod)}</b>"
-                  f"{guia}</div></div>")
-
-    # Estados Línea Madereo (torre) se retiró: era 100% de llenado manual y el informe ya no
-    # se completa a mano — el jefe declara en el CMMS (gerencia 2026-07-25).
-    estados = ""
+    guia_block = f"<div class=guia>{objetivos}</div>"
 
     # ── Stock en Bosque + Cumplimiento Acta (ambos del BN del NOC, ver cargar_bn) ──
     # Control Calidad se retiró: era una tabla vacía para llenar a mano y el informe ya no se
     # completa en papel (gerencia 2026-07-25).
     bn_fa = (bn or {}).get(fa, [])
+    # Tres columnas: guía VMA + stock + acta. A ancho completo la guía empujaba el informe a
+    # una página extra que quedaba casi vacía.
     otros = (
         "<div class=two>"
+        f"<div><h2>Guía VMA · {ESPN.get(especie_cod, especie_cod)}</h2>{guia}</div>"
         f"<div><h2>Stock en Bosque</h2>{tabla_stock(bn_fa, ult)}</div>"
         f"<div><h2>Cumplimiento Acta</h2>{tabla_acta(bn_fa)}</div>"
         "</div>")
@@ -895,7 +891,6 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
 <div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>M.Día de hoy</b> = lo que exige por día para llegar.</div>
 <h2>Productividad — Plan (guía VMA+especie) vs Real (NOC)</h2>{prodv}
 <h2>Guía de Productividad</h2>{guia_block}
-{estados}
 {otros}
 </div>"""
 
