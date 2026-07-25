@@ -166,12 +166,34 @@ def plan_productividad(fa, jul, cell):
     # ratios ≠ ratio de totales, y daba números que contradecían a la hoja de análisis y a la
     # pestaña KPIs (M7: carga 4,62 por mediana contra 1,06 por acumulado). Con el acumulado las
     # tres vistas hablan del mismo número.
-    _m3 = float(jul.m3.sum()); _hrs = float(jul.hrs.sum()); _cic = float(jul.ciclos.sum())
+    _m3 = float(jul.m3.sum()); _hrs = float(jul.hrs.sum())
     real_rend = (_m3 / _hrs) if _hrs > 0 else float('nan')
-    real_carga = (_m3 / _cic) if _cic > 0 else float('nan')
-    real_ritmo = (_cic / _hrs) if _hrs > 0 else float('nan')
+
+    # CARGA y RITMO se calculan descartando los días con ciclos FUERA DE RANGO FÍSICO. Los
+    # ciclos los declara la faena al NOC y se detectaron dos problemas reales (2026-07-25):
+    # un dedazo en M7 el día 19 (381 ciclos/hr) que solo arrastraba el mes entero de 4 a 18, y
+    # una diferencia sistemática de criterio entre los dos turnos de M1.4 (uno declara 7-8
+    # ciclos/hr y el otro 20-43, todos los días de su semana). Sin filtro, la "palanca
+    # limitante" del análisis apuntaba al problema equivocado.
+    #
+    # El techo es por TECNOLOGÍA y no relativo a la mediana de la faena: cuando la mayoría de
+    # los días viene mal (M1.4), la mediana también está mal y el filtro descartaría los días
+    # buenos. La torre tiene ciclos legítimamente más cortos que un skidder (M11 anda en 12-19
+    # ciclos/hr y es correcto), por eso su techo es mayor.
+    #
+    # NO afecta al volumen ni al rendimiento: la producción del mes se calcula con TODOS los
+    # días. Solo se limpia el divisor de estos dos indicadores.
+    _tope = 30.0 if str(jul.tec.mode().iat[0] if len(jul.tec.mode()) else '').upper() == 'TORRE' else 15.0
+    _d = jul[(jul.hrs > 0) & (jul.ciclos > 0)].copy()
+    _d['_r'] = _d.ciclos / _d.hrs
+    _ok = _d[(_d._r >= 0.5) & (_d._r <= _tope)]
+    dias_fuera = int(len(_d) - len(_ok))
+    _cic = float(_ok.ciclos.sum()); _hrs_ok = float(_ok.hrs.sum()); _m3_ok = float(_ok.m3.sum())
+    real_carga = (_m3_ok / _cic) if _cic > 0 else float('nan')
+    real_ritmo = (_cic / _hrs_ok) if _hrs_ok > 0 else float('nan')
     return dict(plan_rend=plan_rend, plan_carga=plan_carga, plan_ritmo=plan_ritmo,
-                real_rend=real_rend, real_carga=real_carga, real_ritmo=real_ritmo)
+                real_rend=real_rend, real_carga=real_carga, real_ritmo=real_ritmo,
+                dias_fuera=dias_fuera, dias_ok=int(len(_ok)))
 
 
 def horas_preuso(fa, cmms, real_por_dia):
@@ -505,6 +527,19 @@ def cobertura_preuso(hp, ult_dia):
             f"la celda dice <i>rep.</i> — no se estima.</div>")
 
 
+
+def aviso_ciclos(pp):
+    """Avisa si se dejaron días fuera del cálculo de Carga y Ritmo. Es visible a propósito:
+    un día descartado es un día MAL DECLARADO al NOC, y el aviso es lo que empuja a corregirlo."""
+    n = (pp or {}).get('dias_fuera', 0)
+    if not n:
+        return ""
+    ok = pp.get('dias_ok', 0)
+    return (f"<div class=cob><b>Carga y Ritmo</b> se calcularon con {ok} día(s): se dejaron "
+            f"<b>{n}</b> fuera por tener ciclos fuera de rango físico (ciclos mal declarados al "
+            f"NOC). El volumen y el rendimiento del mes NO se tocan: usan todos los días.</div>")
+
+
 def guia_tabla(tec, esp, cell, teo):
     """Tabla Habitual/Meta/Teórico por tramo VMA, para la tecnología+especie de la faena."""
     filas = ""
@@ -748,7 +783,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         f"<td class=pr>guía</td>{rend_cell('PROCESADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
         f"<tr><td class=l>Clasificado</td><td class=gu>{USO*100:.0f}</td>{uso_cell('CLASIFICADO')}"
         f"<td class=pr>guía</td>{rend_cell('CLASIFICADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        "</table>" + cobertura_preuso(hp, ult_dia))
+        "</table>" + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
@@ -895,26 +930,6 @@ def datos_kpis():
         return {'por_faena': {}, 'dr': None}
 
 
-def _diag_ciclos(g):
-    """DIAGNÓSTICO TEMPORAL (2026-07-25): los ciclos declarados al NOC cambiaron de magnitud
-    (M7 pasó de 3,75 a 19,5 ciclos/hr manteniendo el rendimiento). Imprime la serie diaria para
-    ubicar desde cuándo y en qué equipo empezó. Quitar cuando esté resuelto."""
-    print("\n=== DIAGNÓSTICO ciclos/hr por faena y día (temporal) ===")
-    for fa in FAENA_ORDER:
-        d = g[g.faena == fa].sort_values('dia')
-        if not len(d):
-            continue
-        serie = []
-        for _, r in d.iterrows():
-            rr = (r.ciclos / r.hrs) if r.hrs else 0
-            serie.append(f"{r.dia[8:10]}:{rr:.1f}")
-        print(f"  {fa:6} " + " ".join(serie))
-        print(f"         mes: ciclos={d.ciclos.sum():,.0f} hrs={d.hrs.sum():,.0f} "
-              f"m3={d.m3.sum():,.0f} → carga={d.m3.sum()/d.ciclos.sum() if d.ciclos.sum() else 0:.2f} "
-              f"ritmo={d.ciclos.sum()/d.hrs.sum() if d.hrs.sum() else 0:.2f}")
-    print("=== fin diagnóstico ===\n")
-
-
 def main():
     df = cargar_pg()
     if df is None or len(df) == 0:
@@ -927,7 +942,6 @@ def main():
     gm = g[g.dia.str[:7] == mes_key]
     cap = {fa: round(x.m3.quantile(.90)) for fa, x in gm.groupby('faena')}
     faenas = [f for f in FAENA_ORDER if f in set(gm.faena)]
-    _diag_ciclos(g)
     cmms = datos_cmms()
     kpis = datos_kpis()
     bn = cargar_bn()      # acta + stock del NOC (reporte BN)
