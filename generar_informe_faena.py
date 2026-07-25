@@ -573,9 +573,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
         saldo_previo = saldo        # lo que faltaba al EMPEZAR el día → da la meta de ese día
         saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
-        # Días FUTUROS (después de hoy): fila en blanco — el tablero se llena solo hasta hoy.
+        # Días FUTUROS: el Real y el Saldo quedan en blanco (nadie sabe lo que se va a trozar),
+        # pero la M.Día SÍ se muestra = lo que hay que sostener por día PARA LLEGAR A LA META.
+        # El jefe ve hacia adelante el ritmo exigido, no una fila muda.
         if d > ult_dia:
-            filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
+            md = f"<td class=gu>{fmt(pg['meta_dia_req'])}</td>" if es_op else "<td class=bl></td>"
+            vacio4 = "<td class=bl></td>" * 4
+            proc4 = f"<td class=bl></td>{md}<td class=bl></td><td class=bl></td>"
+            filas += (f"<tr><td class=l>{d:02d}</td>{vacio4}{vacio4}{proc4}{proc4}</tr>")
             continue
         real = real_por_dia.get(d)
         av = av_dias.get(d)
@@ -593,7 +598,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         pm_ac = fmt(saldo)
         if not es_op:
             pm_di = "—"
+        elif d == ult_dia:
+            # HOY muestra el MISMO número que "Meta día p/ llegar" de Producción General: lo que
+            # exige de aquí en adelante, ya descontado lo trozado hoy. Es lo que el jefe necesita
+            # al mirar el informe, y evita dos "metas del día" distintas en la misma hoja.
+            pm_di = fmt(pg['meta_dia_req'])
         else:
+            # Días pasados: lo que ESE día había que trozar, con lo que se llevaba hasta el
+            # anterior repartido en los días que quedaban desde ahí.
             dias_desde_d = len([x for x in ops if x >= d]) or 1
             pm_di = fmt(max(0.0, saldo_previo) / dias_desde_d)
         rr = f"<td class=nf>{fmt(real)}</td>" if real is not None else "<td class=bl></td>"
@@ -719,7 +731,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
 <h2>Producción General</h2>{pgen}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta del mes: parte en la meta y baja con lo producido (llega a 0 solo si se cumple). <b>M.Día es DINÁMICA todos los días</b>: lo que ese día había que trozar para llegar a la meta, según lo que se llevaba hasta el día anterior y los días que quedaban. Si un día se produce poco, la meta de los siguientes sube; si se produce de más, baja. Día = por hora de inicio del turno.</div>
+<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta del mes: parte en la meta y baja con lo producido (llega a 0 solo si se cumple). <b>M.Día de HOY en adelante</b> = lo que exige por día PARA LLEGAR A LA META con lo ya trozado (mismo número que "Meta día p/ llegar"). <b>M.Día es DINÁMICA todos los días</b>: lo que ese día había que trozar para llegar a la meta, según lo que se llevaba hasta el día anterior y los días que quedaban. Si un día se produce poco, la meta de los siguientes sube; si se produce de más, baja. Día = por hora de inicio del turno.</div>
 <h2>Productividad — Plan (guía VMA+especie) vs Real (NOC)</h2>{prodv}
 <h2>Guía de Productividad</h2>{guia_block}
 {estados}
@@ -830,8 +842,19 @@ def main():
            f"Pre-llena lo que el NOC ya sabe; el resto es \"por reportar\". "
            f"SSO (IAP, madurez, riesgos, tarea crítica, mapa de riesgo) va fuera de este informe.</div></div>")
 
-    sheets = "".join(sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa), cmms, kpis, bn)
-                     for fa in faenas)
+    hojas = {fa: sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
+                       cmms, kpis, bn)
+             for fa in faenas}
+    sheets = "".join(hojas[fa] for fa in faenas)
+
+    # Un HTML por faena, SIN la barra de selección: es el que se convierte a PDF para mandarle
+    # a cada jefe su hoja por Telegram (paso 8.5 del pipeline). El nombre lleva la faena con
+    # guion (M1.1 → M1-1) para no complicar el punto en shell ni en el nombre del adjunto.
+    for fa in faenas:
+        solo = (f"<!doctype html><html lang=es><head><meta charset=utf-8>"
+                f"<title>Informe {NOMBRE.get(fa, fa)} {mes_key}</title>"
+                f"<style>{CSS}{CSS_INFORME}</style></head><body>{hojas[fa]}</body></html>")
+        (BASE / f"Informe_{fa.replace('.', '-')}.html").write_text(solo, encoding="utf-8")
 
     opciones = "".join(f"<option value=\"{fa}\">{NOMBRE.get(fa, fa)}</option>" for fa in faenas)
     barra = (
@@ -858,6 +881,7 @@ def main():
     out = BASE / "Informe_Faena.html"
     out.write_text(html, encoding="utf-8")
     print(f"✅ Informe_Faena.html — {len(faenas)} faenas, mes {mes_key}, {len(html):,} bytes")
+    print(f"   + {len(faenas)} HTML por faena (Informe_<faena>.html) para el PDF de Telegram")
     print(f"   faenas: {faenas}")
     print(f"   capacidades (trozado p90): {cap}")
     return 0

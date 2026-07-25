@@ -141,71 +141,48 @@ enviar_grupo "Cosecha Forestal (General)" "grilla_produccion.png"           "res
 enviar_grupo "Millalemu Aéreo"            "grilla_produccion_aereo.png"     "resumen_diario_aereo.txt"
 enviar_grupo "Millalemu Terrestre"        "grilla_produccion_terrestre.png" "resumen_diario_terrestre.txt"
 
-# ── 9. Notificación final ─────────────────────────────────────────────────
-FECHA_FIN="$(date '+%Y-%m-%d %H:%M:%S')"
+# ── 8.5. Informes de faena en PDF a Telegram ─────────────────────────────────
+# Una hoja A4 por faena, que es lo que el jefe imprime y llena en terreno.
+# Chrome headless ya viene instalado en los runners de GitHub (ubuntu-latest).
 echo ""
-echo "▶️  [9/9] Notificación final OK..."
+echo "▶️  [8.5/9] Convirtiendo informes de faena a PDF y enviando a Telegram..."
 
-if [ -f "data.json" ]; then
-    RESUMEN=$(python3 -c "
-import json
-with open('data.json') as f:
-    d = json.load(f)
-mes = d.get('mes', {})
-tot = d.get('totales', {})
-print(f\"📊 <b>Producción {mes.get('nombre','')} {mes.get('anio','')}</b>\")
-print(f\"\")
-print(f\"• Acumulado: {tot.get('acumulado_m3',0):,.0f} m³\")
-print(f\"• Meta:      {tot.get('meta_m3',0):,.0f} m³\")
-print(f\"• Cumplim:   {tot.get('cumplimiento_pct',0):.1f}%\")
-print(f\"• Proyec:    {tot.get('proyeccion_fin_mes_m3',0):,.0f} m³ ({tot.get('proyeccion_pct',0):.1f}%)\")
-print(f\"• Día {mes.get('dias_con_datos','?')} de {mes.get('dias_mes','?')}\")
-" 2>/dev/null || echo "📊 Pipeline ejecutado correctamente")
+CHROME=""
+for c in google-chrome google-chrome-stable chromium chromium-browser; do
+    command -v "$c" >/dev/null 2>&1 && CHROME="$c" && break
+done
+
+if [ -z "$CHROME" ]; then
+    echo "  ⚠️  Sin Chrome/Chromium en el runner — no se generan PDFs (no crítico)"
 else
-    RESUMEN="📊 Pipeline ejecutado correctamente"
+    PDF_OK=0
+    for f in Informe_M*.html; do
+        [ -f "$f" ] || continue
+        pdf="${f%.html}.pdf"
+        "$CHROME" --headless --disable-gpu --no-sandbox --no-pdf-header-footer \
+                  --print-to-pdf="$pdf" "file://$(pwd)/$f" >/dev/null 2>&1 || true
+        if [ -s "$pdf" ]; then
+            PDF_OK=$((PDF_OK+1))
+            if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+                FAENA="${f#Informe_}"; FAENA="${FAENA%.html}"
+                FAENA="${FAENA//-/.}"      # M1-1 → M1.1, como se lee en la faena
+                curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
+                     -F "document=@${pdf}" \
+                     -F "caption=📋 Informe de Faena ${FAENA}" \
+                     "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" > /dev/null \
+                     && echo "  ✅ ${FAENA} — PDF enviado"
+            fi
+        else
+            echo "  ❌ $f — no se pudo generar el PDF"
+        fi
+    done
+    echo "  📄 $PDF_OK PDF(s) generados"
 fi
 
-# Titular de KPIs Uso/Ritmo/Carga/VMA (si el paso 2.7 corrió)
-KPIS=""
-if [ -f "kpis.json" ]; then
-    KPIS=$(python3 -c "
-import json
-from collections import Counter
-d = json.load(open('kpis.json'))
-t = d.get('totales', {})
-fa = d.get('faenas', [])
-pal = Counter(f.get('palanca_limitante','?') for f in fa)
-pdom = pal.most_common(1)[0][0] if pal else '-'
-uso = [f['uso_pct'] for f in fa]
-usoprom = sum(uso)/len(uso) if uso else 0
-peor = min(fa, key=lambda x: x['cumpl_pct']) if fa else None
-print('📈 <b>KPIs Uso/Ritmo/Carga</b>')
-print(f\"• Proyección cierre: {t.get('proy_cumpl_pct',0):.0f}%\")
-print(f\"• Uso promedio: {usoprom:.0f}% (exigencia cliente 90%)\")
-print(f\"• Palanca que más limita: {pdom}\")
-if peor: print(f\"• Faena a vigilar: {peor['nombre']} ({peor['cumpl_pct']:.0f}%)\")
-" 2>/dev/null || echo "")
-fi
-
-MENSAJE="✅ <b>Pipeline Producción OK</b>
-🕐 ${FECHA_INICIO} → ${FECHA_FIN}
-
-${RESUMEN}
-
-${KPIS}
-
-🔗 Dashboard: http://produccion.millalemu.com
-📈 KPIs: http://produccion.millalemu.com/Dashboard_KPIs.html"
-
-if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-         -d "chat_id=${TELEGRAM_CHAT_ID}" \
-         -d "parse_mode=HTML" \
-         --data-urlencode "text=${MENSAJE}" > /dev/null \
-         && echo "✅ Notificación final Telegram enviada"
-else
-    echo "⚠️  Sin credenciales Telegram"
-fi
+# ── 9. Cierre ────────────────────────────────────────────────────────────────
+# El mensaje final con KPIs se retiró a pedido de gerencia (2026-07-25): por Telegram van
+# SOLO las 3 tablas con su resumen (paso 8) y los informes de faena en PDF (paso 8.5).
+FECHA_FIN="$(date '+%Y-%m-%d %H:%M:%S')"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
