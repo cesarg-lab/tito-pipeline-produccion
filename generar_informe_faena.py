@@ -47,6 +47,9 @@ td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC *
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 .tpaclab{font-size:9.5px;color:#778;text-transform:uppercase;letter-spacing:.3px;margin:2px 0}
+.cob{font-size:9.5px;color:#4a5a6a;background:#f6f8fa;border-left:3px solid #7f9c5a;
+  border-radius:4px;padding:4px 8px;margin-top:3px;line-height:1.45}
+.cob b{color:#2d5202}
 table.tpac{width:auto;min-width:60%;margin-bottom:6px}
 .diaria{font-size:7.6px}
 .diaria td,.diaria th{padding:1px 2px}
@@ -140,6 +143,63 @@ def plan_productividad(fa, jul, cell):
     real_rend = jul.rend.median(); real_carga = jul.carga.median(); real_ritmo = jul.ritmo.median()
     return dict(plan_rend=plan_rend, plan_carga=plan_carga, plan_ritmo=plan_ritmo,
                 real_rend=real_rend, real_carga=real_carga, real_ritmo=real_ritmo)
+
+
+def horas_preuso(fa, cmms, real_por_dia):
+    """Uso Real y Rend Real por proceso, medidos con el HORÓMETRO DEL PRE-USO (RPC
+    informe_horas_faena: Δ horómetro entre dos pre-usos de días consecutivos = un turno).
+
+    · Uso real [%] = horas trabajadas ÷ (jornada 10,5 h × equipos-día medidos). Es un promedio
+      por equipo-día, así que vale aunque solo una parte del proceso haya hecho pre-uso.
+    · Rend real [m³/hr] = m³ del NOC ÷ horas, SOLO de los días con dato, y SOLO si ese día se
+      midió el proceso COMPLETO (equipos = dotación): el m³ del NOC es de toda la faena, y
+      dividirlo por las horas de un equipo de tres inflaría el rendimiento.
+      Aplica al procesado/clasificado, que es lo que el NOC mide en m³.
+
+    Devuelve {proceso: {horas, eq_dia, dias, turnos, uso, rend, rend_dias}}; vacío si no hay
+    pre-uso con tramo de un día (el informe muestra "rep." y nunca un número reconstruido).
+    """
+    h = (cmms or {}).get('horas', {}).get(FAENA_ID.get(fa), {})
+    out = {}
+    for (dia, proc), v in h.items():
+        a = out.setdefault(proc, {'horas': 0.0, 'eq_dia': 0, 'turnos': 0,
+                                  'dias': set(), 'dias_full': set(), 'horas_full': 0.0})
+        a['horas'] += v['horas']
+        a['eq_dia'] += v['equipos']
+        a['turnos'] += v['equipos']
+        a['dias'].add(dia)
+        if v['equipos'] >= v['dotacion']:          # proceso medido completo ese día
+            a['dias_full'].add(dia)
+            a['horas_full'] += v['horas']
+    for proc, a in out.items():
+        a['uso'] = (a['horas'] / (HDISP * a['eq_dia']) * 100) if a['eq_dia'] else None
+        # El m³ del NOC es TROZADO = lo que produce el procesador. Solo tiene sentido dividirlo
+        # por las horas del PROCESADO; contra las horas del volteo o del madereo daría un número
+        # sin significado (probado: 106 m³/h de "volteo" en M7).
+        if proc == 'PROCESADO':
+            m3 = sum(real_por_dia.get(d, 0.0) for d in a['dias_full'])
+            a['rend'] = (m3 / a['horas_full']) if (a['horas_full'] and m3) else None
+        else:
+            a['rend'] = None
+        a['rend_dias'] = len(a['dias_full'])
+    return out
+
+
+def cobertura_preuso(hp, ult_dia):
+    """Nota de procedencia bajo la tabla de Productividad: con cuántos turnos se midió el Uso/Rend
+    real. Deja a la vista el gate de adopción — la celda solo se llena si hay pre-uso diario."""
+    if not hp:
+        return ("<div class=cob>Uso y Rend <b>real</b> quedan <i>por reportar</i>: esta faena no "
+                "tiene pre-usos de días consecutivos este mes. Se llenan solos cuando el operador "
+                "hace el <b>pre-uso diario</b> (un turno = Δ horómetro entre dos pre-usos seguidos).</div>")
+    tot = sum(a['turnos'] for a in hp.values())
+    dias = sorted({d for a in hp.values() for d in a['dias']})
+    det = " · ".join(f"{p.title()} {a['turnos']}" for p, a in sorted(hp.items()))
+    ultimo = f" · último día medido: {max(dias):02d}" if dias else ""
+    return (f"<div class=cob>Uso y Rend <b>real</b> medidos con el <b>horómetro del pre-uso</b>: "
+            f"{tot} turno(s) en {len(dias)} día(s) del mes ({det}){ultimo}. Un turno = Δ horómetro "
+            f"entre dos pre-usos de días seguidos, contra jornada de {HDISP} h. Sin pre-uso diario "
+            f"la celda dice <i>rep.</i> — no se estima.</div>")
 
 
 def guia_tabla(tec, esp, cell, teo):
@@ -308,23 +368,45 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         filas += f"<tr{cl_hoy}><td class=l>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
     diaria = f"<table class=diaria>{head1}{head2}{filas}</table>"
 
-    # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC) ──
+    # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC + horómetro del pre-uso) ──
+    # Uso Real y Rend Real salen del HORÓMETRO DEL PRE-USO (ver horas_preuso). Donde no hay
+    # pre-uso con tramo de un día la celda sigue diciendo "rep." — no se reconstruye nada.
+    hp = horas_preuso(fa, cmms, real_por_dia)
+
+    def uso_cell(proc):
+        a = hp.get(proc)
+        if not a or a['uso'] is None:
+            return "<td class=pr>rep.</td>"
+        u = a['uso']
+        col = '#1E8449' if u >= USO*100 else ('#B9770E' if u >= 60 else '#943126')
+        return (f"<td class=nf style='color:{col}' title='{a['horas']:g} h en {a['turnos']} "
+                f"turno(s) de pre-uso · jornada {HDISP} h'>{u:.0f}</td>")
+
+    def rend_cell(proc, fallback=None):
+        a = hp.get(proc)
+        if a and a['rend'] is not None:
+            return (f"<td class=nf title='m³ del NOC ÷ horas de pre-uso · "
+                    f"{a['rend_dias']} día(s) con el proceso completo'>{a['rend']:.1f}</td>")
+        if fallback is not None:
+            return f"<td class=nf>{fallback:.1f}</td>"
+        return "<td class=pr>rep.</td>"
+
     prodv = (
         "<table><tr><th class=l>Proceso</th><th>Factor Uso [%]<br>Plan</th><th>Uso<br>Real</th>"
         "<th>Rend [m³/hr]<br>Plan</th><th>Rend<br>Real</th>"
         "<th>Carga [m³/ciclo]<br>Plan</th><th>Carga<br>Real</th>"
         "<th>Ritmo [ciclo/hr]<br>Plan</th><th>Ritmo<br>Real</th></tr>"
-        f"<tr><td class=l>Volteo</td><td class=gu>{USO*100:.0f}</td><td class=pr>rep.</td>"
+        f"<tr><td class=l>Volteo</td><td class=gu>{USO*100:.0f}</td>{uso_cell('VOLTEO')}"
         f"<td class=pr>guía</td><td class=pr>rep.</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        f"<tr><td class=l>Madereo</td><td class=gu>{USO*100:.0f}</td><td class=pr>KPIs</td>"
+        f"<tr><td class=l>Madereo</td><td class=gu>{USO*100:.0f}</td>{uso_cell('MADEREO')}"
         f"<td class=gu>{pp['plan_rend']}</td><td class=nf>{pp['real_rend']:.1f}</td>"
         f"<td class=gu>{pp['plan_carga']}</td><td class=nf>{pp['real_carga']:.2f}</td>"
         f"<td class=gu>{pp['plan_ritmo']}</td><td class=nf>{pp['real_ritmo']:.2f}</td></tr>"
-        f"<tr><td class=l>Procesado</td><td class=gu>{USO*100:.0f}</td><td class=pr>rep.</td>"
-        f"<td class=pr>guía</td><td class=pr>rep.</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>"
+        f"<tr><td class=l>Procesado</td><td class=gu>{USO*100:.0f}</td>{uso_cell('PROCESADO')}"
+        f"<td class=pr>guía</td>{rend_cell('PROCESADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
         f"<tr><td class=l>Clasificado</td><td class=gu>{USO*100:.0f}</td><td class=pr>rep.</td>"
         f"<td class=pr>guía</td><td class=pr>rep.</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        "</table>")
+        "</table>" + cobertura_preuso(hp, ult_dia))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
@@ -408,12 +490,15 @@ def datos_cmms():
       · informe_avance_dias() → volteado/cancha por faena y DÍA (jefe) → columnas VOLTEO/MADEREO
         y el último día → BUFFERS (colchón).
       · informe_tp_faena()    → tiempos perdidos del preuso por faena/día/proceso/causa → T.P.
+      · informe_horas_faena() → horas trabajadas (Δ horómetro entre pre-usos de días seguidos)
+        por faena/día/proceso → Factor Uso real y Rend real de la tabla de Productividad.
     Requiere SUPABASE_URL + SUPABASE_KEY en env; sin ellas devuelve vacío y el informe muestra
     "por reportar". Best-effort: cualquier error → vacío, no rompe el pipeline."""
     import os, json, urllib.request
     # avance: último por faena (buffers). avance_dias: faena -> {día_int -> {volteado,cancha}}.
     # tp: faena -> [{fecha, dia, proceso, causa, detalle, horas}]
-    out = {'avance': {}, 'avance_dias': {}, 'tp': {}}
+    # horas: faena -> {(día_int, proceso) -> {horas, equipos, dotacion}}
+    out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}}
     url = os.environ.get('SUPABASE_URL'); key = os.environ.get('SUPABASE_KEY')
     if not url or not key:
         return out
@@ -441,6 +526,13 @@ def datos_cmms():
                  'causa': r['causa'], 'detalle': r.get('detalle'), 'horas': float(r['horas'])})
     except Exception as e:
         print(f"  ⚠️  CMMS tiempos perdidos no disponibles ({e}); T.P queda para llenar")
+    try:
+        for r in rpc('informe_horas_faena'):
+            out['horas'].setdefault(r['faena_id'], {})[(int(r['fecha'][8:10]), r['proceso'])] = {
+                'horas': float(r['horas']), 'equipos': int(r['equipos']),
+                'dotacion': int(r['dotacion'])}
+    except Exception as e:
+        print(f"  ⚠️  CMMS horas de preuso no disponibles ({e}); Uso/Rend real quedan 'por reportar'")
     return out
 
 def datos_kpis():
