@@ -894,6 +894,27 @@ def datos_kpis():
         print(f"  ⚠️  kpis.json no legible ({e}); la proyección se recalcula en el informe")
         return {'por_faena': {}, 'dr': None}
 
+
+def _diag_ciclos(g):
+    """DIAGNÓSTICO TEMPORAL (2026-07-25): los ciclos declarados al NOC cambiaron de magnitud
+    (M7 pasó de 3,75 a 19,5 ciclos/hr manteniendo el rendimiento). Imprime la serie diaria para
+    ubicar desde cuándo y en qué equipo empezó. Quitar cuando esté resuelto."""
+    print("\n=== DIAGNÓSTICO ciclos/hr por faena y día (temporal) ===")
+    for fa in FAENA_ORDER:
+        d = g[g.faena == fa].sort_values('dia')
+        if not len(d):
+            continue
+        serie = []
+        for _, r in d.iterrows():
+            rr = (r.ciclos / r.hrs) if r.hrs else 0
+            serie.append(f"{r.dia[8:10]}:{rr:.1f}")
+        print(f"  {fa:6} " + " ".join(serie))
+        print(f"         mes: ciclos={d.ciclos.sum():,.0f} hrs={d.hrs.sum():,.0f} "
+              f"m3={d.m3.sum():,.0f} → carga={d.m3.sum()/d.ciclos.sum() if d.ciclos.sum() else 0:.2f} "
+              f"ritmo={d.ciclos.sum()/d.hrs.sum() if d.hrs.sum() else 0:.2f}")
+    print("=== fin diagnóstico ===\n")
+
+
 def main():
     df = cargar_pg()
     if df is None or len(df) == 0:
@@ -906,6 +927,7 @@ def main():
     gm = g[g.dia.str[:7] == mes_key]
     cap = {fa: round(x.m3.quantile(.90)) for fa, x in gm.groupby('faena')}
     faenas = [f for f in FAENA_ORDER if f in set(gm.faena)]
+    _diag_ciclos(g)
     cmms = datos_cmms()
     kpis = datos_kpis()
     bn = cargar_bn()      # acta + stock del NOC (reporte BN)
