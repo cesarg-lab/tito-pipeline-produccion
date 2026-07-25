@@ -237,7 +237,7 @@ def horas_preuso(fa, cmms, real_por_dia):
     return out
 
 
-def hoja_kpis(fa, kpi, dr):
+def hoja_kpis(fa, kpi, dr, pp=None, bench=None):
     """HOJA 2 — análisis. Lo que ya calcula compute_kpis por faena y el informe no mostraba:
 
       · cómo viene CADA TURNO (atribución 7×7 por jefe: m³/día y m³/hr) — la hoja 1 dice quién
@@ -250,9 +250,20 @@ def hoja_kpis(fa, kpi, dr):
     Sin registro en kpis.json devuelve "" y el informe queda con una sola hoja."""
     if not kpi:
         return ""
-    bt = kpi.get('benchmark_tipo') or {}
-    gaps = kpi.get('gaps_palanca') or {}
-    pal = kpi.get('palanca_limitante')
+    # Carga y Ritmo salen de la HOJA 1 (ya sin los días de ciclos mal declarados), NO de
+    # kpis.json: si no, el mismo concepto saldría con dos cifras en el mismo documento — que es
+    # justo lo que veníamos corrigiendo. El benchmark se recalcula con ese mismo criterio.
+    bt = dict(bench or {})
+    if not bt:
+        return ""
+    mio = {'Uso': kpi.get('uso_pct'),
+           'Ritmo': (pp or {}).get('real_ritmo'),
+           'Carga': (pp or {}).get('real_carga')}
+    gaps = {}
+    for k in ('Uso', 'Ritmo', 'Carga'):
+        ref, v = bt.get(k), mio.get(k)
+        gaps[k] = round(max((ref - v) / ref * 100, 0), 1) if (ref and v and ref > 0) else 0.0
+    pal = max(gaps, key=gaps.get) if gaps else None
 
     # ── Turnos (jefe A vs jefe B) ──
     turnos = kpi.get('turnos') or []
@@ -274,25 +285,23 @@ def hoja_kpis(fa, kpi, dr):
     # ── Palanca limitante vs el mejor de su tecnología ──
     if pal and bt:
         filas = ""
-        for nom, mio, ref, dec in (
-                ('Uso [%]', kpi.get('uso_pct'), bt.get('uso_pct'), 0),
-                ('Ritmo [ciclo/hr]', kpi.get('ritmo_ciclos_h'), bt.get('ritmo_ciclos_h'), 2),
-                ('Carga [m³/ciclo]', kpi.get('carga_m3_ciclo'), bt.get('carga_m3_ciclo'), 2)):
+        for nom, val, ref, dec in (
+                ('Uso [%]', mio['Uso'], bt.get('Uso'), 0),
+                ('Ritmo [ciclo/hr]', mio['Ritmo'], bt.get('Ritmo'), 2),
+                ('Carga [m³/ciclo]', mio['Carga'], bt.get('Carga'), 2)):
             clave = nom.split(' ')[0]
             brecha = gaps.get(clave, 0)
             es_pal = clave == pal
             marca = " style='background:#fdecea;font-weight:700'" if es_pal else ""
             filas += (f"<tr{marca}><td class=l>{nom}{' ←' if es_pal else ''}</td>"
-                      f"<td class=nf>{fmt(mio, dec)}</td><td class=gu>{fmt(ref, dec)}</td>"
+                      f"<td class=nf>{fmt(val, dec)}</td><td class=gu>{fmt(ref, dec)}</td>"
                       f"<td>{brecha:.1f}%</td></tr>")
-        opor = kpi.get('oportunidad_palanca_m3') or 0
         t_pal = ("<table><tr><th class=l>Palanca</th><th>Esta faena</th>"
                  "<th>Mejor de su tipo</th><th>Brecha</th></tr>" + filas + "</table>"
-                 f"<div class=cob>La que más limita es <b>{pal}</b> "
-                 f"({kpi.get('brecha_palanca_pct', 0):.1f}% bajo el mejor "
-                 f"{kpi.get('grupo_tec','')} de la flota). Cerrarla sola valdría "
-                 f"<b>{fmt(opor)} m³</b> en los {dr or '—'} días que quedan "
-                 f"(proyección {kpi.get('proy_potencial_pct', 0):.0f}% de la meta).</div>")
+                 f"<div class=cob>La que más limita es <b>{pal}</b>: está "
+                 f"<b>{gaps.get(pal, 0):.1f}%</b> bajo la mejor faena de su misma tecnología. "
+                 f"Carga y Ritmo salen del mismo cálculo de la hoja 1 (sin los días con ciclos "
+                 f"mal declarados), así que ambas hojas muestran la misma cifra.</div>")
     else:
         t_pal = "<div class=cob>Sin par de su tecnología para comparar.</div>"
 
@@ -957,9 +966,32 @@ def main():
            f"SSO (IAP, madurez, riesgos, tarea crítica, mapa de riesgo) va fuera de este informe.</div></div>")
 
     # Cada faena aporta DOS hojas: la 1 es el tablero (NOC + CMMS) y la 2 el análisis de KPIs.
+    # BENCHMARK por tecnología con el MISMO criterio de la hoja 1 (Carga y Ritmo ya sin los
+    # días de ciclos mal declarados). No se usa el de kpis.json: venía del número sin filtrar.
+    pps, tecs = {}, {}
+    for fa in faenas:
+        jul_fa = g[(g.faena == fa) & (g.dia.str[:7] == mes_key)]
+        if not len(jul_fa):
+            continue
+        pps[fa] = plan_productividad(fa, jul_fa, cell)
+        tecs[fa] = str(jul_fa.tec.mode().iat[0]) if len(jul_fa.tec.mode()) else ''
+    bench = {}
+    for fa in faenas:
+        pares = [f for f in faenas if tecs.get(f) == tecs.get(fa) and f in pps]
+        if len(pares) < 2:          # sin par de su tecnología no hay con quién compararse
+            continue
+        kfa = (kpis or {}).get('por_faena', {})
+        usos = [kfa.get(f, {}).get('uso_pct') for f in pares if kfa.get(f, {}).get('uso_pct')]
+        bench[fa] = {
+            'Uso':   min(max(usos), 105) if usos else None,
+            'Ritmo': max((pps[f]['real_ritmo'] for f in pares if pps[f]['real_ritmo'] == pps[f]['real_ritmo']), default=None),
+            'Carga': max((pps[f]['real_carga'] for f in pares if pps[f]['real_carga'] == pps[f]['real_carga']), default=None),
+        }
+
     hojas = {fa: (sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
                         cmms, kpis, bn)
-                  + hoja_kpis(fa, (kpis or {}).get('por_faena', {}).get(fa), (kpis or {}).get('dr')))
+                  + hoja_kpis(fa, (kpis or {}).get('por_faena', {}).get(fa), (kpis or {}).get('dr'),
+                              pps.get(fa), bench.get(fa)))
              for fa in faenas}
     sheets = "".join(hojas[fa] for fa in faenas)
 
