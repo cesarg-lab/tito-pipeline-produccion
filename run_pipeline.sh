@@ -81,7 +81,10 @@ python3 SUBIR_FTP.py 2>&1 | tee -a "$LOG_PIPELINE"
 # ── 5.5 Generar snapshots de meses cerrados (idempotente; solo los que faltan) ──
 echo ""
 echo "▶️  [5.5/9] Generando snapshots de meses pasados si faltan..."
-python3 generar_snapshots.py --todos 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  generar_snapshots falló (no crítico, sigue)"
+# timeout de 4 min: cuando decide regenerar, descarga mes por mes del NOC y ha dejado el
+# pipeline colgado 10+ min (cancelado a mano dos veces el 2026-07-25). Es un paso opcional —
+# si no alcanza, se retoma en la corrida siguiente.
+timeout 240 python3 generar_snapshots.py --todos 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  generar_snapshots no terminó a tiempo o falló (no crítico, sigue)"
 
 # ── Pasos siguientes son nice-to-have: no abortan el pipeline si fallan ──
 set +e
