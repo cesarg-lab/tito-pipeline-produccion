@@ -237,7 +237,7 @@ def horas_preuso(fa, cmms, real_por_dia):
     return out
 
 
-def hoja_kpis(fa, kpi, dr, pp=None, bench=None):
+def hoja_kpis(fa, kpi, dr, pp=None, bench=None, tm=None):
     """HOJA 2 — análisis. Lo que ya calcula compute_kpis por faena y el informe no mostraba:
 
       · cómo viene CADA TURNO (atribución 7×7 por jefe: m³/día y m³/hr) — la hoja 1 dice quién
@@ -323,6 +323,39 @@ def hoja_kpis(fa, kpi, dr, pp=None, bench=None):
     else:
         t_noc = "<div class=cob>El NOC no registra tiempos perdidos de esta faena en el mes.</div>"
 
+    # ── Evolución día a día (lo que salió de la hoja 1, acá en clave de análisis) ──
+    dd = (kpi.get('dias_detalle') or [])
+    if dd:
+        rends = [x.get('rend', 0) for x in dd if x.get('rend')]
+        mejor = max(rends) if rends else 0
+        f_dd = ""
+        for x in dd:
+            r = x.get('rend', 0)
+            marca = " style='background:#eaf3e0;font-weight:700'" if r and r == mejor else ""
+            f_dd += (f"<tr{marca}><td class=l>{x.get('d',''):02d}</td><td class=nf>{fmt(x.get('vol',0))}</td>"
+                     f"<td>{x.get('hrs','')}</td><td>{x.get('cic','')}</td><td class=nf>{r}</td></tr>")
+        t_dd = ("<table class=diaria><tr><th class=l>Día</th><th>m³</th><th>Horas</th>"
+                "<th>Ciclos</th><th>Rend [m³/hr]</th></tr>" + f_dd + "</table>"
+                "<div class=cob>Verde = el mejor rendimiento del mes. Es la jornada a igualar.</div>")
+    else:
+        t_dd = ""
+
+    # ── Qué la detiene: top causas del NOC ──
+    top = ((tm or {}).get(NOMBRE.get(fa, fa)) or {}).get('top_causas') or {}
+    if top:
+        tot_min = sum(top.values()) or 1
+        f_top = ""
+        for causa, mins in sorted(top.items(), key=lambda y: -y[1])[:6]:
+            f_top += (f"<tr><td class=l>{causa[:46]}</td><td class=tp>{mins/60:.1f}</td>"
+                      f"<td>{mins/tot_min*100:.0f}%</td></tr>")
+        t_top = ("<table><tr><th class=l>Causa</th><th>Horas</th><th>% del total</th></tr>"
+                 + f_top + "</table>")
+    else:
+        t_top = ""
+
+    bloque_dd = f"<h2>Día a día del mes</h2>{t_dd}" if t_dd else ""
+    bloque_top = f"<h2>Qué la detuvo — causas del NOC</h2>{t_top}" if t_top else ""
+
     return f"""<div class="sheet faena analisis" data-faena="{fa}">
 <header>{'<img src="'+LOGO+'">' if LOGO else ''}<div>
 <h1>Análisis de Faena · {NOMBRE.get(fa, fa)}</h1>
@@ -331,6 +364,8 @@ def hoja_kpis(fa, kpi, dr, pp=None, bench=None):
 <h2>Cómo viene cada turno</h2>{t_turnos}
 <h2>Palanca que más limita</h2>{t_pal}
 <h2>Tiempos perdidos según el NOC</h2>{t_noc}
+{bloque_top}
+{bloque_dd}
 <div class=foot>Hoja de ANÁLISIS: no se llena, se mira. Los datos salen del mismo kpis.json que
 la pestaña KPIs del dashboard, así que ambos muestran las mismas cifras.</div>
 </div>"""
@@ -921,6 +956,19 @@ def datos_cmms():
         print(f"  ⚠️  CMMS horas de preuso no disponibles ({e}); Uso/Rend real quedan 'por reportar'")
     return out
 
+def datos_tm():
+    """Top causas de tiempo perdido por faena, del NOC (lo genera compute_kpis en el paso 2.7).
+    Sin archivo → {} y la hoja de análisis omite ese bloque."""
+    import json
+    p = BASE / "tm_por_faena.json"
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding='utf-8'))
+    except Exception:
+        return {}
+
+
 def datos_kpis():
     """Lee kpis.json (lo genera compute_kpis en el paso 2.7, antes del informe) para que la
     proyección y el avance del informe CALCEN con la pestaña KPIs. Devuelve {faena→registro}
@@ -953,6 +1001,7 @@ def main():
     cmms = datos_cmms()
     kpis = datos_kpis()
     bn = cargar_bn()      # acta + stock del NOC (reporte BN)
+    tm = datos_tm()       # top causas de tiempo perdido del NOC
 
     logo_img = ('<img src="' + LOGO + '">') if LOGO else ''
     idx = (f"<div class=\"sheet cover\" style=\"page-break-after:auto\">"
@@ -990,7 +1039,7 @@ def main():
     hojas = {fa: (sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
                         cmms, kpis, bn)
                   + hoja_kpis(fa, (kpis or {}).get('por_faena', {}).get(fa), (kpis or {}).get('dr'),
-                              pps.get(fa), bench.get(fa)))
+                              pps.get(fa), bench.get(fa), tm))
              for fa in faenas}
     sheets = "".join(hojas[fa] for fa in faenas)
 
