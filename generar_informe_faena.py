@@ -253,9 +253,10 @@ def hoja_kpis(fa, kpi, dr, pp=None, bench=None):
     # Carga y Ritmo salen de la HOJA 1 (ya sin los días de ciclos mal declarados), NO de
     # kpis.json: si no, el mismo concepto saldría con dos cifras en el mismo documento — que es
     # justo lo que veníamos corrigiendo. El benchmark se recalcula con ese mismo criterio.
+    # OJO: sin benchmark (M11 es la única torre, no tiene par de su tecnología) la hoja se
+    # muestra IGUAL — solo se omite el bloque de palanca. Antes se devolvía "" y M11 perdía su
+    # página entera de análisis, incluidos turnos y tiempos perdidos, que sí tiene.
     bt = dict(bench or {})
-    if not bt:
-        return ""
     mio = {'Uso': kpi.get('uso_pct'),
            'Ritmo': (pp or {}).get('real_ritmo'),
            'Carga': (pp or {}).get('real_carga')}
@@ -283,7 +284,7 @@ def hoja_kpis(fa, kpi, dr, pp=None, bench=None):
         t_turnos = "<div class=cob>Sin turnos atribuidos este mes.</div>"
 
     # ── Palanca limitante vs el mejor de su tecnología ──
-    if pal and bt:
+    if pal and bt and any(bt.values()):
         filas = ""
         for nom, val, ref, dec in (
                 ('Uso [%]', mio['Uso'], bt.get('Uso'), 0),
@@ -303,7 +304,8 @@ def hoja_kpis(fa, kpi, dr, pp=None, bench=None):
                  f"Carga y Ritmo salen del mismo cálculo de la hoja 1 (sin los días con ciclos "
                  f"mal declarados), así que ambas hojas muestran la misma cifra.</div>")
     else:
-        t_pal = "<div class=cob>Sin par de su tecnología para comparar.</div>"
+        t_pal = ("<div class=cob>Esta faena es la única de su tecnología en la flota, así que no "
+                 "hay contra quién comparar las palancas. Su referencia es su propio historial.</div>")
 
     # ── Tiempos perdidos del NOC (la vista del cliente) ──
     tmm, tmo, tmp = (kpi.get('tm_mant_min', 0), kpi.get('tm_oper_min', 0), kpi.get('tm_proc_min', 0))
