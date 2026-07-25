@@ -278,6 +278,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         es_op = calendar.weekday(anio, mes, d) != 6
         if es_op:
             meta_ac += meta_dia
+        # Días FUTUROS (después de hoy): fila en blanco — el tablero se llena solo hasta hoy.
+        if d > ult_dia:
+            filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
+            continue
         real = real_por_dia.get(d)
         av = av_dias.get(d)
         # VOLTEO / MADEREO: Real = lo que el jefe declaró ese día (avance_faena); T.P del preuso.
@@ -286,13 +290,13 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         vol = f"<td class=bl></td><td class=bl></td>{v_real}{tp_cell(d,'VOLTEO')}"
         mad = f"<td class=bl></td><td class=bl></td>{m_real}{tp_cell(d,'MADEREO')}"
         # PROCESADO: pre-llenado NOC. M.Ac = plan lineal (dónde deberías ir). M.Día:
-        # días pasados = plan del día; HOY en adelante = meta día DINÁMICA (lo que exige
-        # llegar a la meta con lo ya procesado). Cambia día a día con el real.
+        # días pasados = plan del día; HOY = meta día DINÁMICA (lo que exige llegar a la meta
+        # con lo ya procesado). Cambia día a día con el real.
         pm_ac = fmt(meta_ac) if es_op else "—"
         if not es_op:
             pm_di = "—"
-        elif d >= ult_dia:
-            pm_di = fmt(pg['meta_dia_req'])            # dinámica: de hoy a fin de mes
+        elif d == ult_dia:
+            pm_di = fmt(pg['meta_dia_req'])            # dinámica: lo que exige de hoy a fin de mes
         else:
             pm_di = fmt(meta_dia)                      # plan del día ya transcurrido
         rr = f"<td class=nf>{fmt(real)}</td>" if real is not None else "<td class=bl></td>"
