@@ -46,6 +46,8 @@ td.pr,.pr{color:#a06000;font-style:italic}/* "por reportar" (lo informa el jefe)
 td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC */
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
+.tpaclab{font-size:9.5px;color:#778;text-transform:uppercase;letter-spacing:.3px;margin:2px 0}
+table.tpac{width:auto;min-width:60%;margin-bottom:6px}
 .diaria{font-size:7.6px}
 .diaria td,.diaria th{padding:1px 2px}
 .diaria th{font-size:7.4px}
@@ -208,6 +210,27 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
             f"<div><span>Meta día p/ llegar</span><b>{fmt(pg['meta_dia_req'])}</b></div>"
             f"<div><span>Real diario</span><b>{fmt(pg['real_diario'])}</b></div></div>")
 
+    # ── Tiempo perdido ACUMULADO del mes por proceso (del preuso) ──
+    acum_proc = {}   # proceso -> {horas, causas:{causa:horas}}
+    for t in tp_faena:
+        a = acum_proc.setdefault(t['proceso'], {'horas': 0.0, 'causas': {}})
+        a['horas'] += t['horas']
+        a['causas'][t['causa']] = a['causas'].get(t['causa'], 0) + t['horas']
+    if acum_proc:
+        filas_ac = ""
+        for proc in ['VOLTEO', 'MADEREO', 'PROCESADO', 'CLASIFICADO']:
+            a = acum_proc.get(proc)
+            if not a:
+                continue
+            causa_top = max(a['causas'], key=a['causas'].get)
+            filas_ac += (f"<tr><td class=l>{proc.title()}</td><td class=tp>{a['horas']:g}</td>"
+                         f"<td class=l>{causa_top}</td></tr>")
+        tp_acum = ("<div class=tpaclab>Acumulado del mes por proceso (del preuso):</div>"
+                   "<table class=tpac><tr><th class=l>Proceso</th><th>T.P acum. mes [hrs]</th>"
+                   "<th class=l>Causa principal</th></tr>" + filas_ac + "</table>")
+    else:
+        tp_acum = ""
+
     # ── Principales Tiempos Perdidos: pre-llenado del preuso (turno_perdida), resto en blanco ──
     tp_ord = sorted(tp_faena, key=lambda t: -t['horas'])[:6]     # las de mayor pérdida primero
     tp_rows = ""
@@ -219,7 +242,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
     for _ in range(max(0, 4 - len(tp_ord))):                     # filas vacías para llenar a mano
         tp_rows += ("<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td>"
                     "<td class=bl></td><td class=bl></td><td class=bl></td></tr>")
-    tp = ("<table><tr><th>Nº</th><th class=l>Proceso</th><th class=l>Descripción</th>"
+    tp = (tp_acum +
+          "<table><tr><th>Nº</th><th class=l>Proceso</th><th class=l>Descripción</th>"
           "<th>Tiempo [hrs]</th><th class=l>Acción</th><th class=l>Responsable</th>"
           "<th>Fecha</th></tr>" + tp_rows + "</table>")
 
