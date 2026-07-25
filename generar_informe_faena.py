@@ -47,6 +47,9 @@ td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC *
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 .tpaclab{font-size:9.5px;color:#778;text-transform:uppercase;letter-spacing:.3px;margin:2px 0}
+.ig .jefe{flex:2;min-width:180px}
+.cand{display:inline-block;font-size:11px;font-weight:600;color:#1b3a05;margin-right:9px;
+  white-space:nowrap}
 .cob{font-size:9.5px;color:#4a5a6a;background:#f6f8fa;border-left:3px solid #7f9c5a;
   border-radius:4px;padding:4px 8px;margin-top:3px;line-height:1.45}
 .cob b{color:#2d5202}
@@ -186,6 +189,38 @@ def horas_preuso(fa, cmms, real_por_dia):
     return out
 
 
+def jefe_de_turno(fa, dia_iso):
+    """Jefe que está DE TURNO en esa faena ese día, según la matriz de turnos
+    (`turnos_config.json`): rotación 7×7 correlativa, ciclo de 14 días desde `ref`,
+    pos < 7 → jefeA, si no → jefeB. MISMA convención que `_turnos_schedule` de compute_kpis
+    (si cambia una, cambiar la otra) — así el informe y la pestaña KPIs nombran al mismo jefe.
+
+    La matriz manda sobre el roster del CMMS: es la que dice quién está el día del informe.
+    Devuelve None si no hay config o la faena no está en ella (el campo queda en blanco)."""
+    import json
+    from datetime import date
+    try:
+        cfg = json.loads((BASE / "turnos_config.json").read_text(encoding='utf-8'))
+        c = cfg.get('faenas', {}).get(NOMBRE.get(fa, fa))
+        if not c:
+            return None
+        ref = date.fromisoformat(cfg.get('ref', '2026-07-01'))
+        ciclo = int(cfg.get('ciclo_dias', 14))
+        d = date.fromisoformat(dia_iso[:10])
+        pos = (c['posR'] + (d - ref).days) % ciclo
+        return c['jefeA'] if pos < ciclo // 2 else c['jefeB']
+    except Exception as e:
+        print(f"  ⚠️  matriz de turnos no legible ({e}); el campo Jefe de Faena queda en blanco")
+        return None
+
+
+def campo_jefes(fa, dia_iso):
+    """Campo 'Jefe de Faena': UN nombre, el que está de turno ese día según la matriz.
+    Sin matriz → línea en blanco para llenar a mano (el informe nunca deja de servir)."""
+    j = jefe_de_turno(fa, dia_iso)
+    return f"<b>{j}</b>" if j else "<b class=fill>____________</b>"
+
+
 def cruce_clasificado(av, tp_faena, hp):
     """CRUCE de dos fuentes independientes sobre el mismo hecho: la GM detenida.
 
@@ -315,7 +350,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
           f"<div><span>Fecha</span><b>{ult_dia:02d} / {mes:02d} / {anio}</b></div>"
           f"<div><span>Team / Turno</span><b>{fa}</b> <span class=fill>/ ____</span></div>"
           f"<div><span>Predio</span><b>{predio}</b></div>"
-          f"<div><span>Jefe de Faena</span><b class=fill>____________</b></div>"
+          f"<div><span>Jefe de Faena</span>{campo_jefes(fa, ult)}</div>"
           f"<div><span>Especie</span><b>{especie}</b></div>"
           f"<div><span>Tecnología</span><b>{TECN.get(tec, tec)}</b></div></div>")
 
