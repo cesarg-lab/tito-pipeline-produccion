@@ -95,21 +95,25 @@ def fmt(x, dec=0):
         return "—"
 
 
-def prod_general(jul, meta_mes, anio, mes, ult_dia):
-    """Producción General (anclada al pipeline). Devuelve dict con todos los campos."""
+def prod_general(jul, meta_mes, anio, mes, ult_dia, kpi=None, dr_kpi=None):
+    """Producción General. Si hay registro del kpis.json (kpi) usa su AVANCE y PROYECCIÓN para
+    CALZAR con la pestaña KPIs; si no, recalcula. Devuelve dict con todos los campos."""
     n_mes, ops = dias_operables(anio, mes)
-    n_op = len(ops)
-    op_hasta = len([d for d in ops if d <= ult_dia])  # días operables transcurridos
-    n_op = max(n_op, 1); op_hasta = max(op_hasta, 1)
-    acum = float(jul.m3.sum())
-    diast = max(int(jul.dia.nunique()), 1)
-    plan_diario = meta_mes / n_op
-    avance_plan = plan_diario * op_hasta
-    cumpl = acum / avance_plan * 100 if avance_plan else 0
-    real_diario_prom = acum / diast
-    proy = real_diario_prom * n_op                 # proyección a fin de mes al ritmo real
+    n_op = max(len(ops), 1)
+    op_hasta = max(len([d for d in ops if d <= ult_dia]), 1)  # días operables transcurridos
     real_dia = float(jul[jul.dia == jul.dia.max()].m3.sum())
-    dias_rest = max(n_op - op_hasta, 1)
+    plan_diario = meta_mes / n_op
+    avance_plan = plan_diario * op_hasta                       # dónde deberías ir (plan lineal)
+    if kpi:                                                    # ← congruente con KPIs
+        acum = float(kpi.get('vol_m3', jul.m3.sum()))
+        proy = float(kpi.get('proy_cierre_m3', 0))
+        dias_rest = max(int(dr_kpi) if dr_kpi else (n_op - op_hasta), 1)
+    else:
+        acum = float(jul.m3.sum())
+        diast = max(int(jul.dia.nunique()), 1)
+        dias_rest = max(n_op - op_hasta, 1)
+        proy = acum + (acum / diast) * dias_rest               # = ritmo real × días restantes
+    cumpl = acum / avance_plan * 100 if avance_plan else 0
     recuperar = max(0.0, (avance_plan - acum)) / dias_rest
     # Meta día DINÁMICA: lo que la meta exige por día de HOY a fin de mes, según lo YA procesado.
     # Cambia cada día con el real acumulado (si vas atrasado sube, si vas adelantado baja).
@@ -157,7 +161,7 @@ def guia_tabla(tec, esp, cell, teo):
             "<th>Meta</th><th>Teórico</th></tr>" + filas + "</table>")
 
 
-def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
+def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
     mes_key = g.dia.str[:7].max()
     anio, mes = int(mes_key[:4]), int(mes_key[5:7])
     jul = g[(g.faena == fa) & (g.dia.str[:7] == mes_key)].copy()
@@ -171,7 +175,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
     especie = ESP.get(especie_cod, especie_cod)
     tec = jul.tec.mode().iat[0]
 
-    pg = prod_general(jul, meta_mes, anio, mes, ult_dia)
+    kpi_fa = (kpis or {}).get('por_faena', {}).get(fa)
+    pg = prod_general(jul, meta_mes, anio, mes, ult_dia, kpi_fa, (kpis or {}).get('dr'))
     pp = plan_productividad(fa, jul, cell)
     n_mes, ops = dias_operables(anio, mes)
     meta_dia = meta_mes / max(len(ops), 1)
@@ -193,8 +198,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
 
     # ── Información General ──
     ig = (f"<div class=ig>"
-          f"<div><span>Fecha</span><b class=fill>____ / ____ / {anio}</b></div>"
-          f"<div><span>Team / Turno</span><b class=fill>____</b></div>"
+          f"<div><span>Fecha</span><b>{ult_dia:02d} / {mes:02d} / {anio}</b></div>"
+          f"<div><span>Team / Turno</span><b>{fa}</b> <span class=fill>/ ____</span></div>"
           f"<div><span>Predio</span><b>{predio}</b></div>"
           f"<div><span>Jefe de Faena</span><b class=fill>____________</b></div>"
           f"<div><span>Especie</span><b>{especie}</b></div>"
@@ -434,6 +439,22 @@ def datos_cmms():
         print(f"  ⚠️  CMMS tiempos perdidos no disponibles ({e}); T.P queda para llenar")
     return out
 
+def datos_kpis():
+    """Lee kpis.json (lo genera compute_kpis en el paso 2.7, antes del informe) para que la
+    proyección y el avance del informe CALCEN con la pestaña KPIs. Devuelve {faena→registro}
+    más los conteos de días del mes. Sin el archivo → vacío (el informe recalcula solo)."""
+    import json
+    p = BASE / "kpis.json"
+    if not p.exists():
+        return {'por_faena': {}, 'dr': None}
+    try:
+        d = json.loads(p.read_text(encoding='utf-8'))
+        return {'por_faena': {f['team']: f for f in d.get('faenas', [])},
+                'dr': d.get('dias_restantes')}
+    except Exception as e:
+        print(f"  ⚠️  kpis.json no legible ({e}); la proyección se recalcula en el informe")
+        return {'por_faena': {}, 'dr': None}
+
 def main():
     df = cargar_pg()
     if df is None or len(df) == 0:
@@ -447,6 +468,7 @@ def main():
     cap = {fa: round(x.m3.quantile(.90)) for fa, x in gm.groupby('faena')}
     faenas = [f for f in FAENA_ORDER if f in set(gm.faena)]
     cmms = datos_cmms()
+    kpis = datos_kpis()
 
     logo_img = ('<img src="' + LOGO + '">') if LOGO else ''
     idx = (f"<div class=\"sheet cover\" style=\"page-break-after:auto\">"
@@ -458,7 +480,7 @@ def main():
            f"Pre-llena lo que el NOC ya sabe; el resto es \"por reportar\". "
            f"SSO (IAP, madurez, riesgos, tarea crítica, mapa de riesgo) va fuera de este informe.</div></div>")
 
-    sheets = "".join(sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa), cmms)
+    sheets = "".join(sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa), cmms, kpis)
                      for fa in faenas)
 
     opciones = "".join(f"<option value=\"{fa}\">{NOMBRE.get(fa, fa)}</option>" for fa in faenas)
