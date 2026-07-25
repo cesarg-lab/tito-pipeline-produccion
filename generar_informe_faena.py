@@ -1095,7 +1095,12 @@ def main():
             f"<style>{CSS}{CSS_INFORME}</style></head><body>{barra}{idx}{sheets}{js}</body></html>")
     out = BASE / "Informe_Faena.html"
     out.write_text(html, encoding="utf-8")
+    # COPIA CON EL MES EN EL NOMBRE = registro histórico. Cada corrida sobrescribe la del mes en
+    # curso y, al cambiar de mes, la del mes cerrado queda congelada sola — sin lógica de cierre
+    # ni tarea aparte. Mismo patrón que los snapshots del dashboard (Dashboard_Cosecha_AAAA-MM).
+    (BASE / f"Informe_Faena_{mes_key}.html").write_text(html, encoding="utf-8")
     print(f"✅ Informe_Faena.html — {len(faenas)} faenas, mes {mes_key}, {len(html):,} bytes")
+    print(f"   + registro histórico: Informe_Faena_{mes_key}.html")
     print(f"   + {len(ZONAS)} HTML por zona (Informe_Zona_<zona>.html) para los PDF de Telegram")
     print(f"   faenas: {faenas}")
     print(f"   capacidades (trozado p90): {cap}")

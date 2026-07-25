@@ -118,6 +118,16 @@ def subir_dashboard():
         else:
             print("⚠️  Informe_Faena.html no existe — el paso de informe no corrió (no crítico)")
 
+        # Registro histórico: una copia por mes (Informe_Faena_AAAA-MM.html). La del mes en
+        # curso se sobrescribe cada día; la del mes cerrado queda congelada para revisar
+        # después. Mismo patrón que los snapshots del dashboard.
+        for hist in sorted(_glob.glob(os.path.join(BASE_DIR, "Informe_Faena_2*.html"))):
+            nombre_h = os.path.basename(hist)
+            kb = os.path.getsize(hist) / 1024
+            print(f"📤 Subiendo registro {nombre_h} ({kb:.1f} KB)...")
+            with open(hist, "rb") as f:
+                ftp.storbinary(f"STOR {nombre_h}", f)
+
         # data.json (resumen optimizado para Tito JARVIS)
         json_path = os.path.join(BASE_DIR, "data.json")
         if os.path.exists(json_path):
