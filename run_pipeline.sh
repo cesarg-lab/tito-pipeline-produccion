@@ -104,6 +104,33 @@ python3 GENERAR_RESUMEN.py --grupo terrestre  2>&1 | tee -a "$LOG_PIPELINE"
 echo ""
 echo "▶️  [8/9] Enviando 3 imágenes + resúmenes a Telegram..."
 
+# Diagnóstico: ¿el bot y el chat existen? (sin esto, un token o chat_id malo pasaba mudo)
+if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+    ME=$(curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe")
+    if printf '%s' "$ME" | grep -q '"ok":true'; then
+        BOT=$(printf '%s' "$ME" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')
+        echo "  🤖 bot @${BOT} OK · chat_id=${TELEGRAM_CHAT_ID}"
+    else
+        echo "  ❌ TELEGRAM_BOT_TOKEN inválido — Telegram: $(printf '%s' "$ME" | head -c 200)"
+    fi
+else
+    echo "  ⚠️  TELEGRAM_BOT_TOKEN vacío"
+fi
+
+# Telegram responde HTTP 200 incluso cuando falla ("ok":false + description). curl devuelve 0
+# igual, así que el `&&` marcaba TODO como enviado aunque no llegara nada. Esta función mira
+# la respuesta de verdad y muestra el motivo.
+tg_check() {
+    local QUE="$1" RESP="$2"
+    if printf '%s' "$RESP" | grep -q '"ok":true'; then
+        echo "  ✅ $QUE"
+    else
+        local MOTIVO
+        MOTIVO=$(printf '%s' "$RESP" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
+        echo "  ❌ $QUE — Telegram rechazó: ${MOTIVO:-respuesta vacía o sin red}"
+    fi
+}
+
 enviar_grupo() {
     local TITULO="$1"
     local IMG="$2"
@@ -116,11 +143,11 @@ enviar_grupo() {
 
     # Enviar foto con caption del título
     if [ -f "$IMG" ]; then
-        curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
+        RESP=$(curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
              -F "photo=@${IMG}" \
              -F "caption=📊 ${TITULO}" \
-             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto" > /dev/null \
-             && echo "  ✅ $TITULO — imagen enviada"
+             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto")
+        tg_check "$TITULO — imagen" "$RESP"
     else
         echo "  ❌ $TITULO — imagen $IMG no existe"
     fi
@@ -130,10 +157,10 @@ enviar_grupo() {
         # Truncar a 4000 chars por seguridad (limite Telegram 4096)
         local CONTENT
         CONTENT=$(head -c 4000 "$TXT")
-        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        RESP=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
              -d "chat_id=${TELEGRAM_CHAT_ID}" \
-             --data-urlencode "text=${CONTENT}" > /dev/null \
-             && echo "  ✅ $TITULO — texto enviado"
+             --data-urlencode "text=${CONTENT}")
+        tg_check "$TITULO — texto" "$RESP"
     fi
 }
 
@@ -166,11 +193,11 @@ else
             if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
                 FAENA="${f#Informe_}"; FAENA="${FAENA%.html}"
                 FAENA="${FAENA//-/.}"      # M1-1 → M1.1, como se lee en la faena
-                curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
+                RESP=$(curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
                      -F "document=@${pdf}" \
                      -F "caption=📋 Informe de Faena ${FAENA}" \
-                     "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" > /dev/null \
-                     && echo "  ✅ ${FAENA} — PDF enviado"
+                     "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument")
+                tg_check "${FAENA} — PDF" "$RESP"
             fi
         else
             echo "  ❌ $f — no se pudo generar el PDF"
