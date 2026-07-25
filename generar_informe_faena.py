@@ -86,6 +86,7 @@ tr.hoy td.l{font-weight:700;color:#7a5c00}
 .barra button:hover{background:#5a9e0a}
 .barra .hint{font-size:11px;opacity:.85;font-weight:400}
 .oculto{display:none!important}
+.analisis{page-break-before:always}
 @media print{button.noprint{display:none!important}.barra{display:none!important}
   .diaria{font-size:7px}.sheet{padding:8px 10px}}
 """
@@ -207,6 +208,94 @@ def horas_preuso(fa, cmms, real_por_dia):
     return out
 
 
+def hoja_kpis(fa, kpi, dr):
+    """HOJA 2 — análisis. Lo que ya calcula compute_kpis por faena y el informe no mostraba:
+
+      · cómo viene CADA TURNO (atribución 7×7 por jefe: m³/día y m³/hr) — la hoja 1 dice quién
+        está hoy, esta dice cómo le va a cada uno;
+      · la PALANCA que más limita (Uso, Ritmo o Carga) contra el mejor de su MISMA tecnología,
+        con la brecha y los m³ que se ganarían cerrándola de aquí a fin de mes;
+      · los tiempos perdidos según el NOC (mantención / operacional / proceso), que es la vista
+        del cliente y contrasta con la del pre-uso de la hoja 1.
+
+    Sin registro en kpis.json devuelve "" y el informe queda con una sola hoja."""
+    if not kpi:
+        return ""
+    bt = kpi.get('benchmark_tipo') or {}
+    gaps = kpi.get('gaps_palanca') or {}
+    pal = kpi.get('palanca_limitante')
+
+    # ── Turnos (jefe A vs jefe B) ──
+    turnos = kpi.get('turnos') or []
+    if turnos:
+        ft = ""
+        mejor = max((t.get('m3_dia', 0) for t in turnos), default=0)
+        for t in turnos:
+            top = " style='background:#eaf3e0'" if t.get('m3_dia') == mejor and len(turnos) > 1 else ""
+            ft += (f"<tr{top}><td class=l>{t.get('jefe','—')}</td><td>{t.get('dias','—')}</td>"
+                   f"<td class=nf>{fmt(t.get('m3',0))}</td><td class=nf>{t.get('m3_dia','—')}</td>"
+                   f"<td class=nf>{t.get('m3_hr','—')}</td></tr>")
+        t_turnos = ("<table><tr><th class=l>Jefe de turno</th><th>Días</th><th>m³</th>"
+                    "<th>m³/día</th><th>m³/hr</th></tr>" + ft + "</table>"
+                    "<div class=cob>Atribución 7×7: cada jornada se asigna al jefe que estaba de "
+                    "turno, con la misma rotación que usa la hoja 1. Verde = mejor m³/día del mes.</div>")
+    else:
+        t_turnos = "<div class=cob>Sin turnos atribuidos este mes.</div>"
+
+    # ── Palanca limitante vs el mejor de su tecnología ──
+    if pal and bt:
+        filas = ""
+        for nom, mio, ref, dec in (
+                ('Uso [%]', kpi.get('uso_pct'), bt.get('uso_pct'), 0),
+                ('Ritmo [ciclo/hr]', kpi.get('ritmo_ciclos_h'), bt.get('ritmo_ciclos_h'), 2),
+                ('Carga [m³/ciclo]', kpi.get('carga_m3_ciclo'), bt.get('carga_m3_ciclo'), 2)):
+            clave = nom.split(' ')[0]
+            brecha = gaps.get(clave, 0)
+            es_pal = clave == pal
+            marca = " style='background:#fdecea;font-weight:700'" if es_pal else ""
+            filas += (f"<tr{marca}><td class=l>{nom}{' ←' if es_pal else ''}</td>"
+                      f"<td class=nf>{fmt(mio, dec)}</td><td class=gu>{fmt(ref, dec)}</td>"
+                      f"<td>{brecha:.1f}%</td></tr>")
+        opor = kpi.get('oportunidad_palanca_m3') or 0
+        t_pal = ("<table><tr><th class=l>Palanca</th><th>Esta faena</th>"
+                 "<th>Mejor de su tipo</th><th>Brecha</th></tr>" + filas + "</table>"
+                 f"<div class=cob>La que más limita es <b>{pal}</b> "
+                 f"({kpi.get('brecha_palanca_pct', 0):.1f}% bajo el mejor "
+                 f"{kpi.get('grupo_tec','')} de la flota). Cerrarla sola valdría "
+                 f"<b>{fmt(opor)} m³</b> en los {dr or '—'} días que quedan "
+                 f"(proyección {kpi.get('proy_potencial_pct', 0):.0f}% de la meta).</div>")
+    else:
+        t_pal = "<div class=cob>Sin par de su tecnología para comparar.</div>"
+
+    # ── Tiempos perdidos del NOC (la vista del cliente) ──
+    tmm, tmo, tmp = (kpi.get('tm_mant_min', 0), kpi.get('tm_oper_min', 0), kpi.get('tm_proc_min', 0))
+    tot = tmm + tmo + tmp
+    if tot:
+        f_noc = ""
+        for nom, mins in (('Mantención', tmm), ('Operacional', tmo), ('Proceso', tmp)):
+            f_noc += (f"<tr><td class=l>{nom}</td><td class=tp>{mins/60:.1f}</td>"
+                      f"<td>{mins/tot*100:.0f}%</td></tr>")
+        t_noc = ("<table><tr><th class=l>Clasificación</th><th>Horas</th><th>%</th></tr>" + f_noc +
+                 f"<tr><td class=l><b>Total</b></td><td class=tp><b>{tot/60:.1f}</b></td><td></td></tr>"
+                 "</table><div class=cob>Tiempos perdidos <b>según el NOC</b> (lo que ve Arauco). "
+                 "Contrastar con los del pre-uso de la hoja 1: si difieren mucho, algo no se está "
+                 "declarando en alguno de los dos lados.</div>")
+    else:
+        t_noc = "<div class=cob>El NOC no registra tiempos perdidos de esta faena en el mes.</div>"
+
+    return f"""<div class="sheet faena analisis" data-faena="{fa}">
+<header>{'<img src="'+LOGO+'">' if LOGO else ''}<div>
+<h1>Análisis de Faena · {NOMBRE.get(fa, fa)}</h1>
+<div class=sub>KPIs Uso · Ritmo · Carga — comparación entre turnos y contra el mejor de su tecnología</div>
+</div></header>
+<h2>Cómo viene cada turno</h2>{t_turnos}
+<h2>Palanca que más limita</h2>{t_pal}
+<h2>Tiempos perdidos según el NOC</h2>{t_noc}
+<div class=foot>Hoja de ANÁLISIS: no se llena, se mira. Los datos salen del mismo kpis.json que
+la pestaña KPIs del dashboard, así que ambos muestran las mismas cifras.</div>
+</div>"""
+
+
 def cargar_bn():
     """Lee Base2NOC.csv (reporte BN del NOC, que el pipeline ya descarga en el paso 1) y lo deja
     agrupado por FAENA. El PG que usa el resto del informe agrega por equipo/día y NO trae el
@@ -260,14 +349,12 @@ def tabla_acta(regs):
     for p in ('PODADO', 'ASERRABLE', 'PULPABLE'):
         m3 = tot.get(p, 0.0)
         pct = f"{m3/suma*100:.1f}" if suma else "—"
-        real = f"<td class=nf>{pct}</td>" if suma else "<td class=bl></td>"
-        filas += (f"<tr><td class=l>{p.title()}</td><td class=bl></td>{real}"
-                  f"<td class=nf>{fmt(m3)}</td></tr>")
+        real = f"<td class=nf>{pct}</td>" if suma else "<td>—</td>"
+        filas += (f"<tr><td class=l>{p.title()}</td>{real}<td class=nf>{fmt(m3)}</td></tr>")
     actas = sorted({x['acta'] for x in regs if x['acta']})
     pie = (f"<div class=cob>Real del NOC por producto ({fmt(suma)} m³ del mes"
-           f"{' · acta ' + ', '.join(actas[-3:]) if actas else ''}). "
-           f"El <b>Plan</b> es el mix comprometido con el cliente: se llena en terreno.</div>")
-    return ("<table><tr><th class=l>Tipo</th><th>Plan [%]</th><th>Real Ac. [%]</th>"
+           f"{' · acta ' + ', '.join(actas[-3:]) if actas else ''}).</div>")
+    return ("<table><tr><th class=l>Tipo</th><th>Real Ac. [%]</th>"
             "<th>Real [m³]</th></tr>" + filas + "</table>" + pie)
 
 
@@ -291,10 +378,7 @@ def tabla_stock(regs, hasta_iso):
         if k not in ult or f > ult[k][0]:
             ult[k] = (f, x['stock'])
     if not ult:
-        return ("<table><tr><th class=l>Producto</th><th class=l>Destino</th><th>Stock [m³]</th>"
-                "<th>Antig. [días]</th></tr>"
-                "<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td></tr>"
-                "<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td></tr></table>")
+        return "<div class=cob>El NOC no informa stock para esta faena en el período.</div>"
     try:
         hoy = date.fromisoformat(hasta_iso[:10])
     except Exception:
@@ -471,7 +555,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     # ── Información General ──
     ig = (f"<div class=ig>"
           f"<div><span>Fecha</span><b>{ult_dia:02d} / {mes:02d} / {anio}</b></div>"
-          f"<div><span>Team / Turno</span><b>{fa}</b> <span class=fill>/ ____</span></div>"
+          f"<div><span>Team</span><b>{fa}</b></div>"
           f"<div><span>Predio</span><b>{predio}</b></div>"
           f"<div><span>Jefe de Faena</span>{campo_jefes(fa, ult)}</div>"
           f"<div><span>Especie</span><b>{especie}</b></div>"
@@ -539,24 +623,20 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         cod_td = f"<td class=gu>{cod}</td>" if cod else "<td class=bl></td>"
         tp_rows += (f"<tr><td>{i}</td><td class=l>{t['proceso'].title()}</td>{cod_td}"
                     f"<td class=l>{desc}</td><td class=tp>{t['horas']:g}</td>"
-                    f"<td class=bl></td><td class=bl></td><td>{t['fecha'][8:10]}/{t['fecha'][5:7]}</td></tr>")
-    for _ in range(max(0, 4 - len(tp_ord))):                     # filas vacías para llenar a mano
-        tp_rows += ("<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td>"
-                    "<td class=bl></td><td class=bl></td><td class=bl></td><td class=bl></td></tr>")
+                    f"<td>{t['fecha'][8:10]}/{t['fecha'][5:7]}</td></tr>")
     tp = (tp_acum +
           "<table><tr><th>Nº</th><th class=l>Proceso</th><th title='Código de tiempo perdido "
           "del NOC de Arauco'>Cód.<br>NOC</th><th class=l>Descripción</th>"
-          "<th>Tiempo [hrs]</th><th class=l>Acción</th><th class=l>Responsable</th>"
-          "<th>Fecha</th></tr>" + tp_rows + "</table>")
+          "<th>Tiempo [hrs]</th><th>Fecha</th></tr>" + tp_rows + "</table>")
 
     cumple = "Sí" if pg['cumple_plan'] else "No"
     cumpl_block = (
         f"<div class=q>¿Se cumple avance plan del día? <b>{cumple}</b> "
-        f"(cumplimiento {pg['cumpl']:.0f}%) &nbsp;·&nbsp; ¿Por qué? <span class=fill>________________</span></div>"
+        f"(cumplimiento {pg['cumpl']:.0f}%)</div>"
         f"<div class=recu>Volumen a recuperar: <b>{fmt(pg['recuperar'])} m³/día</b> "
         f"(sobre {pg['dias_rest']} días operables restantes) &nbsp;·&nbsp; "
-        f"Volumen proyectado mes: <b>{fmt(pg['proy'])} m³</b> &nbsp;·&nbsp; "
-        f"Palanca de repunte: <span class=fill>________________</span></div>")
+        f"Volumen proyectado mes: <b>{fmt(pg['proy'])} m³</b>"
+        f"</div>")
 
     # ── PRODUCCIÓN — tabla diaria por proceso ──
     procesos = ['VOLTEO', 'MADEREO', 'PROCESADO', 'CLASIFICADO']
@@ -699,37 +779,24 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
                   f"Guía VMA×especie · {TECN.get(tec, tec)} · {ESPN.get(especie_cod, especie_cod)}</b>"
                   f"{guia}</div></div>")
 
-    # ── Estados Línea Madereo (solo torre / M11) ──
-    if tec == 'TORRE' or fa == 'M11':
-        estados = ("<h2>Estados Línea Madereo (torre)</h2>"
-                   "<table><tr><th class=l>Estado</th><th>Nº líneas</th><th>Largo [mts]</th>"
-                   "<th>Volumen aprox [m³]</th><th>Avance [m³]</th></tr>"
-                   "<tr><td class=l>En producción</td><td class=bl></td><td class=bl></td><td class=bl></td><td class=bl></td></tr>"
-                   "<tr><td class=l>Líneas volteadas</td><td class=bl></td><td class=bl></td><td class=bl></td><td class=bl></td></tr>"
-                   "<tr><td class=l>Líneas preinstaladas</td><td class=bl></td><td class=bl></td><td class=bl></td><td class=bl></td></tr>"
-                   "</table>")
-    else:
-        estados = ""
+    # Estados Línea Madereo (torre) se retiró: era 100% de llenado manual y el informe ya no
+    # se completa a mano — el jefe declara en el CMMS (gerencia 2026-07-25).
+    estados = ""
 
-    # ── Stock en Bosque / Cumplimiento Acta / Control Calidad (estructura en blanco) ──
-    # Stock y Acta salen del BN del NOC (ver cargar_bn). Control Calidad se queda EN BLANCO a
-    # propósito: es campo a llenar en terreno (decisión de gerencia 2026-07-25), igual que el
-    # Plan del acta.
+    # ── Stock en Bosque + Cumplimiento Acta (ambos del BN del NOC, ver cargar_bn) ──
+    # Control Calidad se retiró: era una tabla vacía para llenar a mano y el informe ya no se
+    # completa en papel (gerencia 2026-07-25).
     bn_fa = (bn or {}).get(fa, [])
     otros = (
         "<div class=two>"
         f"<div><h2>Stock en Bosque</h2>{tabla_stock(bn_fa, ult)}</div>"
         f"<div><h2>Cumplimiento Acta</h2>{tabla_acta(bn_fa)}</div>"
-        "<div><h2>Control Calidad</h2><table>"
-        "<tr><th class=l>Fecha</th><th>Pérdida [USD/m³]</th></tr>"
-        "<tr><td class=bl>&nbsp;</td><td class=bl></td></tr>"
-        "<tr><td class=bl>&nbsp;</td><td class=bl></td></tr></table></div>"
         "</div>")
 
     return f"""<div class="sheet faena" data-faena="{fa}">
 <header>{'<img src="'+LOGO+'">' if LOGO else ''}<div>
 <h1>Tablero de Gestión Diaria de Faena · {NOMBRE.get(fa, fa)}</h1>
-<div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · pre-llenado con el NOC · <b>mitad productividad — guía para llenar en terreno</b></div>
+<div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · NOC + CMMS · <b>informe de gestión diaria</b></div>
 </div></header>
 <h2>Información General</h2>{ig}
 <h2>Producción General</h2>{pgen}
@@ -846,8 +913,10 @@ def main():
            f"Pre-llena lo que el NOC ya sabe; el resto es \"por reportar\". "
            f"SSO (IAP, madurez, riesgos, tarea crítica, mapa de riesgo) va fuera de este informe.</div></div>")
 
-    hojas = {fa: sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
-                       cmms, kpis, bn)
+    # Cada faena aporta DOS hojas: la 1 es el tablero (NOC + CMMS) y la 2 el análisis de KPIs.
+    hojas = {fa: (sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
+                        cmms, kpis, bn)
+                  + hoja_kpis(fa, (kpis or {}).get('por_faena', {}).get(fa), (kpis or {}).get('dr')))
              for fa in faenas}
     sheets = "".join(hojas[fa] for fa in faenas)
 
