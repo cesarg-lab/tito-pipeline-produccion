@@ -190,7 +190,12 @@ else
     for f in Informe_Zona_*.html; do
         [ -f "$f" ] || continue
         pdf="${f%.html}.pdf"
-        "$CHROME" --headless --disable-gpu --no-sandbox --no-pdf-header-footer \
+        # `timeout` + `--virtual-time-budget` son OBLIGATORIOS: sin ellos Chrome se queda
+        # esperando recursos (fuentes/red) y cuelga el pipeline entero — pasó con el HTML por
+        # zona, 9 min sin terminar hasta cancelar a mano. El budget corta el reloj virtual de
+        # la página; el timeout mata el proceso si igual se traba.
+        timeout 90 "$CHROME" --headless --disable-gpu --no-sandbox --no-pdf-header-footer \
+                  --virtual-time-budget=10000 --run-all-compositor-stages-before-draw \
                   --print-to-pdf="$pdf" "file://$(pwd)/$f" >/dev/null 2>&1 || true
         if [ -s "$pdf" ]; then
             PDF_OK=$((PDF_OK+1))
