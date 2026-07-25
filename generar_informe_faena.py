@@ -58,7 +58,17 @@ td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
   font-size:11px;margin-top:4px}
 .q{font-size:10.5px;color:#3a4a5a;margin:5px 0 2px}
 .q b{color:#233}
-@media print{button.noprint{display:none!important}
+.barra{position:sticky;top:0;z-index:99;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  background:#1b3a05;color:#fff;padding:9px 16px;font-family:'IBM Plex Sans',sans-serif;
+  box-shadow:0 2px 8px rgba(0,0,0,.2);margin-bottom:10px}
+.barra label{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.barra select{font-size:13px;padding:5px 8px;border-radius:6px;border:0;font-family:inherit;min-width:190px}
+.barra button{background:#417505;color:#fff;border:0;border-radius:8px;padding:8px 15px;
+  font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.barra button:hover{background:#5a9e0a}
+.barra .hint{font-size:11px;opacity:.85;font-weight:400}
+.oculto{display:none!important}
+@media print{button.noprint{display:none!important}.barra{display:none!important}
   .diaria{font-size:7px}.sheet{padding:8px 10px}}
 """
 
@@ -302,7 +312,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
         "<tr><td class=bl>&nbsp;</td><td class=bl></td></tr></table></div>"
         "</div>")
 
-    return f"""<div class=sheet>
+    return f"""<div class="sheet faena" data-faena="{fa}">
 <header>{'<img src="'+LOGO+'">' if LOGO else ''}<div>
 <h1>Tablero de Gestión Diaria de Faena · {NOMBRE.get(fa, fa)}</h1>
 <div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · pre-llenado con el NOC · <b>mitad productividad — guía para llenar en terreno</b></div>
@@ -364,7 +374,7 @@ def main():
     cmms = datos_cmms()
 
     logo_img = ('<img src="' + LOGO + '">') if LOGO else ''
-    idx = (f"<div class=sheet style=\"page-break-after:auto\">"
+    idx = (f"<div class=\"sheet cover\" style=\"page-break-after:auto\">"
            f"<header>{logo_img}<div>"
            f"<h1>Informe de Faena — {MESES[int(mes_key[5:7])]} {mes_key[:4]}</h1>"
            f"<div class=sub>Tablero de Gestión Diaria (formato Arauco) · mitad productividad · "
@@ -376,10 +386,28 @@ def main():
     sheets = "".join(sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa), cmms)
                      for fa in faenas)
 
-    boton = "<button class=noprint onclick=\"window.print()\">🖨️ Imprimir / Guardar PDF</button>"
+    opciones = "".join(f"<option value=\"{fa}\">{NOMBRE.get(fa, fa)}</option>" for fa in faenas)
+    barra = (
+        "<div class=barra>"
+        "<label>Faena:&nbsp;"
+        "<select id=selFaena onchange=filtrar()>"
+        "<option value=''>Todas las faenas</option>" + opciones +
+        "</select></label>"
+        "<button onclick=\"window.print()\">🖨️ Descargar PDF</button>"
+        "<span class=hint id=hint>Elige una faena y descarga solo ese informe.</span>"
+        "</div>")
+    js = ("<script>function filtrar(){"
+          "var v=document.getElementById('selFaena').value;"
+          "var h=document.getElementById('hint');"
+          "document.querySelectorAll('.sheet').forEach(function(s){"
+          "if(!v){s.classList.remove('oculto');return;}"
+          "if(s.classList.contains('cover')){s.classList.add('oculto');return;}"
+          "s.classList.toggle('oculto',s.getAttribute('data-faena')!==v);});"
+          "h.textContent=v?('Mostrando 1 faena — \"Descargar PDF\" baja solo este informe.')"
+          ":'Elige una faena y descarga solo ese informe.';}</script>")
     html = (f"<!doctype html><html lang=es><head><meta charset=utf-8>"
             f"<title>Informe de Faena {mes_key}</title>"
-            f"<style>{CSS}{CSS_INFORME}</style></head><body>{boton}{idx}{sheets}</body></html>")
+            f"<style>{CSS}{CSS_INFORME}</style></head><body>{barra}{idx}{sheets}{js}</body></html>")
     out = BASE / "Informe_Faena.html"
     out.write_text(html, encoding="utf-8")
     print(f"✅ Informe_Faena.html — {len(faenas)} faenas, mes {mes_key}, {len(html):,} bytes")
