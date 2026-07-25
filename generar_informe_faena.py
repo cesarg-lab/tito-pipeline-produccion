@@ -441,17 +441,21 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         f"<th colspan=4 class='{'grp1' if i%2==0 else 'grp2'}'>{p}</th>"
         for i, p in enumerate(procesos)) + "</tr>"
     head2 = "<tr>" + "".join(
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>M.Ac</th>"
+        f"<th class='{'grp1' if i%2==0 else 'grp2'}' title='Saldo por cumplir: parte en la meta "
+        f"del mes y baja con lo producido'>Saldo</th>"
         f"<th class='{'grp1' if i%2==0 else 'grp2'}'>M.Día</th>"
         f"<th class='{'grp1' if i%2==0 else 'grp2'}'>Real</th>"
         f"<th class='{'grp1' if i%2==0 else 'grp2'}'>T.P</th>"
         for i in range(4)) + "</tr>"
+    # SALDO por cumplir, no plan acumulado (así lo pide Arauco): la columna **parte en la meta
+    # del mes y baja hasta 0** a medida que se produce, en vez de subir de 0 a la meta. Es una
+    # cuenta regresiva de lo que falta. Descuenta lo REALMENTE trozado (no el plan): si el mes
+    # va atrasado el saldo no llega a 0, y eso es justamente la información que hay que ver.
     filas = ""
-    meta_ac = 0.0
+    saldo = float(meta_mes)
     for d in range(1, n_mes+1):
         es_op = calendar.weekday(anio, mes, d) != 6
-        if es_op:
-            meta_ac += meta_dia
+        saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
         # Días FUTUROS (después de hoy): fila en blanco — el tablero se llena solo hasta hoy.
         if d > ult_dia:
             filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
@@ -466,7 +470,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         # PROCESADO: pre-llenado NOC. M.Ac = plan lineal (dónde deberías ir). M.Día:
         # días pasados = plan del día; HOY = meta día DINÁMICA (lo que exige llegar a la meta
         # con lo ya procesado). Cambia día a día con el real.
-        pm_ac = fmt(meta_ac) if es_op else "—"
+        pm_ac = fmt(saldo)
         if not es_op:
             pm_di = "—"
         elif d == ult_dia:
@@ -599,7 +603,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
 <h2>Producción General</h2>{pgen}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>M.Día de hoy en adelante es dinámica</b>: lo que la meta exige por día con lo ya procesado (se recalcula cada día). Día = por hora de inicio del turno.</div>
+<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta del mes: parte en la meta y baja con lo producido (llega a 0 solo si se cumple). <b>M.Día de hoy en adelante es dinámica</b>: lo que la meta exige por día con lo ya procesado (se recalcula cada día). Día = por hora de inicio del turno.</div>
 <h2>Productividad — Plan (guía VMA+especie) vs Real (NOC)</h2>{prodv}
 <h2>Guía de Productividad</h2>{guia_block}
 {estados}
