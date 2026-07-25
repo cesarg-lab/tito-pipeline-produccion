@@ -66,6 +66,7 @@ table.tpac{width:auto;min-width:60%;margin-bottom:6px}
 .diaria th{font-size:7.4px}
 .grp1{background:#eef3f8}.grp2{background:#f3f0ea}
 tr.hoy td{background:#fff3cf!important;box-shadow:inset 0 0 0 1px #e0a800}
+tr.tot td{background:#eef1f4;border-top:2px solid #1b3a05;font-weight:700}
 tr.hoy td.l{font-weight:700;color:#7a5c00}
 .two{display:flex;gap:10px;align-items:flex-start}
 .two>div{flex:1}
@@ -740,21 +741,21 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     # del mes y baja hasta 0** a medida que se produce, en vez de subir de 0 a la meta. Es una
     # cuenta regresiva de lo que falta. Descuenta lo REALMENTE trozado (no el plan): si el mes
     # va atrasado el saldo no llega a 0, y eso es justamente la información que hay que ver.
-    # Solo los ÚLTIMOS 7 DÍAS: el jefe transcribe el DÍA a la pizarra de Arauco, no el mes, y
-    # 31 filas × 16 columnas se comían una página entera. El saldo se sigue arrastrando desde el
-    # día 1 (el ciclo recorre el mes completo), pero se imprimen las últimas filas.
-    DIAS_TABLA = 7
-    desde = max(1, ult_dia - DIAS_TABLA + 1)
+    # MES COMPLETO (gerencia): el informe replica el tablero de Arauco que se llena en faena,
+    # así que no puede perder días. Los totales van abajo.
     filas = ""
+    tot_real = tot_tp = 0.0
     saldo = float(meta_mes)
     for d in range(1, n_mes+1):
         es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
         saldo_previo = saldo        # lo que faltaba al EMPEZAR el día → da la meta de ese día
         saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
-        # Fuera de la ventana de 7 días: no se imprime, pero su producción YA se descontó del
-        # saldo (por eso el ciclo recorre el mes entero).
-        if d < desde or d > ult_dia:
+        # Días futuros: fila en blanco (la meta es día a día, no se proyecta hacia adelante).
+        if d > ult_dia:
+            filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
             continue
+        tot_real += real_por_dia.get(d, 0.0)
+        tot_tp += sum(v for (dd_, _p), v in tp_dia_proc.items() if dd_ == d)
         real = real_por_dia.get(d)
         av = av_dias.get(d)
         # VOLTEO / MADEREO: Real = lo que el jefe declaró ese día (avance_faena); T.P del preuso.
@@ -790,8 +791,12 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         cla = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}{tp_cell(d,'CLASIFICADO')}"
         cl_hoy = " class=hoy" if d == ult_dia else ""
         filas += f"<tr{cl_hoy}><td class=l>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
-    n_tabla = ult_dia - desde + 1
-    diaria = f"<table class=diaria>{head1}{head2}{filas}</table>"
+    # Fila de TOTALES del mes al pie (lo que el tablero de Arauco cierra abajo).
+    v4 = "<td class=bl></td>" * 4
+    tot_row = (f"<tr class=tot><td class=l><b>TOTAL</b></td>{v4}{v4}"
+               f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td class=tp>{tot_tp:g}</td>"
+               f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td></td></tr>")
+    diaria = f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>"
 
     # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC + horómetro del pre-uso) ──
     # Uso Real y Rend Real salen del HORÓMETRO DEL PRE-USO (ver horas_preuso). Donde no hay
@@ -886,11 +891,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
 </div></header>
 <h2>Información General</h2>{ig}
 <h2>Producción General</h2>{pgen}
+<h2>Productividad según el VMA del bosque</h2>{guia_block}{prodv}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
-<h2>Producción — últimos {n_tabla} días</h2>{diaria}
+<h2>Producción — tabla diaria por proceso</h2>{diaria}
 <div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>M.Día de hoy</b> = lo que exige por día para llegar.</div>
-<h2>Productividad — Plan (guía VMA+especie) vs Real (NOC)</h2>{prodv}
-<h2>Guía de Productividad</h2>{guia_block}
 {otros}
 </div>"""
 
@@ -1038,8 +1042,7 @@ def main():
 
     hojas = {fa: (sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
                         cmms, kpis, bn)
-                  + hoja_kpis(fa, (kpis or {}).get('por_faena', {}).get(fa), (kpis or {}).get('dr'),
-                              pps.get(fa), bench.get(fa), tm))
+)
              for fa in faenas}
     sheets = "".join(hojas[fa] for fa in faenas)
 
