@@ -162,7 +162,14 @@ def plan_productividad(fa, jul, cell):
     plan_rend = round(np.median(p75s), 1) if p75s else round(jul.rend.median(), 1)
     plan_carga = round(np.median(cargas), 2) if cargas else round(jul.carga.median(), 2)
     plan_ritmo = round(np.median(ritmos), 2) if ritmos else round(jul.ritmo.median(), 2)
-    real_rend = jul.rend.median(); real_carga = jul.carga.median(); real_ritmo = jul.ritmo.median()
+    # REAL = ACUMULADO del mes (gerencia 2026-07-25), no la mediana de los días: mediana de
+    # ratios ≠ ratio de totales, y daba números que contradecían a la hoja de análisis y a la
+    # pestaña KPIs (M7: carga 4,62 por mediana contra 1,06 por acumulado). Con el acumulado las
+    # tres vistas hablan del mismo número.
+    _m3 = float(jul.m3.sum()); _hrs = float(jul.hrs.sum()); _cic = float(jul.ciclos.sum())
+    real_rend = (_m3 / _hrs) if _hrs > 0 else float('nan')
+    real_carga = (_m3 / _cic) if _cic > 0 else float('nan')
+    real_ritmo = (_cic / _hrs) if _hrs > 0 else float('nan')
     return dict(plan_rend=plan_rend, plan_carga=plan_carga, plan_ritmo=plan_ritmo,
                 real_rend=real_rend, real_carga=real_carga, real_ritmo=real_ritmo)
 
