@@ -56,6 +56,8 @@ jobs:
           FTP_PASS:           ${{ secrets.FTP_PASS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          SUPABASE_URL:       ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:       ${{ secrets.SUPABASE_KEY }}
         run: bash run_pipeline.sh
 
       - name: Guardar histórico si cambió (auto-archivado mes anterior)
