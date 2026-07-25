@@ -573,14 +573,11 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
         saldo_previo = saldo        # lo que faltaba al EMPEZAR el día → da la meta de ese día
         saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
-        # Días FUTUROS: el Real y el Saldo quedan en blanco (nadie sabe lo que se va a trozar),
-        # pero la M.Día SÍ se muestra = lo que hay que sostener por día PARA LLEGAR A LA META.
-        # El jefe ve hacia adelante el ritmo exigido, no una fila muda.
+        # Días FUTUROS: fila EN BLANCO. La meta es día a día — se recalcula con lo que se troce
+        # cada jornada, así que imprimirla hacia adelante la haría parecer un número fijo que
+        # mañana ya no vale. El ritmo exigido HOY está en la fila de hoy y en Producción General.
         if d > ult_dia:
-            md = f"<td class=gu>{fmt(pg['meta_dia_req'])}</td>" if es_op else "<td class=bl></td>"
-            vacio4 = "<td class=bl></td>" * 4
-            proc4 = f"<td class=bl></td>{md}<td class=bl></td><td class=bl></td>"
-            filas += (f"<tr><td class=l>{d:02d}</td>{vacio4}{vacio4}{proc4}{proc4}</tr>")
+            filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
             continue
         real = real_por_dia.get(d)
         av = av_dias.get(d)
@@ -731,7 +728,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
 <h2>Producción General</h2>{pgen}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta del mes: parte en la meta y baja con lo producido (llega a 0 solo si se cumple). <b>M.Día de HOY en adelante</b> = lo que exige por día PARA LLEGAR A LA META con lo ya trozado (mismo número que "Meta día p/ llegar"). <b>M.Día es DINÁMICA todos los días</b>: lo que ese día había que trozar para llegar a la meta, según lo que se llevaba hasta el día anterior y los días que quedaban. Si un día se produce poco, la meta de los siguientes sube; si se produce de más, baja. Día = por hora de inicio del turno.</div>
+<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta del mes: parte en la meta y baja con lo producido (llega a 0 solo si se cumple). <b>M.Día de HOY</b> = lo que exige por día PARA LLEGAR A LA META con lo ya trozado (mismo número que "Meta día p/ llegar"). Los días que vienen van en blanco: la meta es día a día y se recalcula con lo que se troce. <b>M.Día es DINÁMICA todos los días</b>: lo que ese día había que trozar para llegar a la meta, según lo que se llevaba hasta el día anterior y los días que quedaban. Si un día se produce poco, la meta de los siguientes sube; si se produce de más, baja. Día = por hora de inicio del turno.</div>
 <h2>Productividad — Plan (guía VMA+especie) vs Real (NOC)</h2>{prodv}
 <h2>Guía de Productividad</h2>{guia_block}
 {estados}
