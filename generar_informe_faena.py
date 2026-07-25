@@ -335,18 +335,38 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         a = acum_proc.setdefault(t['proceso'], {'horas': 0.0, 'causas': {}})
         a['horas'] += t['horas']
         a['causas'][t['causa']] = a['causas'].get(t['causa'], 0) + t['horas']
-    if acum_proc:
+    # DOS VISTAS del mismo hecho: lo que cada proceso SUFRIÓ (impacto: producción perdida) y
+    # lo que CAUSÓ aguas abajo (acción: qué hay que arreglar). "Sin frente" significa que el
+    # eslabón anterior no dejó qué hacer, así que la hora la sufre uno y la provoca otro:
+    # anotarla solo contra el que se detuvo castiga al equipo que no tuvo la culpa.
+    causado_proc = {}      # proceso -> horas que le hizo perder a otros
+    for t in tp_faena:
+        if t.get('causante'):
+            causado_proc[t['causante']] = causado_proc.get(t['causante'], 0) + t['horas']
+    if acum_proc or causado_proc:
         filas_ac = ""
         for proc in ['VOLTEO', 'MADEREO', 'PROCESADO', 'CLASIFICADO']:
             a = acum_proc.get(proc)
-            if not a:
+            causado = causado_proc.get(proc, 0)
+            if not a and not causado:
                 continue
-            causa_top = max(a['causas'], key=a['causas'].get)
-            filas_ac += (f"<tr><td class=l>{proc.title()}</td><td class=tp>{a['horas']:g}</td>"
-                         f"<td class=l>{causa_top}</td></tr>")
+            sufrido = f"{a['horas']:g}" if a else "—"
+            causa_top = max(a['causas'], key=a['causas'].get) if a else "—"
+            caus_td = (f"<td class=tp>{causado:g}</td>" if causado else "<td>—</td>")
+            filas_ac += (f"<tr><td class=l>{proc.title()}</td><td class=tp>{sufrido}</td>"
+                         f"<td class=l>{causa_top}</td>{caus_td}</tr>")
         tp_acum = ("<div class=tpaclab>Acumulado del mes por proceso (del preuso):</div>"
-                   "<table class=tpac><tr><th class=l>Proceso</th><th>T.P acum. mes [hrs]</th>"
-                   "<th class=l>Causa principal</th></tr>" + filas_ac + "</table>")
+                   "<table class=tpac><tr><th class=l>Proceso</th>"
+                   "<th title='Horas que este proceso perdió'>Perdió [hrs]</th>"
+                   "<th class=l>Causa principal</th>"
+                   "<th title='Horas que este proceso le hizo perder al siguiente de la cadena "
+                   "por dejarlo sin frente'>Hizo perder [hrs]</th></tr>"
+                   + filas_ac + "</table>"
+                   "<div class=cob>«Hizo perder» = horas que ese proceso le costó al SIGUIENTE de "
+                   "la cadena (volteo → madereo → procesado → clasificado) por dejarlo sin frente. "
+                   "La misma hora se cuenta una vez en cada columna: una mide el impacto, la otra "
+                   "de dónde viene. El volteo no tiene proceso anterior: sin frente ahí es rodal, "
+                   "camino o permisos.</div>")
     else:
         tp_acum = ""
 
@@ -599,7 +619,9 @@ def datos_cmms():
             out['tp'].setdefault(r['faena_id'], []).append(
                 {'fecha': r['fecha'], 'dia': int(r['fecha'][8:10]), 'proceso': r['proceso'],
                  'causa': r['causa'], 'detalle': r.get('detalle'), 'horas': float(r['horas']),
-                 'codigo_noc': r.get('codigo_noc')})
+                 'codigo_noc': r.get('codigo_noc'),
+                 # proceso que CAUSÓ la detención (eslabón anterior); None si no aplica
+                 'causante': r.get('proceso_causante')})
     except Exception as e:
         print(f"  ⚠️  CMMS tiempos perdidos no disponibles ({e}); T.P queda para llenar")
     try:
