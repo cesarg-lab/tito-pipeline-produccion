@@ -197,7 +197,7 @@ def plan_productividad(fa, jul, cell):
                 dias_fuera=dias_fuera, dias_ok=int(len(_ok)))
 
 
-def horas_preuso(fa, cmms, real_por_dia):
+def horas_preuso(fa, cmms, real_por_dia, mes_key):
     """Uso Real y Rend Real por proceso, medidos con el HORÓMETRO DEL PRE-USO (RPC
     informe_horas_faena: Δ horómetro entre dos pre-usos de días consecutivos = un turno).
 
@@ -213,7 +213,12 @@ def horas_preuso(fa, cmms, real_por_dia):
     """
     h = (cmms or {}).get('horas', {}).get(FAENA_ID.get(fa), {})
     out = {}
-    for (dia, proc), v in h.items():
+    # La RPC trae el mes actual Y el anterior: sin filtrar, en agosto se sumarían las horas de
+    # julio y el día 15 de los dos meses caería en la misma celda.
+    for (fecha, proc), v in h.items():
+        if str(fecha)[:7] != mes_key:
+            continue
+        dia = int(str(fecha)[8:10])
         a = out.setdefault(proc, {'horas': 0.0, 'eq_dia': 0, 'turnos': 0,
                                   'dias': set(), 'dias_full': set(), 'horas_full': 0.0})
         a['horas'] += v['horas']
@@ -435,7 +440,7 @@ def tabla_acta(regs):
     actas = sorted({x['acta'] for x in regs if x['acta']})
     pie = (f"<div class=cob>Real del NOC por producto ({fmt(suma)} m³ del mes"
            f"{' · acta ' + ', '.join(actas[-3:]) if actas else ''}).</div>")
-    return ("<table><tr><th class=l>Tipo</th><th>Real Ac. [%]</th>"
+    return ("<table><tr><th class=l>Producto</th><th>Real Ac. [%]</th>"
             "<th>Real [m³]</th></tr>" + filas + "</table>" + pie)
 
 
@@ -603,8 +608,8 @@ def guia_tabla(tec, esp, cell, teo):
                   f"<td class=gu>{teov}</td></tr>")
     if not filas:
         return "<div class=pr>Sin muestra suficiente de VMA para esta tecnología/especie.</div>"
-    return ("<table><tr><th class=l>Tramo VMA (m³/árbol)</th><th>Habitual</th>"
-            "<th>Meta</th><th>Teórico</th></tr>" + filas + "</table>")
+    return ("<table><tr><th class=l>Tramo VMA [m³/árbol]</th><th>Habitual<br>[m³/hr]</th>"
+            "<th>Meta<br>[m³/hr]</th><th>Teórico<br>[m³/hr]</th></tr>" + filas + "</table>")
 
 
 def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
@@ -632,8 +637,13 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
 
     # ── Datos del CMMS de esta faena (jefe + preuso) ──
     fid = FAENA_ID.get(fa)
-    av_dias = (cmms or {}).get('avance_dias', {}).get(fid, {})   # día -> {volteado, cancha}
-    tp_faena = (cmms or {}).get('tp', {}).get(fid, [])
+    av_dias = (cmms or {}).get('avance_dias', {}).get(fid, {})   # 'YYYY-MM-DD' -> {volteado, cancha}
+    # SOLO el mes del informe. La RPC devuelve todo el histórico de turno_perdida y acá se
+    # agrupa por DÍA DEL MES: sin este filtro, en agosto el "acumulado del mes" sumaría julio,
+    # y el 15 de julio caería en la misma celda que el 15 de agosto. Hoy no se nota porque solo
+    # hay datos de un mes — se rompería el 1 de agosto.
+    tp_faena = [t for t in ((cmms or {}).get('tp', {}).get(fid, []))
+                if str(t.get('fecha', ''))[:7] == mes_key]
     tp_dia_proc = {}                                             # (día, proceso) -> horas
     for t in tp_faena:
         tp_dia_proc[(t['dia'], t['proceso'])] = tp_dia_proc.get((t['dia'], t['proceso']), 0) + t['horas']
@@ -732,10 +742,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         for i, p in enumerate(procesos)) + "</tr>"
     head2 = "<tr>" + "".join(
         f"<th class='{'grp1' if i%2==0 else 'grp2'}' title='Saldo por cumplir: parte en la meta "
-        f"del mes y baja con lo producido'>Saldo</th>"
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>M.Día</th>"
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>Real</th>"
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>T.P</th>"
+        f"del mes y baja con lo producido'>Saldo<br>[m³]</th>"
+        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>M.Día<br>[m³]</th>"
+        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>Real<br>[m³]</th>"
+        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>T.P<br>[hrs]</th>"
         for i in range(4)) + "</tr>"
     # SALDO por cumplir, no plan acumulado (así lo pide Arauco): la columna **parte en la meta
     # del mes y baja hasta 0** a medida que se produce, en vez de subir de 0 a la meta. Es una
@@ -757,7 +767,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         tot_real += real_por_dia.get(d, 0.0)
         tot_tp += sum(v for (dd_, _p), v in tp_dia_proc.items() if dd_ == d)
         real = real_por_dia.get(d)
-        av = av_dias.get(d)
+        av = av_dias.get(f"{mes_key}-{d:02d}")
         # VOLTEO / MADEREO: Real = lo que el jefe declaró ese día (avance_faena); T.P del preuso.
         v_real = f"<td class=nf>{av['volteado']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
         m_real = f"<td class=nf>{av['cancha']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
@@ -801,7 +811,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC + horómetro del pre-uso) ──
     # Uso Real y Rend Real salen del HORÓMETRO DEL PRE-USO (ver horas_preuso). Donde no hay
     # pre-uso con tramo de un día la celda sigue diciendo "rep." — no se reconstruye nada.
-    hp = horas_preuso(fa, cmms, real_por_dia)
+    hp = horas_preuso(fa, cmms, real_por_dia, mes_key)
 
     def uso_cell(proc):
         a = hp.get(proc)
@@ -822,10 +832,11 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         return "<td class=pr>rep.</td>"
 
     prodv = (
-        "<table><tr><th class=l>Proceso</th><th>Factor Uso [%]<br>Plan</th><th>Uso<br>Real</th>"
-        "<th>Rend [m³/hr]<br>Plan</th><th>Rend<br>Real</th>"
-        "<th>Carga [m³/ciclo]<br>Plan</th><th>Carga<br>Real</th>"
-        "<th>Ritmo [ciclo/hr]<br>Plan</th><th>Ritmo<br>Real</th></tr>"
+        "<table><tr><th class=l>Proceso</th>"
+        "<th>Uso [%]<br>Plan</th><th>Uso [%]<br>Real</th>"
+        "<th>Rend [m³/hr]<br>Plan</th><th>Rend [m³/hr]<br>Real</th>"
+        "<th>Carga [m³/ciclo]<br>Plan</th><th>Carga [m³/ciclo]<br>Real</th>"
+        "<th>Ritmo [ciclo/hr]<br>Plan</th><th>Ritmo [ciclo/hr]<br>Real</th></tr>"
         f"<tr><td class=l>Volteo</td><td class=gu>{USO*100:.0f}</td>{uso_cell('VOLTEO')}"
         f"<td class=pr>guía</td><td class=pr>rep.</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>"
         f"<tr><td class=l>Madereo</td><td class=gu>{USO*100:.0f}</td>{uso_cell('MADEREO')}"
@@ -931,7 +942,7 @@ def datos_cmms():
 
     try:
         for r in rpc('informe_avance_dias'):     # viene ordenado por faena, fecha desc
-            fid = r['faena_id']; dia = int(r['fecha'][8:10])
+            fid = r['faena_id']; dia = str(r['fecha'])[:10]   # clave = fecha ISO, no día suelto
             # sin_clasificar: None = ese día no se informó (es campo nuevo), ≠ 0 declarado.
             sc = r.get('m3_sin_clasificar')
             v = {'volteado': float(r['m3_volteado']), 'cancha': float(r['m3_cancha']),
@@ -953,7 +964,7 @@ def datos_cmms():
         print(f"  ⚠️  CMMS tiempos perdidos no disponibles ({e}); T.P queda para llenar")
     try:
         for r in rpc('informe_horas_faena'):
-            out['horas'].setdefault(r['faena_id'], {})[(int(r['fecha'][8:10]), r['proceso'])] = {
+            out['horas'].setdefault(r['faena_id'], {})[(str(r['fecha'])[:10], r['proceso'])] = {
                 'horas': float(r['horas']), 'equipos': int(r['equipos']),
                 'dotacion': int(r['dotacion'])}
     except Exception as e:
