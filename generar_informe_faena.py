@@ -324,10 +324,12 @@ FAENA_ID = {'M1.1':'faena-m1-1','M1.2':'faena-m1-2','M1.3':'faena-m1-3','M1.4':'
             'M5':'faena-m5','M7':'faena-m7','M9':'faena-m9','M11':'faena-m11'}
 
 def datos_cmms():
-    """Trae del CMMS (Supabase) lo que el NOC no sabe y el jefe/operador declaran en terreno:
-    avance_faena (stock volteado adelantado + madera en cancha → BUFFERS). Requiere SUPABASE_URL +
-    SUPABASE_KEY (service role) en env; SIN ellas devuelve vacío y el informe muestra "por reportar"
-    (RLS bloquea la clave pública). Best-effort: cualquier error → vacío, no rompe el pipeline.
+    """Trae del CMMS (Supabase) lo que el NOC no sabe y el jefe declara en terreno:
+    el resumen de avance por faena (último m³ volteado adelantado + m³ en cancha → BUFFERS).
+    Lee vía la RPC de solo lectura `informe_avance_faena` con la CLAVE PÚBLICA (anon) — no
+    necesita service-role ni expone la tabla; la función devuelve solo el resumen. Requiere
+    SUPABASE_URL + SUPABASE_KEY en env; sin ellas devuelve vacío y el informe muestra
+    "por reportar". Best-effort: cualquier error → vacío, no rompe el pipeline.
     PENDIENTE (necesita join equipo→faena): turno_perdida (tiempos perdidos) y horas de preuso."""
     import os, json, urllib.request
     out = {'avance': {}}   # faena_id -> {volteado, cancha, fecha}
@@ -336,13 +338,13 @@ def datos_cmms():
         return out
     try:
         req = urllib.request.Request(
-            url.rstrip('/') + '/rest/v1/avance_faena?select=faena_id,fecha,m3_volteado,m3_cancha&order=fecha.desc',
-            headers={'apikey': key, 'Authorization': 'Bearer ' + key})
+            url.rstrip('/') + '/rest/v1/rpc/informe_avance_faena',
+            data=b'{}', method='POST',
+            headers={'apikey': key, 'Authorization': 'Bearer ' + key,
+                     'Content-Type': 'application/json'})
         for r in json.loads(urllib.request.urlopen(req, timeout=20).read()):
-            fid = r['faena_id']
-            if fid not in out['avance']:
-                out['avance'][fid] = {'volteado': float(r['m3_volteado']),
-                                      'cancha': float(r['m3_cancha']), 'fecha': r['fecha']}
+            out['avance'][r['faena_id']] = {'volteado': float(r['m3_volteado']),
+                                            'cancha': float(r['m3_cancha']), 'fecha': r['fecha']}
     except Exception as e:
         print(f"  ⚠️  CMMS avance no disponible ({e}); volteo/madereo quedan 'por reportar'")
     return out
