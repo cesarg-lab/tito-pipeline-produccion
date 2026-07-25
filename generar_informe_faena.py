@@ -743,7 +743,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     head2 = "<tr>" + "".join(
         f"<th class='{'grp1' if i%2==0 else 'grp2'}' title='Saldo por cumplir: parte en la meta "
         f"del mes y baja con lo producido'>Saldo<br>[m³]</th>"
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>M.Día<br>[m³]</th>"
+        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>Meta día<br>[m³]</th>"
         f"<th class='{'grp1' if i%2==0 else 'grp2'}'>Real<br>[m³]</th>"
         f"<th class='{'grp1' if i%2==0 else 'grp2'}'>T.P<br>[hrs]</th>"
         for i in range(4)) + "</tr>"
@@ -774,7 +774,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         vol = f"<td class=bl></td><td class=bl></td>{v_real}{tp_cell(d,'VOLTEO')}"
         mad = f"<td class=bl></td><td class=bl></td>{m_real}{tp_cell(d,'MADEREO')}"
         # PROCESADO: pre-llenado del NOC.
-        # M.Día es DINÁMICA TODOS los días, no solo hoy: es lo que ese día había que trozar para
+        # Meta día es DINÁMICA TODOS los días, no solo hoy: es lo que ese día había que trozar para
         # llegar a la meta, dado lo que se llevaba trozado hasta el día ANTERIOR, repartido en
         # los días que quedaban desde ahí. Si un día se produce poco, la meta de los siguientes
         # SUBE; si se produce de más, baja. El plan lineal fijo (meta ÷ días del mes) no servía:
@@ -905,7 +905,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
 <h2>Productividad según el VMA del bosque</h2>{guia_block}{prodv}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>M.Día de hoy</b> = lo que exige por día para llegar.</div>
+<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
 
