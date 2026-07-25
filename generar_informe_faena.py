@@ -355,14 +355,19 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
     tp_rows = ""
     for i, t in enumerate(tp_ord, 1):
         desc = t['causa'] + (f" — {t['detalle']}" if t.get('detalle') else "")
-        tp_rows += (f"<tr><td>{i}</td><td class=l>{t['proceso'].title()}</td>"
+        # Código del NOC de Arauco, para que el jefe lo transcriba sin traducir de memoria.
+        # Vacío = sin equivalente confirmado con Arauco; nunca un código inventado.
+        cod = t.get('codigo_noc')
+        cod_td = f"<td class=gu>{cod}</td>" if cod else "<td class=bl></td>"
+        tp_rows += (f"<tr><td>{i}</td><td class=l>{t['proceso'].title()}</td>{cod_td}"
                     f"<td class=l>{desc}</td><td class=tp>{t['horas']:g}</td>"
                     f"<td class=bl></td><td class=bl></td><td>{t['fecha'][8:10]}/{t['fecha'][5:7]}</td></tr>")
     for _ in range(max(0, 4 - len(tp_ord))):                     # filas vacías para llenar a mano
         tp_rows += ("<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td>"
-                    "<td class=bl></td><td class=bl></td><td class=bl></td></tr>")
+                    "<td class=bl></td><td class=bl></td><td class=bl></td><td class=bl></td></tr>")
     tp = (tp_acum +
-          "<table><tr><th>Nº</th><th class=l>Proceso</th><th class=l>Descripción</th>"
+          "<table><tr><th>Nº</th><th class=l>Proceso</th><th title='Código de tiempo perdido "
+          "del NOC de Arauco'>Cód.<br>NOC</th><th class=l>Descripción</th>"
           "<th>Tiempo [hrs]</th><th class=l>Acción</th><th class=l>Responsable</th>"
           "<th>Fecha</th></tr>" + tp_rows + "</table>")
 
@@ -593,7 +598,8 @@ def datos_cmms():
         for r in rpc('informe_tp_faena'):
             out['tp'].setdefault(r['faena_id'], []).append(
                 {'fecha': r['fecha'], 'dia': int(r['fecha'][8:10]), 'proceso': r['proceso'],
-                 'causa': r['causa'], 'detalle': r.get('detalle'), 'horas': float(r['horas'])})
+                 'causa': r['causa'], 'detalle': r.get('detalle'), 'horas': float(r['horas']),
+                 'codigo_noc': r.get('codigo_noc')})
     except Exception as e:
         print(f"  ⚠️  CMMS tiempos perdidos no disponibles ({e}); T.P queda para llenar")
     try:
