@@ -22,7 +22,7 @@ import pandas as pd, numpy as np
 # Reutiliza TODO lo ya probado del generador del tablero (mismo módulo, mismos datos).
 from generar_tablero_faena import (
     base_diaria, tabla_p75, teorico, metas_excel, cargar_pg,
-    CSS, TEC_NORM, NOMBRE, ESP, ESPN, TECN, LB, TR, TRAMO_MID,
+    CSS, TEC_NORM, TEAM_MAP, NOMBRE, ESP, ESPN, TECN, LB, TR, TRAMO_MID,
     USO, HDISP, METAS_DEFAULT, LOGO,
 )
 
@@ -200,6 +200,111 @@ def horas_preuso(fa, cmms, real_por_dia):
     return out
 
 
+def cargar_bn():
+    """Lee Base2NOC.csv (reporte BN del NOC, que el pipeline ya descarga en el paso 1) y lo deja
+    agrupado por FAENA. El PG que usa el resto del informe agrega por equipo/día y NO trae el
+    desglose por producto, el acta, el stock ni el estado de la madera: eso solo viene en el BN.
+
+    Sin archivo o ilegible → {} y las secciones quedan en blanco (best-effort: no rompe nada)."""
+    import csv
+    p = BASE / "Base2NOC.csv"
+    if not p.exists():
+        print("  ⚠️  Base2NOC.csv no está; acta y stock quedan para llenar a mano")
+        return {}
+
+    def num(s):
+        try:
+            return float(str(s).replace(',', '.'))
+        except Exception:
+            return 0.0
+
+    out = {}
+    try:
+        with open(p, encoding='utf-8-sig', newline='') as f:
+            for r in csv.DictReader(f, delimiter=';'):
+                fa = TEAM_MAP.get(str(r.get('EQUIPO', '')).strip())
+                if not fa:
+                    continue
+                out.setdefault(fa, []).append({
+                    'fecha': str(r.get('FECHA', '')).strip(),          # dd-mm-yyyy
+                    'producto': (r.get('PRODUCTO') or '').strip().upper(),
+                    'destino': (r.get('NOMBRE_DESTINO') or r.get('CODIGO_DESTINO') or '').strip(),
+                    'm3': num(r.get('M3SSC')),
+                    'stock': num(r.get('STOCK')),
+                    'acta': str(r.get('NUMERO_ACTA', '')).strip(),
+                })
+    except Exception as e:
+        print(f"  ⚠️  Base2NOC.csv no legible ({e}); acta y stock quedan en blanco")
+        return {}
+    return out
+
+
+def tabla_acta(regs):
+    """Cumplimiento Acta: el REAL acumulado por producto sale del NOC (campo PRODUCTO del BN:
+    PODADO / ASERRABLE / PULPABLE). El **Plan queda para llenar en terreno**: es el mix
+    comprometido con el cliente, no un dato de producción — el NOC no lo tiene y no se inventa."""
+    tot = {}
+    for x in regs:
+        p = x['producto']
+        if p in ('PODADO', 'ASERRABLE', 'PULPABLE'):
+            tot[p] = tot.get(p, 0.0) + x['m3']
+    suma = sum(tot.values())
+    filas = ""
+    for p in ('PODADO', 'ASERRABLE', 'PULPABLE'):
+        m3 = tot.get(p, 0.0)
+        pct = f"{m3/suma*100:.1f}" if suma else "—"
+        real = f"<td class=nf>{pct}</td>" if suma else "<td class=bl></td>"
+        filas += (f"<tr><td class=l>{p.title()}</td><td class=bl></td>{real}"
+                  f"<td class=nf>{fmt(m3)}</td></tr>")
+    actas = sorted({x['acta'] for x in regs if x['acta']})
+    pie = (f"<div class=cob>Real del NOC por producto ({fmt(suma)} m³ del mes"
+           f"{' · acta ' + ', '.join(actas[-3:]) if actas else ''}). "
+           f"El <b>Plan</b> es el mix comprometido con el cliente: se llena en terreno.</div>")
+    return ("<table><tr><th class=l>Tipo</th><th>Plan [%]</th><th>Real Ac. [%]</th>"
+            "<th>Real [m³]</th></tr>" + filas + "</table>" + pie)
+
+
+def tabla_stock(regs, hasta_iso):
+    """Stock en Bosque por producto y destino.
+
+    OJO: `STOCK` del NOC es un NIVEL de inventario, no un flujo — viene repetido en cada registro
+    de esa combinación y **sumarlo da 7,5× la producción**. Se toma el ÚLTIMO valor por
+    (producto, destino) y la antigüedad se cuenta desde esa fecha."""
+    from datetime import date
+    ult = {}
+    for x in regs:
+        if not x['producto'] or x['stock'] <= 0:
+            continue
+        try:
+            d, m, a = x['fecha'].split('-')[:3]
+            f = date(int(a), int(m), int(d))
+        except Exception:
+            continue
+        k = (x['producto'], x['destino'])
+        if k not in ult or f > ult[k][0]:
+            ult[k] = (f, x['stock'])
+    if not ult:
+        return ("<table><tr><th class=l>Producto</th><th class=l>Destino</th><th>Stock [m³]</th>"
+                "<th>Antig. [días]</th></tr>"
+                "<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td></tr>"
+                "<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td></tr></table>")
+    try:
+        hoy = date.fromisoformat(hasta_iso[:10])
+    except Exception:
+        hoy = max(f for f, _ in ult.values())
+    filas = ""
+    for (prod, dest), (f, st) in sorted(ult.items(), key=lambda y: -y[1][1])[:6]:
+        dias = (hoy - f).days
+        col = "tp" if dias > 15 else "nf"          # stock viejo = riesgo de deterioro
+        filas += (f"<tr><td class=l>{prod.title()}</td><td class=l>{dest[:22]}</td>"
+                  f"<td class=nf>{fmt(st)}</td><td class={col}>{dias}</td></tr>")
+    return ("<table><tr><th class=l>Producto</th><th class=l>Destino</th><th>Stock [m³]</th>"
+            "<th>Antig. [días]</th></tr>" + filas + "</table>"
+            "<div class=cob>Último nivel informado al NOC por producto y destino (no se suman "
+            "los registros: el stock viene repetido en cada uno). Antigüedad desde esa fecha; "
+            "en rojo sobre 15 días.</div>")
+
+
 def jefe_de_turno(fa, dia_iso):
     """Jefe que está DE TURNO en esa faena ese día, según la matriz de turnos
     (`turnos_config.json`): rotación 7×7 correlativa, ciclo de 14 días desde `ref`,
@@ -321,7 +426,7 @@ def guia_tabla(tec, esp, cell, teo):
             "<th>Meta</th><th>Teórico</th></tr>" + filas + "</table>")
 
 
-def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
+def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     mes_key = g.dia.str[:7].max()
     anio, mes = int(mes_key[:4]), int(mes_key[5:7])
     jul = g[(g.faena == fa) & (g.dia.str[:7] == mes_key)].copy()
@@ -591,17 +696,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         estados = ""
 
     # ── Stock en Bosque / Cumplimiento Acta / Control Calidad (estructura en blanco) ──
+    # Stock y Acta salen del BN del NOC (ver cargar_bn). Control Calidad se queda EN BLANCO a
+    # propósito: es campo a llenar en terreno (decisión de gerencia 2026-07-25), igual que el
+    # Plan del acta.
+    bn_fa = (bn or {}).get(fa, [])
     otros = (
         "<div class=two>"
-        "<div><h2>Stock en Bosque</h2><table>"
-        "<tr><th class=l>Producto</th><th class=l>Destino</th><th>Stock [m³]</th><th>Antig. [días]</th></tr>"
-        "<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td></tr>"
-        "<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td></tr></table></div>"
-        "<div><h2>Cumplimiento Acta</h2><table>"
-        "<tr><th class=l>Tipo</th><th>Plan [%]</th><th>Real Ac. [%]</th></tr>"
-        "<tr><td class=l>Podado</td><td class=bl></td><td class=bl></td></tr>"
-        "<tr><td class=l>Aserrable</td><td class=bl></td><td class=bl></td></tr>"
-        "<tr><td class=l>Pulpable</td><td class=bl></td><td class=bl></td></tr></table></div>"
+        f"<div><h2>Stock en Bosque</h2>{tabla_stock(bn_fa, ult)}</div>"
+        f"<div><h2>Cumplimiento Acta</h2>{tabla_acta(bn_fa)}</div>"
         "<div><h2>Control Calidad</h2><table>"
         "<tr><th class=l>Fecha</th><th>Pérdida [USD/m³]</th></tr>"
         "<tr><td class=bl>&nbsp;</td><td class=bl></td></tr>"
@@ -716,6 +818,7 @@ def main():
     faenas = [f for f in FAENA_ORDER if f in set(gm.faena)]
     cmms = datos_cmms()
     kpis = datos_kpis()
+    bn = cargar_bn()      # acta + stock del NOC (reporte BN)
 
     logo_img = ('<img src="' + LOGO + '">') if LOGO else ''
     idx = (f"<div class=\"sheet cover\" style=\"page-break-after:auto\">"
@@ -727,7 +830,7 @@ def main():
            f"Pre-llena lo que el NOC ya sabe; el resto es \"por reportar\". "
            f"SSO (IAP, madurez, riesgos, tarea crítica, mapa de riesgo) va fuera de este informe.</div></div>")
 
-    sheets = "".join(sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa), cmms, kpis)
+    sheets = "".join(sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa), cmms, kpis, bn)
                      for fa in faenas)
 
     opciones = "".join(f"<option value=\"{fa}\">{NOMBRE.get(fa, fa)}</option>" for fa in faenas)
