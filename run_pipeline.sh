@@ -164,9 +164,11 @@ enviar_grupo() {
     fi
 }
 
+# Las 3 TABLAS + UN solo resumen, el general (gerencia 2026-07-25): los resúmenes de aéreo y
+# terrestre repetían lo mismo desglosado y llenaban el chat. Sus imágenes sí se mantienen.
 enviar_grupo "Cosecha Forestal (General)" "grilla_produccion.png"           "resumen_diario.txt"
-enviar_grupo "Millalemu Aéreo"            "grilla_produccion_aereo.png"     "resumen_diario_aereo.txt"
-enviar_grupo "Millalemu Terrestre"        "grilla_produccion_terrestre.png" "resumen_diario_terrestre.txt"
+enviar_grupo "Millalemu Aéreo"            "grilla_produccion_aereo.png"     ""
+enviar_grupo "Millalemu Terrestre"        "grilla_produccion_terrestre.png" ""
 
 # ── 8.5. Informes de faena en PDF a Telegram ─────────────────────────────────
 # Una hoja A4 por faena, que es lo que el jefe imprime y llena en terreno.
