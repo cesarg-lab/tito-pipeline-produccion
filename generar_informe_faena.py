@@ -45,10 +45,13 @@ td.bl{background:#fffdf5}                 /* celda en blanco para llenar */
 td.pr,.pr{color:#a06000;font-style:italic}/* "por reportar" (lo informa el jefe) */
 td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC */
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
+td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 .diaria{font-size:7.6px}
 .diaria td,.diaria th{padding:1px 2px}
 .diaria th{font-size:7.4px}
 .grp1{background:#eef3f8}.grp2{background:#f3f0ea}
+tr.hoy td{background:#fff3cf!important;box-shadow:inset 0 0 0 1px #e0a800}
+tr.hoy td.l{font-weight:700;color:#7a5c00}
 .two{display:flex;gap:10px;align-items:flex-start}
 .two>div{flex:1}
 .guia{background:#f4f7fb;border:1px solid #d3ddea;border-left:4px solid #1A5276;border-radius:8px;
@@ -106,10 +109,13 @@ def prod_general(jul, meta_mes, anio, mes, ult_dia):
     real_dia = float(jul[jul.dia == jul.dia.max()].m3.sum())
     dias_rest = max(n_op - op_hasta, 1)
     recuperar = max(0.0, (avance_plan - acum)) / dias_rest
+    # Meta día DINÁMICA: lo que la meta exige por día de HOY a fin de mes, según lo YA procesado.
+    # Cambia cada día con el real acumulado (si vas atrasado sube, si vas adelantado baja).
+    meta_dia_req = max(0.0, (meta_mes - acum)) / dias_rest
     return dict(meta_mes=meta_mes, avance_plan=avance_plan, avance_real=acum, cumpl=cumpl,
                 proy=proy, plan_diario=plan_diario, real_diario=real_dia,
-                recuperar=recuperar, dias_rest=dias_rest, n_op=n_op, op_hasta=op_hasta,
-                cumple_plan=(cumpl >= 100))
+                recuperar=recuperar, meta_dia_req=meta_dia_req, dias_rest=dias_rest,
+                n_op=n_op, op_hasta=op_hasta, cumple_plan=(cumpl >= 100))
 
 
 def plan_productividad(fa, jul, cell):
@@ -171,6 +177,18 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
     # trozado real por día del mes (índice = día del mes)
     real_por_dia = {int(k[8:10]): float(v) for k, v in jul.groupby('dia').m3.sum().items()}
 
+    # ── Datos del CMMS de esta faena (jefe + preuso) ──
+    fid = FAENA_ID.get(fa)
+    av_dias = (cmms or {}).get('avance_dias', {}).get(fid, {})   # día -> {volteado, cancha}
+    tp_faena = (cmms or {}).get('tp', {}).get(fid, [])
+    tp_dia_proc = {}                                             # (día, proceso) -> horas
+    for t in tp_faena:
+        tp_dia_proc[(t['dia'], t['proceso'])] = tp_dia_proc.get((t['dia'], t['proceso']), 0) + t['horas']
+
+    def tp_cell(dd, proc):
+        h = tp_dia_proc.get((dd, proc))
+        return f"<td class=tp>{h:g}</td>" if h else "<td class=bl></td>"
+
     # ── Información General ──
     ig = (f"<div class=ig>"
           f"<div><span>Fecha</span><b class=fill>____ / ____ / {anio}</b></div>"
@@ -187,13 +205,20 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
             f"<div><span>Avance real</span><b>{fmt(pg['avance_real'])}</b></div>"
             f"<div><span>Cumplimiento</span><b>{pg['cumpl']:.0f}%</b></div>"
             f"<div><span>Proyección mes</span><b>{fmt(pg['proy'])}</b></div>"
-            f"<div><span>Plan diario</span><b>{fmt(pg['plan_diario'])}</b></div>"
+            f"<div><span>Meta día p/ llegar</span><b>{fmt(pg['meta_dia_req'])}</b></div>"
             f"<div><span>Real diario</span><b>{fmt(pg['real_diario'])}</b></div></div>")
 
-    # ── Principales Tiempos Perdidos (en blanco para llenar) ──
-    tp_rows = "".join(
-        "<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td>"
-        "<td class=bl></td><td class=bl></td><td class=bl></td></tr>" for _ in range(4))
+    # ── Principales Tiempos Perdidos: pre-llenado del preuso (turno_perdida), resto en blanco ──
+    tp_ord = sorted(tp_faena, key=lambda t: -t['horas'])[:6]     # las de mayor pérdida primero
+    tp_rows = ""
+    for i, t in enumerate(tp_ord, 1):
+        desc = t['causa'] + (f" — {t['detalle']}" if t.get('detalle') else "")
+        tp_rows += (f"<tr><td>{i}</td><td class=l>{t['proceso'].title()}</td>"
+                    f"<td class=l>{desc}</td><td class=tp>{t['horas']:g}</td>"
+                    f"<td class=bl></td><td class=bl></td><td>{t['fecha'][8:10]}/{t['fecha'][5:7]}</td></tr>")
+    for _ in range(max(0, 4 - len(tp_ord))):                     # filas vacías para llenar a mano
+        tp_rows += ("<tr><td class=bl>&nbsp;</td><td class=bl></td><td class=bl></td><td class=bl></td>"
+                    "<td class=bl></td><td class=bl></td><td class=bl></td></tr>")
     tp = ("<table><tr><th>Nº</th><th class=l>Proceso</th><th class=l>Descripción</th>"
           "<th>Tiempo [hrs]</th><th class=l>Acción</th><th class=l>Responsable</th>"
           "<th>Fecha</th></tr>" + tp_rows + "</table>")
@@ -225,18 +250,29 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
         if es_op:
             meta_ac += meta_dia
         real = real_por_dia.get(d)
-        # VOLTEO / MADEREO: en blanco (los informa el jefe)
-        vol = "<td class=bl></td><td class=pr>rep.</td><td class=bl></td><td class=bl></td>"
-        mad = "<td class=bl></td><td class=pr>rep.</td><td class=bl></td><td class=bl></td>"
-        # PROCESADO: pre-llenado NOC (Meta Acum, Meta Día, Real Día); T.P en blanco
+        av = av_dias.get(d)
+        # VOLTEO / MADEREO: Real = lo que el jefe declaró ese día (avance_faena); T.P del preuso.
+        v_real = f"<td class=nf>{av['volteado']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
+        m_real = f"<td class=nf>{av['cancha']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
+        vol = f"<td class=bl></td><td class=bl></td>{v_real}{tp_cell(d,'VOLTEO')}"
+        mad = f"<td class=bl></td><td class=bl></td>{m_real}{tp_cell(d,'MADEREO')}"
+        # PROCESADO: pre-llenado NOC. M.Ac = plan lineal (dónde deberías ir). M.Día:
+        # días pasados = plan del día; HOY en adelante = meta día DINÁMICA (lo que exige
+        # llegar a la meta con lo ya procesado). Cambia día a día con el real.
         pm_ac = fmt(meta_ac) if es_op else "—"
-        pm_di = fmt(meta_dia) if es_op else "—"
+        if not es_op:
+            pm_di = "—"
+        elif d >= ult_dia:
+            pm_di = fmt(pg['meta_dia_req'])            # dinámica: de hoy a fin de mes
+        else:
+            pm_di = fmt(meta_dia)                      # plan del día ya transcurrido
         rr = f"<td class=nf>{fmt(real)}</td>" if real is not None else "<td class=bl></td>"
-        pro = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}<td class=bl></td>"
+        pro = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}{tp_cell(d,'PROCESADO')}"
         # CLASIFICADO: pre-llenado del NOC igual que procesado — el trozado ya viene clasificado
         # por producto (pulpable/aserrable/podado); su Real Día es el mismo volumen graduado.
         cla = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}<td class=bl></td>"
-        filas += f"<tr><td class=l>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
+        cl_hoy = " class=hoy" if d == ult_dia else ""
+        filas += f"<tr{cl_hoy}><td class=l>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
     diaria = f"<table class=diaria>{head1}{head2}{filas}</table>"
 
     # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC) ──
@@ -321,7 +357,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None):
 <h2>Producción General</h2>{pgen}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). Día = por hora de inicio del turno.</div>
+<div class=foot>Verde = pre-llenado del NOC (trozado real y meta día del procesado). "rep." / celda amarilla = <b>por reportar</b> por el jefe (volteo y madereo en m³, tiempos perdidos, acta, stock). <b>Fila amarilla = HOY</b>. <b>M.Día de hoy en adelante es dinámica</b>: lo que la meta exige por día con lo ya procesado (se recalcula cada día). Día = por hora de inicio del turno.</div>
 <h2>Productividad — Plan (guía VMA+especie) vs Real (NOC)</h2>{prodv}
 <h2>Guía de Productividad</h2>{guia_block}
 {estados}
@@ -334,29 +370,44 @@ FAENA_ID = {'M1.1':'faena-m1-1','M1.2':'faena-m1-2','M1.3':'faena-m1-3','M1.4':'
             'M5':'faena-m5','M7':'faena-m7','M9':'faena-m9','M11':'faena-m11'}
 
 def datos_cmms():
-    """Trae del CMMS (Supabase) lo que el NOC no sabe y el jefe declara en terreno:
-    el resumen de avance por faena (último m³ volteado adelantado + m³ en cancha → BUFFERS).
-    Lee vía la RPC de solo lectura `informe_avance_faena` con la CLAVE PÚBLICA (anon) — no
-    necesita service-role ni expone la tabla; la función devuelve solo el resumen. Requiere
-    SUPABASE_URL + SUPABASE_KEY en env; sin ellas devuelve vacío y el informe muestra
-    "por reportar". Best-effort: cualquier error → vacío, no rompe el pipeline.
-    PENDIENTE (necesita join equipo→faena): turno_perdida (tiempos perdidos) y horas de preuso."""
+    """Trae del CMMS (Supabase) lo que el NOC no sabe y el terreno declara, vía RPC de solo
+    lectura con la CLAVE PÚBLICA (anon) — no necesita service-role ni expone las tablas:
+      · informe_avance_dias() → volteado/cancha por faena y DÍA (jefe) → columnas VOLTEO/MADEREO
+        y el último día → BUFFERS (colchón).
+      · informe_tp_faena()    → tiempos perdidos del preuso por faena/día/proceso/causa → T.P.
+    Requiere SUPABASE_URL + SUPABASE_KEY en env; sin ellas devuelve vacío y el informe muestra
+    "por reportar". Best-effort: cualquier error → vacío, no rompe el pipeline."""
     import os, json, urllib.request
-    out = {'avance': {}}   # faena_id -> {volteado, cancha, fecha}
+    # avance: último por faena (buffers). avance_dias: faena -> {día_int -> {volteado,cancha}}.
+    # tp: faena -> [{fecha, dia, proceso, causa, detalle, horas}]
+    out = {'avance': {}, 'avance_dias': {}, 'tp': {}}
     url = os.environ.get('SUPABASE_URL'); key = os.environ.get('SUPABASE_KEY')
     if not url or not key:
         return out
-    try:
+
+    def rpc(nombre):
         req = urllib.request.Request(
-            url.rstrip('/') + '/rest/v1/rpc/informe_avance_faena',
-            data=b'{}', method='POST',
+            url.rstrip('/') + '/rest/v1/rpc/' + nombre, data=b'{}', method='POST',
             headers={'apikey': key, 'Authorization': 'Bearer ' + key,
                      'Content-Type': 'application/json'})
-        for r in json.loads(urllib.request.urlopen(req, timeout=20).read()):
-            out['avance'][r['faena_id']] = {'volteado': float(r['m3_volteado']),
-                                            'cancha': float(r['m3_cancha']), 'fecha': r['fecha']}
+        return json.loads(urllib.request.urlopen(req, timeout=20).read())
+
+    try:
+        for r in rpc('informe_avance_dias'):     # viene ordenado por faena, fecha desc
+            fid = r['faena_id']; dia = int(r['fecha'][8:10])
+            v = {'volteado': float(r['m3_volteado']), 'cancha': float(r['m3_cancha'])}
+            out['avance_dias'].setdefault(fid, {})[dia] = v
+            if fid not in out['avance']:         # primer registro = el más reciente = buffer
+                out['avance'][fid] = {**v, 'fecha': r['fecha']}
     except Exception as e:
         print(f"  ⚠️  CMMS avance no disponible ({e}); volteo/madereo quedan 'por reportar'")
+    try:
+        for r in rpc('informe_tp_faena'):
+            out['tp'].setdefault(r['faena_id'], []).append(
+                {'fecha': r['fecha'], 'dia': int(r['fecha'][8:10]), 'proceso': r['proceso'],
+                 'causa': r['causa'], 'detalle': r.get('detalle'), 'horas': float(r['horas'])})
+    except Exception as e:
+        print(f"  ⚠️  CMMS tiempos perdidos no disponibles ({e}); T.P queda para llenar")
     return out
 
 def main():
