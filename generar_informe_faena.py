@@ -328,15 +328,20 @@ def hoja_kpis(fa, kpi, dr, pp=None, bench=None, tm=None):
     if dd:
         rends = [x.get('rend', 0) for x in dd if x.get('rend')]
         mejor = max(rends) if rends else 0
-        f_dd = ""
-        for x in dd:
-            r = x.get('rend', 0)
-            marca = " style='background:#eaf3e0;font-weight:700'" if r and r == mejor else ""
-            f_dd += (f"<tr{marca}><td class=l>{x.get('d',''):02d}</td><td class=nf>{fmt(x.get('vol',0))}</td>"
-                     f"<td>{x.get('hrs','')}</td><td>{x.get('cic','')}</td><td class=nf>{r}</td></tr>")
-        t_dd = ("<table class=diaria><tr><th class=l>Día</th><th>m³</th><th>Horas</th>"
-                "<th>Ciclos</th><th>Rend [m³/hr]</th></tr>" + f_dd + "</table>"
-                "<div class=cob>Verde = el mejor rendimiento del mes. Es la jornada a igualar.</div>")
+        def _filas(items):
+            out = ""
+            for x in items:
+                r = x.get('rend', 0)
+                marca = " style='background:#eaf3e0;font-weight:700'" if r and r == mejor else ""
+                out += (f"<tr{marca}><td class=l>{x.get('d',''):02d}</td><td class=nf>{fmt(x.get('vol',0))}</td>"
+                        f"<td>{x.get('hrs','')}</td><td class=nf>{r}</td></tr>")
+            return ("<table class=diaria><tr><th class=l>Día</th><th>m³</th><th>Hrs</th>"
+                    "<th>Rend</th></tr>" + out + "</table>")
+        # En DOS COLUMNAS: 24 filas seguidas desbordaban la hoja a una tercera página.
+        mitad = (len(dd) + 1) // 2
+        t_dd = (f"<div class=two><div>{_filas(dd[:mitad])}</div>"
+                f"<div>{_filas(dd[mitad:])}</div></div>"
+                "<div class=cob>Verde = el mejor rendimiento del mes: la jornada a igualar.</div>")
     else:
         t_dd = ""
 
