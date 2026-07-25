@@ -87,10 +87,21 @@ MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto',
          'Septiembre','Octubre','Noviembre','Diciembre']
 
 
+# Feriados IRRENUNCIABLES (los únicos días que la faena no puede trabajar por ley).
+# ESPEJO de `_FERIADOS_IRR` en compute_kpis.py.
+FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+
+
 def dias_operables(anio, mes):
-    """Días hábiles (Lun-Sáb, excluye Domingo) del mes."""
+    """**Se trabaja TODOS los días, domingos incluidos** (gerencia 2026-07-25); solo se
+    descuentan los feriados irrenunciables.
+
+    MISMO criterio que DT/DD/DR de compute_kpis.py — si cambia uno, cambiar el otro. Antes el
+    informe excluía los domingos y los KPIs no: en julio 2026 eso repartía la meta de M7 en 27
+    días (299 m³/día) contra 31 (260 m³/día) de la pestaña KPIs, un 15% de diferencia entre dos
+    números del mismo tablero."""
     n = calendar.monthrange(anio, mes)[1]
-    ops = [d for d in range(1, n+1) if calendar.weekday(anio, mes, d) != 6]
+    ops = [d for d in range(1, n+1) if f"{mes:02d}-{d:02d}" not in FERIADOS_IRR]
     return n, ops
 
 
@@ -454,7 +465,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
     filas = ""
     saldo = float(meta_mes)
     for d in range(1, n_mes+1):
-        es_op = calendar.weekday(anio, mes, d) != 6
+        es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
         saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
         # Días FUTUROS (después de hoy): fila en blanco — el tablero se llena solo hasta hoy.
         if d > ult_dia:
