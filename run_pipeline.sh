@@ -170,8 +170,10 @@ enviar_grupo "Cosecha Forestal (General)" "grilla_produccion.png"           "res
 enviar_grupo "Millalemu Aéreo"            "grilla_produccion_aereo.png"     ""
 enviar_grupo "Millalemu Terrestre"        "grilla_produccion_terrestre.png" ""
 
-# ── 8.5. Informes de faena en PDF a Telegram ─────────────────────────────────
-# Una hoja A4 por faena, que es lo que el jefe imprime y llena en terreno.
+# ── 8.5. Informes de faena en PDF a Telegram, agrupados por ZONA ─────────────
+# 2 PDFs (Aéreo / Terrestre) con sus 4 hojas A4 cada uno — una por faena. Agrupados por
+# zona a pedido de gerencia: 8 archivos sueltos llenaban el chat y eran incómodos de
+# reenviar. Cada hoja es lo que el jefe imprime y llena en terreno.
 # Chrome headless ya viene instalado en los runners de GitHub (ubuntu-latest).
 echo ""
 echo "▶️  [8.5/9] Convirtiendo informes de faena a PDF y enviando a Telegram..."
@@ -185,7 +187,7 @@ if [ -z "$CHROME" ]; then
     echo "  ⚠️  Sin Chrome/Chromium en el runner — no se generan PDFs (no crítico)"
 else
     PDF_OK=0
-    for f in Informe_M*.html; do
+    for f in Informe_Zona_*.html; do
         [ -f "$f" ] || continue
         pdf="${f%.html}.pdf"
         "$CHROME" --headless --disable-gpu --no-sandbox --no-pdf-header-footer \
@@ -193,13 +195,12 @@ else
         if [ -s "$pdf" ]; then
             PDF_OK=$((PDF_OK+1))
             if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-                FAENA="${f#Informe_}"; FAENA="${FAENA%.html}"
-                FAENA="${FAENA//-/.}"      # M1-1 → M1.1, como se lee en la faena
+                ZONA="${f#Informe_Zona_}"; ZONA="${ZONA%.html}"
                 RESP=$(curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
                      -F "document=@${pdf}" \
-                     -F "caption=📋 Informe de Faena ${FAENA}" \
+                     -F "caption=📋 Informes de Faena — ${ZONA}" \
                      "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument")
-                tg_check "${FAENA} — PDF" "$RESP"
+                tg_check "${ZONA} — PDF" "$RESP"
             fi
         else
             echo "  ❌ $f — no se pudo generar el PDF"

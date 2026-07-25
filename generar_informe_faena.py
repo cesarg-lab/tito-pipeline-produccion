@@ -29,6 +29,13 @@ from generar_tablero_faena import (
 BASE = Path(__file__).parent
 FAENA_ORDER = ['M1.1','M1.2','M1.3','M1.4','M5','M7','M9','M11']
 
+# Zonas para agrupar los PDF que van por Telegram. MISMO criterio que GENERAR_IMAGEN.py
+# (grupos 'aereo' / 'terrestre') — si cambia allá, cambiar acá.
+ZONAS = {
+    'Aereo':     ['M5', 'M7', 'M9', 'M11'],
+    'Terrestre': ['M1.1', 'M1.2', 'M1.3', 'M1.4'],
+}
+
 # ── CSS extra del informe (encima del CSS del tablero) ──────────────────────
 CSS_INFORME = """
 button.noprint{position:fixed;top:12px;right:14px;z-index:99;background:#417505;color:#fff;
@@ -844,14 +851,19 @@ def main():
              for fa in faenas}
     sheets = "".join(hojas[fa] for fa in faenas)
 
-    # Un HTML por faena, SIN la barra de selección: es el que se convierte a PDF para mandarle
-    # a cada jefe su hoja por Telegram (paso 8.5 del pipeline). El nombre lleva la faena con
-    # guion (M1.1 → M1-1) para no complicar el punto en shell ni en el nombre del adjunto.
-    for fa in faenas:
-        solo = (f"<!doctype html><html lang=es><head><meta charset=utf-8>"
-                f"<title>Informe {NOMBRE.get(fa, fa)} {mes_key}</title>"
-                f"<style>{CSS}{CSS_INFORME}</style></head><body>{hojas[fa]}</body></html>")
-        (BASE / f"Informe_{fa.replace('.', '-')}.html").write_text(solo, encoding="utf-8")
+    # Un HTML por ZONA (no por faena): son los 2 PDFs que se mandan por Telegram. Mismas zonas
+    # que las tablas y las imágenes del pipeline (GENERAR_IMAGEN), así el chat queda con 2
+    # archivos en vez de 8 y es manejable para reenviar. Cada zona trae sus 4 hojas A4, una por
+    # faena, con page-break entre ellas. Sin la barra de selección: es para imprimir.
+    for zona, fzona in ZONAS.items():
+        cuales = [fa for fa in faenas if fa in fzona]
+        if not cuales:
+            continue
+        doc = (f"<!doctype html><html lang=es><head><meta charset=utf-8>"
+               f"<title>Informe de Faena {zona} {mes_key}</title>"
+               f"<style>{CSS}{CSS_INFORME}</style></head><body>"
+               + "".join(hojas[fa] for fa in cuales) + "</body></html>")
+        (BASE / f"Informe_Zona_{zona}.html").write_text(doc, encoding="utf-8")
 
     opciones = "".join(f"<option value=\"{fa}\">{NOMBRE.get(fa, fa)}</option>" for fa in faenas)
     barra = (
@@ -878,7 +890,7 @@ def main():
     out = BASE / "Informe_Faena.html"
     out.write_text(html, encoding="utf-8")
     print(f"✅ Informe_Faena.html — {len(faenas)} faenas, mes {mes_key}, {len(html):,} bytes")
-    print(f"   + {len(faenas)} HTML por faena (Informe_<faena>.html) para el PDF de Telegram")
+    print(f"   + {len(ZONAS)} HTML por zona (Informe_Zona_<zona>.html) para los PDF de Telegram")
     print(f"   faenas: {faenas}")
     print(f"   capacidades (trozado p90): {cap}")
     return 0
