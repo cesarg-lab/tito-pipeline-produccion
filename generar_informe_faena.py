@@ -173,10 +173,11 @@ def horas_preuso(fa, cmms, real_por_dia):
             a['horas_full'] += v['horas']
     for proc, a in out.items():
         a['uso'] = (a['horas'] / (HDISP * a['eq_dia']) * 100) if a['eq_dia'] else None
-        # El m³ del NOC es TROZADO = lo que produce el procesador. Solo tiene sentido dividirlo
-        # por las horas del PROCESADO; contra las horas del volteo o del madereo daría un número
-        # sin significado (probado: 106 m³/h de "volteo" en M7).
-        if proc == 'PROCESADO':
+        # El m³ del NOC es TROZADO. Tiene sentido dividirlo por las horas del PROCESADO (el PM
+        # que lo produjo) y por las del CLASIFICADO: si la GM no está en pana clasifica TODA la
+        # madera que trozó el PM, así que su m³ del día es el mismo del NOC. Contra las horas
+        # del volteo o del madereo daría un número sin significado (dio 106 m³/h en M7).
+        if proc in ('PROCESADO', 'CLASIFICADO'):
             m3 = sum(real_por_dia.get(d, 0.0) for d in a['dias_full'])
             a['rend'] = (m3 / a['horas_full']) if (a['horas_full'] and m3) else None
         else:
@@ -361,9 +362,11 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
             pm_di = fmt(meta_dia)                      # plan del día ya transcurrido
         rr = f"<td class=nf>{fmt(real)}</td>" if real is not None else "<td class=bl></td>"
         pro = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}{tp_cell(d,'PROCESADO')}"
-        # CLASIFICADO: pre-llenado del NOC igual que procesado — el trozado ya viene clasificado
-        # por producto (pulpable/aserrable/podado); su Real Día es el mismo volumen graduado.
-        cla = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}<td class=bl></td>"
+        # CLASIFICADO: lo hace la GM (excavadora) sobre lo que trozó el PM. Si NO está en pana
+        # clasifica TODA la madera del procesador → su Real Día es el mismo m³ del NOC.
+        # Cuando la GM se empana el PM sigue trozando y queda madera sin clasificar: ese
+        # pendiente lo informa el jefe en el CMMS (aún por capturar) y ahí habrá que restarlo.
+        cla = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}{tp_cell(d,'CLASIFICADO')}"
         cl_hoy = " class=hoy" if d == ult_dia else ""
         filas += f"<tr{cl_hoy}><td class=l>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
     diaria = f"<table class=diaria>{head1}{head2}{filas}</table>"
@@ -404,8 +407,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None):
         f"<td class=gu>{pp['plan_ritmo']}</td><td class=nf>{pp['real_ritmo']:.2f}</td></tr>"
         f"<tr><td class=l>Procesado</td><td class=gu>{USO*100:.0f}</td>{uso_cell('PROCESADO')}"
         f"<td class=pr>guía</td>{rend_cell('PROCESADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        f"<tr><td class=l>Clasificado</td><td class=gu>{USO*100:.0f}</td><td class=pr>rep.</td>"
-        f"<td class=pr>guía</td><td class=pr>rep.</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>"
+        f"<tr><td class=l>Clasificado</td><td class=gu>{USO*100:.0f}</td>{uso_cell('CLASIFICADO')}"
+        f"<td class=pr>guía</td>{rend_cell('CLASIFICADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
         "</table>" + cobertura_preuso(hp, ult_dia))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
