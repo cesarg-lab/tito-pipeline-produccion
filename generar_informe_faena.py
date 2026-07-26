@@ -65,6 +65,8 @@ table.tpac{width:auto;min-width:60%;margin-bottom:6px}
 .diaria td,.diaria th{padding:1px 2px}
 .diaria th{font-size:7.4px}
 .grp1{background:#eef3f8}.grp2{background:#f3f0ea}
+table.prod{margin-bottom:6px}
+th.proc{background:#1b4f72;color:#fff;letter-spacing:.06em;font-size:10px}
 tr.hoy td{background:#fff3cf!important;box-shadow:inset 0 0 0 1px #e0a800}
 tr.tot td{background:#eef1f4;border-top:2px solid #1b3a05;font-weight:700}
 tr.hoy td.l{font-weight:700;color:#7a5c00}
@@ -836,23 +838,35 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
             return f"<td class=nf>{fallback:.1f}</td>"
         return "<td class=pr>rep.</td>"
 
+    # Formato de la PIZARRA de Arauco (gerencia 2026-07-26): un bloque por proceso con SOLO los
+    # factores que le aplican, en vez de una matriz con guiones. Carga y Ritmo existen únicamente
+    # en madereo — el NOC solo entrega ciclos del equipo que reporta el folio —, así que en la
+    # pizarra esas filas no están en los otros procesos y acá tampoco.
+    def bloque(titulo, filas):
+        fs = "".join(f"<tr><td class=l>{lab}</td>{plan}{real}</tr>" for lab, plan, real in filas)
+        return (f"<div><table class=prod><tr><th class=proc colspan=3>{titulo}</th></tr>"
+                f"<tr><th class=l>Factores</th><th>Plan</th><th>Real</th></tr>{fs}</table></div>")
+
+    gu = lambda v: f"<td class=gu>{v}</td>"
+    hplan = gu(f"{HDISP:g}")
     prodv = (
-        "<table><tr><th class=l>Proceso</th>"
-        "<th>Horas [hrs]<br>Plan</th><th>Horas [hrs]<br>Real</th>"
-        "<th>Rend [m³/hr]<br>Plan</th><th>Rend [m³/hr]<br>Real</th>"
-        "<th>Carga [m³/ciclo]<br>Plan</th><th>Carga [m³/ciclo]<br>Real</th>"
-        "<th>Ritmo [ciclo/hr]<br>Plan</th><th>Ritmo [ciclo/hr]<br>Real</th></tr>"
-        f"<tr><td class=l>Volteo</td><td class=gu>{HDISP:g}</td>{uso_cell('VOLTEO')}"
-        f"<td class=pr>guía</td><td class=pr>rep.</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        f"<tr><td class=l>Madereo</td><td class=gu>{HDISP:g}</td>{uso_cell('MADEREO')}"
-        f"<td class=gu>{pp['plan_rend']}</td><td class=nf>{pp['real_rend']:.1f}</td>"
-        f"<td class=gu>{pp['plan_carga']}</td><td class=nf>{pp['real_carga']:.2f}</td>"
-        f"<td class=gu>{pp['plan_ritmo']}</td><td class=nf>{pp['real_ritmo']:.2f}</td></tr>"
-        f"<tr><td class=l>Procesado</td><td class=gu>{HDISP:g}</td>{uso_cell('PROCESADO')}"
-        f"<td class=pr>guía</td>{rend_cell('PROCESADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        f"<tr><td class=l>Clasificado</td><td class=gu>{HDISP:g}</td>{uso_cell('CLASIFICADO')}"
-        f"<td class=pr>guía</td>{rend_cell('CLASIFICADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        "</table>" + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
+        "<div class=two>"
+        + bloque("VOLTEO", [
+            ("Horas [hrs]", hplan, uso_cell('VOLTEO')),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", "<td class=pr>rep.</td>")])
+        + bloque("MADEREO", [
+            ("Horas [hrs]", hplan, uso_cell('MADEREO')),
+            ("Rendimiento [m³/hr]", gu(pp['plan_rend']), f"<td class=nf>{pp['real_rend']:.1f}</td>"),
+            ("Carga [m³/ciclo]", gu(pp['plan_carga']), f"<td class=nf>{pp['real_carga']:.2f}</td>"),
+            ("Ritmo [ciclo/hr]", gu(pp['plan_ritmo']), f"<td class=nf>{pp['real_ritmo']:.2f}</td>")])
+        + "</div><div class=two>"
+        + bloque("PROCESADO", [
+            ("Horas [hrs]", hplan, uso_cell('PROCESADO')),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", rend_cell('PROCESADO'))])
+        + bloque("CLASIFICADO", [
+            ("Horas [hrs]", hplan, uso_cell('CLASIFICADO')),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", rend_cell('CLASIFICADO'))])
+        + "</div>" + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
