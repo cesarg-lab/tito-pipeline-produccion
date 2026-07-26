@@ -826,8 +826,9 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         hdia = a['horas'] / a['eq_dia']          # horas por equipo-día (comparable con la jornada)
         u = a['uso']
         col = '#1E8449' if u >= USO*100 else ('#B9770E' if u >= 60 else '#943126')
+        extra = ' · sobre la jornada: el equipo trabajó doble turno' if hdia > HDISP * 1.3 else ''
         return (f"<td class=nf style='color:{col}' title='{a['horas']:g} h en {a['turnos']} "
-                f"turno(s) de pre-uso · {u:.0f}% de la jornada de {HDISP} h'>{hdia:.1f}</td>")
+                f"turno(s) de pre-uso · {u:.0f}% de la jornada de {HDISP} h{extra}'>{hdia:.1f}</td>")
 
     def rend_cell(proc, fallback=None):
         a = hp.get(proc)
