@@ -814,13 +814,18 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     hp = horas_preuso(fa, cmms, real_por_dia, mes_key)
 
     def uso_cell(proc):
+        """HORAS trabajadas por equipo-día, no el porcentaje: es lo que el jefe copia a la
+        pizarra de Arauco (ahí el casillero se llena con horas, ej. 11 plan / 10,4 real).
+        El semáforo mantiene el criterio del 90% de la jornada, pero el número que se ve
+        son las horas."""
         a = hp.get(proc)
-        if not a or a['uso'] is None:
+        if not a or a['uso'] is None or not a['eq_dia']:
             return "<td class=pr>rep.</td>"
+        hdia = a['horas'] / a['eq_dia']          # horas por equipo-día (comparable con la jornada)
         u = a['uso']
         col = '#1E8449' if u >= USO*100 else ('#B9770E' if u >= 60 else '#943126')
         return (f"<td class=nf style='color:{col}' title='{a['horas']:g} h en {a['turnos']} "
-                f"turno(s) de pre-uso · jornada {HDISP} h'>{u:.0f}</td>")
+                f"turno(s) de pre-uso · {u:.0f}% de la jornada de {HDISP} h'>{hdia:.1f}</td>")
 
     def rend_cell(proc, fallback=None):
         a = hp.get(proc)
@@ -833,19 +838,19 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
 
     prodv = (
         "<table><tr><th class=l>Proceso</th>"
-        "<th>Uso [%]<br>Plan</th><th>Uso [%]<br>Real</th>"
+        "<th>Horas [hrs]<br>Plan</th><th>Horas [hrs]<br>Real</th>"
         "<th>Rend [m³/hr]<br>Plan</th><th>Rend [m³/hr]<br>Real</th>"
         "<th>Carga [m³/ciclo]<br>Plan</th><th>Carga [m³/ciclo]<br>Real</th>"
         "<th>Ritmo [ciclo/hr]<br>Plan</th><th>Ritmo [ciclo/hr]<br>Real</th></tr>"
-        f"<tr><td class=l>Volteo</td><td class=gu>{USO*100:.0f}</td>{uso_cell('VOLTEO')}"
+        f"<tr><td class=l>Volteo</td><td class=gu>{HDISP:g}</td>{uso_cell('VOLTEO')}"
         f"<td class=pr>guía</td><td class=pr>rep.</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        f"<tr><td class=l>Madereo</td><td class=gu>{USO*100:.0f}</td>{uso_cell('MADEREO')}"
+        f"<tr><td class=l>Madereo</td><td class=gu>{HDISP:g}</td>{uso_cell('MADEREO')}"
         f"<td class=gu>{pp['plan_rend']}</td><td class=nf>{pp['real_rend']:.1f}</td>"
         f"<td class=gu>{pp['plan_carga']}</td><td class=nf>{pp['real_carga']:.2f}</td>"
         f"<td class=gu>{pp['plan_ritmo']}</td><td class=nf>{pp['real_ritmo']:.2f}</td></tr>"
-        f"<tr><td class=l>Procesado</td><td class=gu>{USO*100:.0f}</td>{uso_cell('PROCESADO')}"
+        f"<tr><td class=l>Procesado</td><td class=gu>{HDISP:g}</td>{uso_cell('PROCESADO')}"
         f"<td class=pr>guía</td>{rend_cell('PROCESADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
-        f"<tr><td class=l>Clasificado</td><td class=gu>{USO*100:.0f}</td>{uso_cell('CLASIFICADO')}"
+        f"<tr><td class=l>Clasificado</td><td class=gu>{HDISP:g}</td>{uso_cell('CLASIFICADO')}"
         f"<td class=pr>guía</td>{rend_cell('CLASIFICADO')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>"
         "</table>" + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
 
