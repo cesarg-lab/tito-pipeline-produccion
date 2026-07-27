@@ -384,6 +384,17 @@ la pestaña KPIs del dashboard, así que ambos muestran las mismas cifras.</div>
 </div>"""
 
 
+def texto_tp(t):
+    """Qué mostrar de un tiempo perdido. Con causa "Otro" la etiqueta no informa nada (todas las
+    filas dirían "Otro"): manda la NOTA del operador, que es donde está el hecho. Con una causa
+    real se muestra la causa, y la nota se agrega solo si aporta algo distinto."""
+    causa = (t.get('causa') or '').strip()
+    det = (t.get('detalle') or '').strip()
+    if causa.lower() == 'otro':
+        return det or causa
+    return f"{causa} — {det}" if det else causa
+
+
 def cargar_bn():
     """Lee Base2NOC.csv (reporte BN del NOC, que el pipeline ya descarga en el paso 1) y lo deja
     agrupado por FAENA. El PG que usa el resto del informe agrega por equipo/día y NO trae el
@@ -674,11 +685,12 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
             f"<div><span>Real diario</span><b>{fmt(pg['real_diario'])}</b></div></div>")
 
     # ── Tiempo perdido ACUMULADO del mes por proceso (del preuso) ──
-    acum_proc = {}   # proceso -> {horas, causas:{causa:horas}}
+    acum_proc = {}   # proceso -> {horas, causas:{texto:horas}}
     for t in tp_faena:
         a = acum_proc.setdefault(t['proceso'], {'horas': 0.0, 'causas': {}})
         a['horas'] += t['horas']
-        a['causas'][t['causa']] = a['causas'].get(t['causa'], 0) + t['horas']
+        k = texto_tp(t)          # con "Otro" agrupa por la nota, no por la etiqueta vacía
+        a['causas'][k] = a['causas'].get(k, 0) + t['horas']
     # DOS VISTAS del mismo hecho: lo que cada proceso SUFRIÓ (impacto: producción perdida) y
     # lo que CAUSÓ aguas abajo (acción: qué hay que arreglar). "Sin frente" significa que el
     # eslabón anterior no dejó qué hacer, así que la hora la sufre uno y la provoca otro:
@@ -715,7 +727,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     tp_ord = sorted(tp_faena, key=lambda t: -t['horas'])[:6]     # las de mayor pérdida primero
     tp_rows = ""
     for i, t in enumerate(tp_ord, 1):
-        desc = t['causa'] + (f" — {t['detalle']}" if t.get('detalle') else "")
+        desc = texto_tp(t)
         # Código del NOC de Arauco, para que el jefe lo transcriba sin traducir de memoria.
         # Vacío = sin equivalente confirmado con Arauco; nunca un código inventado.
         cod = t.get('codigo_noc')
