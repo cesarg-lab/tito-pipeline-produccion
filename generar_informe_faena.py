@@ -691,35 +691,27 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         a['horas'] += t['horas']
         k = texto_tp(t)          # con "Otro" agrupa por la nota, no por la etiqueta vacía
         a['causas'][k] = a['causas'].get(k, 0) + t['horas']
-    # DOS VISTAS del mismo hecho: lo que cada proceso SUFRIÓ (impacto: producción perdida) y
-    # lo que CAUSÓ aguas abajo (acción: qué hay que arreglar). "Sin frente" significa que el
-    # eslabón anterior no dejó qué hacer, así que la hora la sufre uno y la provoca otro:
-    # anotarla solo contra el que se detuvo castiga al equipo que no tuvo la culpa.
-    causado_proc = {}      # proceso -> horas que le hizo perder a otros
-    for t in tp_faena:
-        if t.get('causante'):
-            causado_proc[t['causante']] = causado_proc.get(t['causante'], 0) + t['horas']
-    if acum_proc or causado_proc:
+    # La columna "Hizo perder" se RETIRÓ (gerencia 2026-07-26): CONTRADECÍA la fila de al lado.
+    # Solo contaba las horas declaradas con la causa formal "sin frente", y en la práctica el
+    # operador escribe el motivo en "Otro" — M7 mostraba "Procesado perdió 13,25 h por falta de
+    # madereo" y a la vez "Madereo hizo perder 3,5". Un número que contradice a otro es peor que
+    # no mostrarlo.
+    # El dato sigue disponible (`proceso_causante` de informe_tp_faena): reponer la columna
+    # cuando los operadores usen la causa del catálogo. Es más probable ahora que se llama
+    # "Sin madera en cancha" / "Sin madera trozada" en vez del viejo "Sin frente / sin madera".
+    if acum_proc:
         filas_ac = ""
         for proc in ['VOLTEO', 'MADEREO', 'PROCESADO', 'CLASIFICADO']:
             a = acum_proc.get(proc)
-            causado = causado_proc.get(proc, 0)
-            if not a and not causado:
+            if not a:
                 continue
-            sufrido = f"{a['horas']:g}" if a else "—"
-            causa_top = max(a['causas'], key=a['causas'].get) if a else "—"
-            caus_td = (f"<td class=tp>{causado:g}</td>" if causado else "<td>—</td>")
-            filas_ac += (f"<tr><td class=l>{proc.title()}</td><td class=tp>{sufrido}</td>"
-                         f"<td class=l>{causa_top}</td>{caus_td}</tr>")
+            causa_top = max(a['causas'], key=a['causas'].get)
+            filas_ac += (f"<tr><td class=l>{proc.title()}</td><td class=tp>{a['horas']:g}</td>"
+                         f"<td class=l>{causa_top}</td></tr>")
         tp_acum = ("<div class=tpaclab>Acumulado del mes por proceso (del preuso):</div>"
                    "<table class=tpac><tr><th class=l>Proceso</th>"
-                   "<th title='Horas que este proceso perdió'>Perdió [hrs]</th>"
-                   "<th class=l>Causa principal</th>"
-                   "<th title='Horas que este proceso le hizo perder al siguiente de la cadena "
-                   "por dejarlo sin frente'>Hizo perder [hrs]</th></tr>"
-                   + filas_ac + "</table>"
-                   "<div class=cob><b>Hizo perder</b> = horas que le costó al siguiente proceso de la "
-                   "cadena por dejarlo sin frente.</div>")
+                   "<th>Perdió [hrs]</th><th class=l>Causa principal</th></tr>"
+                   + filas_ac + "</table>")
     else:
         tp_acum = ""
 
