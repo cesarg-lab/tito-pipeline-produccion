@@ -29,6 +29,17 @@ from generar_tablero_faena import (
 BASE = Path(__file__).parent
 FAENA_ORDER = ['M1.1','M1.2','M1.3','M1.4','M5','M7','M9','M11']
 
+# Código de salida cuando el CMMS RECHAZA la credencial (401/403). run_pipeline.sh lo
+# distingue de cualquier otra falla del informe.
+#
+# Por qué existe: el 30-07-2026 un blindaje de seguridad le quitó a `anon` el EXECUTE de las
+# tres RPC del informe. Las llamadas son best-effort a propósito (si el CMMS no responde el
+# informe igual sirve con lo del NOC), así que el pipeline siguió marcando ✅ durante dos días
+# mientras publicaba un informe sin volteo, sin madereo, sin tiempos perdidos y sin horas de
+# pre-uso — la mitad del documento. Un 401 no es "un dato que falta": es configuración rota, y
+# tiene que hacer ruido.
+EXIT_CMMS_AUTH = 3
+
 # Zonas para agrupar los PDF que van por Telegram. MISMO criterio que GENERAR_IMAGEN.py
 # (grupos 'aereo' / 'terrestre') — si cambia allá, cambiar acá.
 ZONAS = {
@@ -948,11 +959,12 @@ def datos_cmms():
         por faena/día/proceso → Factor Uso real y Rend real de la tabla de Productividad.
     Requiere SUPABASE_URL + SUPABASE_KEY en env; sin ellas devuelve vacío y el informe muestra
     "por reportar". Best-effort: cualquier error → vacío, no rompe el pipeline."""
-    import os, json, urllib.request
+    import os, json, urllib.request, urllib.error
     # avance: último por faena (buffers). avance_dias: faena -> {día_int -> {volteado,cancha}}.
     # tp: faena -> [{fecha, dia, proceso, causa, detalle, horas}]
     # horas: faena -> {(día_int, proceso) -> {horas, equipos, dotacion}}
-    out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}}
+    # _auth: RPCs que rechazaron la credencial → main() aborta con EXIT_CMMS_AUTH.
+    out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}, '_auth': []}
     url = os.environ.get('SUPABASE_URL'); key = os.environ.get('SUPABASE_KEY')
     if not url or not key:
         return out
@@ -962,7 +974,14 @@ def datos_cmms():
             url.rstrip('/') + '/rest/v1/rpc/' + nombre, data=b'{}', method='POST',
             headers={'apikey': key, 'Authorization': 'Bearer ' + key,
                      'Content-Type': 'application/json'})
-        return json.loads(urllib.request.urlopen(req, timeout=20).read())
+        try:
+            return json.loads(urllib.request.urlopen(req, timeout=20).read())
+        except urllib.error.HTTPError as e:
+            # 401 = la clave no sirve · 403 = la clave sirve pero al rol le falta el GRANT.
+            # Las dos son configuración, no red: se anotan para abortar al volver a main().
+            if e.code in (401, 403):
+                out['_auth'].append(nombre)
+            raise
 
     try:
         for r in rpc('informe_avance_dias'):     # viene ordenado por faena, fecha desc
@@ -1038,6 +1057,15 @@ def main():
     cap = {fa: round(x.m3.quantile(.90)) for fa, x in gm.groupby('faena')}
     faenas = [f for f in FAENA_ORDER if f in set(gm.faena)]
     cmms = datos_cmms()
+    # Se aborta ANTES de escribir el HTML: más vale dejar en el hosting el informe completo de
+    # ayer que pisarlo con uno al que le falta la mitad. Ver EXIT_CMMS_AUTH.
+    if cmms.get('_auth'):
+        print("")
+        print(f"❌ CMMS: credencial rechazada por {', '.join(cmms['_auth'])}")
+        print("   El informe saldría SIN volteo, SIN madereo, SIN tiempos perdidos y SIN horas")
+        print("   de pre-uso. NO se escribe el HTML y NO se sube: queda el del día anterior.")
+        print("   Revisar el secret SUPABASE_KEY y el GRANT EXECUTE de esas RPC en Supabase.")
+        return EXIT_CMMS_AUTH
     kpis = datos_kpis()
     bn = cargar_bn()      # acta + stock del NOC (reporte BN)
     tm = datos_tm()       # top causas de tiempo perdido del NOC

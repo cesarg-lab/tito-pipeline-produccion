@@ -61,7 +61,21 @@ echo "▶️  [2.7/9] Calculando KPIs Uso/Ritmo/Carga/VMA y generando Dashboard_
 # (generar_tablero_faena.py queda solo como librería: el informe importa sus funciones.)
 echo ""
 echo "▶️  [2.8/8] Generando Informe de Faena (tablero Arauco, mitad productividad, 1 hoja A4/faena)..."
-python3 generar_informe_faena.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  Informe de faena falló (no crítico, el pipeline sigue)"
+python3 generar_informe_faena.py 2>&1 | tee -a "$LOG_PIPELINE"
+# PIPESTATUS[0] y no $?: con el `tee` de por medio $? es el de tee (siempre 0), así que el
+# `|| echo` que había acá NUNCA se ejecutaba — el informe podía reventar entero en silencio.
+INFORME_RC=${PIPESTATUS[0]}
+if [ "$INFORME_RC" = "3" ]; then
+    # 3 = EXIT_CMMS_AUTH: el CMMS rechazó la credencial (401/403). Esto NO es "no crítico":
+    # el informe saldría sin la mitad del contenido. Se corta el pipeline para que el run
+    # quede en rojo y llegue el aviso, en vez de publicar un PDF mutilado con un ✅ al lado.
+    echo ""
+    echo "  ❌ Informe de faena: el CMMS rechazó la credencial. Se aborta el pipeline."
+    echo "     Arreglar SUPABASE_KEY / los permisos de las RPC informe_* y volver a correr."
+    exit 1
+elif [ "$INFORME_RC" != "0" ]; then
+    echo "  ⚠️  Informe de faena falló (no crítico, el pipeline sigue)"
+fi
 
 # ── 3. Generar HTML ───────────────────────────────────────────────────────
 echo ""
