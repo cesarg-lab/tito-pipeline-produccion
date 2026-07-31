@@ -1058,10 +1058,31 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         # VOLTEO / MADEREO: Real = lo PRODUCIDO ese día (flujo declarado por el jefe), que es lo
         # que significa la columna "Volumen día" del tablero de Arauco. NO el colchón: ese es un
         # nivel y vive en el bloque de buffers, no acá.
+        # Nivel del colchón, por si ese día no hay flujo. Ver el comentario de abajo.
+        NIVEL = {'VOLTEO': 'volteado', 'MADEREO': 'cancha'}
+
         def celdas_proc(proc, clave):
             m = (metas_p or {}).get(proc)
             prod = _av_d.get(clave)
-            real = f"<td class=nf>{prod:,.0f}</td>" if prod is not None else "<td class=pr>rep.</td>"
+            if prod is not None:
+                real = f"<td class=nf>{prod:,.0f}</td>"
+            else:
+                # Sin flujo declarado, se muestra el COLCHÓN si el jefe lo informó ese día,
+                # en el estilo azul de "guía" y con asterisco: es otro número, no la
+                # producción del día, y mezclarlos sin marcarlos es lo que no se puede hacer.
+                #
+                # Por qué existe esta rama: la columna de flujo nació el 31-07-2026 y TODO el
+                # histórico llega en null. Al cambiar esta celda de nivel a flujo, las
+                # declaraciones que el jefe ya había hecho —M7 declaró los días 24 y 26 al 29—
+                # desaparecieron del PDF y quedaron como "rep.", o sea "nadie declaró". Borrar
+                # de la vista un dato que alguien sí entregó es peor que mostrarlo etiquetado.
+                niv = _av_d.get(NIVEL.get(proc, ''))
+                if niv is not None:
+                    real = (f"<td class=gu title='Colchón declarado por el jefe: {niv:,.0f} m³ "
+                            f"esperando el proceso siguiente. NO es la producción del día — esa "
+                            f"se declara en la app de terreno desde el 31-07.'>{niv:,.0f}*</td>")
+                else:
+                    real = "<td class=pr>rep.</td>"
             if not m:
                 # Sin meta cargada no hay ni saldo ni meta día: no se inventa el denominador.
                 return f"<td class=bl></td><td class=bl></td>{real}"
@@ -1306,7 +1327,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · hoja 2 de 2</div>
 </div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); celda vacía = nadie declaró · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
+<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); celda vacía = nadie declaró · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
 
