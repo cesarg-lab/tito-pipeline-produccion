@@ -65,6 +65,7 @@ td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC *
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 td.sp{background:#eaf3e0;color:#2d5202;font-weight:700}    /* turno limpio CONFIRMADO */
+td.nd{color:#b7bec6;font-size:6.5px;letter-spacing:-.2px}  /* sin pre-uso: nadie declaró */
 .tpaclab{font-size:9.5px;color:#778;text-transform:uppercase;letter-spacing:.3px;margin:2px 0}
 .ig .jefe{flex:2;min-width:180px}
 .cand{display:inline-block;font-size:11px;font-weight:600;color:#1b3a05;margin-right:9px;
@@ -901,6 +902,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         if (dd, proc) in dias_con_preuso:
             return ("<td class=sp title='El operador declaró este día en el pre-uso de la mañana "
                     "siguiente y no reportó tiempo perdido'>✓</td>")
+        # "s/p" = SIN PRE-USO. La celda vacía se leía como "no pasó nada" cuando en realidad
+        # significa "nadie miró", que es lo contrario. Va en gris tenue a propósito: son 962 de
+        # las 992 celdas del mes, y con el peso visual del rojo la tabla quedaría ilegible.
+        # Solo en días PASADOS con producción — el futuro ya va en blanco y ahí el blanco sí
+        # quiere decir "todavía no".
+        if dd <= ult_dia:
+            return ("<td class=nd title='Sin pre-uso: el operador no lo hizo el día siguiente, "
+                    "así que no se sabe si hubo tiempo perdido'>s/p</td>")
         return "<td class=bl></td>"
 
     # VMA del mes: m³ ÷ árboles ACUMULADOS, no el promedio de los VMA diarios (misma regla
@@ -1327,7 +1336,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · hoja 2 de 2</div>
 </div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); celda vacía = nadie declaró · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
+<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
 
