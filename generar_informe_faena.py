@@ -64,6 +64,7 @@ td.pr,.pr{color:#a06000;font-style:italic}/* "por reportar" (lo informa el jefe)
 td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC */
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
+td.sp{background:#eaf3e0;color:#2d5202;font-weight:700}    /* turno limpio CONFIRMADO */
 .tpaclab{font-size:9.5px;color:#778;text-transform:uppercase;letter-spacing:.3px;margin:2px 0}
 .ig .jefe{flex:2;min-width:180px}
 .cand{display:inline-block;font-size:11px;font-weight:600;color:#1b3a05;margin-right:9px;
@@ -747,9 +748,28 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     for t in tp_faena:
         tp_dia_proc[(t['dia'], t['proceso'])] = tp_dia_proc.get((t['dia'], t['proceso']), 0) + t['horas']
 
+    # Horas del preuso: se necesitan ACÁ (no solo en la tabla de productividad) para saber qué
+    # días tuvieron pre-uso de ese proceso. Sin eso no se puede distinguir un día SIN tiempo
+    # perdido de un día que nadie declaró.
+    hp = horas_preuso(fa, cmms, real_por_dia, mes_key)
+    dias_con_preuso = {(dd, proc) for proc, a in hp.items() for dd in a['dias']}
+
     def tp_cell(dd, proc):
+        """Celda de tiempo perdido. Tres estados, y la diferencia importa:
+
+          · ROJO con las horas — se declaró pérdida.
+          · VERDE con un ✓     — hubo pre-uso de ese proceso ese día y NO se declaró pérdida:
+                                 es un turno limpio CONFIRMADO.
+          · EN BLANCO          — nadie declaró nada. NO se pinta verde: dar por bueno un día
+                                 que no revisó nadie es exactamente el error que el informe
+                                 viene evitando en todas las demás celdas ("rep." en vez de 0).
+        """
         h = tp_dia_proc.get((dd, proc))
-        return f"<td class=tp>{h:g}</td>" if h else "<td class=bl></td>"
+        if h:
+            return f"<td class=tp>{h:g}</td>"
+        if (dd, proc) in dias_con_preuso:
+            return "<td class=sp title='Con pre-uso y sin tiempo perdido declarado'>✓</td>"
+        return "<td class=bl></td>"
 
     # ── Información General ──
     ig = (f"<div class=ig>"
@@ -967,8 +987,6 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC + horómetro del pre-uso) ──
     # Uso Real y Rend Real salen del HORÓMETRO DEL PRE-USO (ver horas_preuso). Donde no hay
     # pre-uso con tramo de un día la celda sigue diciendo "rep." — no se reconstruye nada.
-    hp = horas_preuso(fa, cmms, real_por_dia, mes_key)
-
     def uso_cell(proc):
         """HORAS trabajadas por equipo-día, no el porcentaje: es lo que el jefe copia a la
         pizarra de Arauco (ahí el casillero se llena con horas, ej. 11 plan / 10,4 real).
@@ -1110,7 +1128,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <h2>Productividad según el VMA del bosque</h2>{guia_block}{prodv}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
+<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); celda vacía = nadie declaró · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
 
