@@ -219,9 +219,14 @@ if [ -z "$CHROME" ]; then
     echo "  ⚠️  Sin Chrome/Chromium en el runner — no se generan PDFs (no crítico)"
 else
     PDF_OK=0
+    # Último día con datos del NOC, sacado del propio informe. Va en el caption porque el PDF
+    # se manda varias veces al día (10 veces el 31-07) y todos los mensajes se ven idénticos:
+    # sin fecha ni hora no hay forma de saber cuál es el nuevo, y se termina revisando uno viejo.
+    ULT_DIA_NOC=$(grep -oE '<span>Fecha</span><b>[^<]+' Informe_Faena.html 2>/dev/null \
+                  | head -1 | sed 's/.*<b>//' | tr -d ' ')
     for f in Informe_Zona_*.html; do
         [ -f "$f" ] || continue
-        pdf="${f%.html}.pdf"
+        pdf="${f%.html}_$(date '+%Y-%m-%d_%H%M').pdf"
         # `timeout` + `--virtual-time-budget` son OBLIGATORIOS: sin ellos Chrome se queda
         # esperando recursos (fuentes/red) y cuelga el pipeline entero — pasó con el HTML por
         # zona, 9 min sin terminar hasta cancelar a mano. El budget corta el reloj virtual de
@@ -235,7 +240,8 @@ else
                 ZONA="${f#Informe_Zona_}"; ZONA="${ZONA%.html}"
                 RESP=$(curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
                      -F "document=@${pdf}" \
-                     -F "caption=📋 Informes de Faena — ${ZONA}" \
+                     -F "caption=📋 Informes de Faena — ${ZONA}
+🗓️ Datos al ${ULT_DIA_NOC:-—} · generado $(date '+%d-%m-%Y %H:%M')" \
                      "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument")
                 tg_check "${ZONA} — PDF" "$RESP"
             fi
