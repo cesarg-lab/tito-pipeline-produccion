@@ -920,6 +920,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             sal = fmt(prev_p.get(proc, m)) if dias_con_flujo else "<span class=pr>—</span>"
             if not es_op:
                 mdia = "—"
+            elif dias_con_flujo and d == ult_dia:
+                # Mismo criterio que procesado y clasificado en el día de hoy: días restantes
+                # del kpis.json, para que las cuatro columnas cuenten la misma historia.
+                mdia = fmt(max(0.0, saldos_p.get(proc, m)) / max(int(pg['dias_rest']), 1))
             elif not dias_con_flujo:
                 # SIN NINGUNA declaración en el mes, la meta dinámica se dispara sola: el saldo
                 # nunca baja, los días restantes sí, y para fin de mes pide un número absurdo
@@ -968,6 +972,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             c_ac = fmt(saldo_cla_previo)
             if not es_op:
                 c_di = "—"
+            elif d == ult_dia:
+                # MISMO criterio que el procesado en el día de hoy: lo que falta DESPUÉS de hoy,
+                # repartido en los días restantes de `kpis.json`. Sin esto los dos procesos
+                # mostraban metas distintas en columnas pegadas (30-07: procesado 2.065 contra
+                # clasificado 1.112) — el procesado contaba los días desde HOY y el clasificado
+                # desde la fila. Dos "meta del día" en la misma hoja es el error que este
+                # informe viene corrigiendo desde el principio.
+                c_di = fmt(max(0.0, saldo_cla) / max(int(pg['dias_rest']), 1))
             else:
                 dias_desde_d = len([x for x in ops if x >= d]) or 1
                 c_di = fmt(max(0.0, saldo_cla_previo) / dias_desde_d)
