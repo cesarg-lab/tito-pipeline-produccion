@@ -846,7 +846,9 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         f"<div class=q>¿Se cumple avance plan del día? <b>{cumple}</b> "
         f"(cumplimiento {pg['cumpl']:.0f}%)</div>"
         f"<div class=recu>Volumen a recuperar: <b>{fmt(pg['recuperar'])} m³/día</b> "
-        f"(sobre {pg['dias_rest']} días operables restantes) &nbsp;·&nbsp; "
+        f"(sobre {pg['dias_rest']} "
+        f"{'día operable restante' if int(pg['dias_rest']) == 1 else 'días operables restantes'})"
+        f" &nbsp;·&nbsp; "
         f"Volumen proyectado mes: <b>{fmt(pg['proy'])} m³</b>"
         f"</div>")
 
