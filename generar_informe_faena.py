@@ -102,6 +102,9 @@ tr.hoy td.l{font-weight:700;color:#7a5c00}
 .barra .hint{font-size:11px;opacity:.85;font-weight:400}
 .oculto{display:none!important}
 .analisis{page-break-before:always}
+/* El registro del mes va en su propia hoja: antes el corte caía a mitad de la tabla
+   diaria, partiendo el mes en dos por donde tocara. Ahora el quiebre es a propósito. */
+.registro{page-break-before:always}
 @media print{button.noprint{display:none!important}.barra{display:none!important}
   .diaria{font-size:7px}.sheet{padding:8px 10px}}
 """
@@ -1139,6 +1142,13 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <h2>Producción General</h2>{pgen}
 <h2>Productividad según el VMA del bosque</h2>{guia_block}{prodv}
 <h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
+<div class=foot>Hoja 1 de 2 · GESTIÓN. El registro del mes día por día va en la hoja siguiente.</div>
+</div>
+<div class="sheet faena registro" data-faena="{fa}">
+<header>{'<img src="'+LOGO+'">' if LOGO else ''}<div>
+<h1>Registro del mes · {NOMBRE.get(fa, fa)}</h1>
+<div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · hoja 2 de 2</div>
+</div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
 <div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); celda vacía = nadie declaró · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
