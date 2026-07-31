@@ -491,26 +491,69 @@ def cargar_bn():
 
 
 def tabla_acta(regs):
-    """Cumplimiento Acta: el REAL acumulado por producto sale del NOC (campo PRODUCTO del BN:
-    PODADO / ASERRABLE / PULPABLE). El **Plan queda para llenar en terreno**: es el mix
-    comprometido con el cliente, no un dato de producción — el NOC no lo tiene y no se inventa."""
-    tot = {}
+    """Cumplimiento Acta · UNA FILA POR ACTA, no un promedio del mes.
+
+    El acta es la unidad del RODAL: es el trato con Arauco sobre un paño concreto. Una faena
+    trabaja entre 2 y 6 actas en el mismo mes —M1.1 en dos predios distintos, M11 en seis
+    actas— y esos rodales NO son comparables entre sí. Medido en el BN:
+
+        M1.1 · acta 2078005 (predio 10073) → 98% fresca
+              acta 2074817 (predio 11983) → 60% QUEMADA
+
+    Promediarlos daba "81% fresca" para la faena, escondiendo que la mitad del mes se cosechó
+    un paño quemado. Lo mismo con el mix de producto: M7 va de 61% pulpable en un acta a 100%
+    aserrable en otra. Por eso acá se abre por acta y el total queda al pie como referencia.
+
+    El **Plan del acta** (el mix comprometido con el cliente) sigue sin mostrarse: no es un dato
+    de producción, el NOC no lo trae y no se inventa.
+    """
+    por_acta = {}
     for x in regs:
+        if x['m3'] <= 0:
+            continue
+        a = por_acta.setdefault(x['acta'] or '—',
+                                {'m3': 0.0, 'predio': x.get('destino', ''), 'prod': {}, 'est': {}})
+        a['m3'] += x['m3']
         p = x['producto']
         if p in ('PODADO', 'ASERRABLE', 'PULPABLE'):
-            tot[p] = tot.get(p, 0.0) + x['m3']
-    suma = sum(tot.values())
+            a['prod'][p] = a['prod'].get(p, 0.0) + x['m3']
+        e = (x.get('estado') or '').strip()
+        if e:
+            e = 'Quemada' if e.lower().startswith('quemada') else e
+            a['est'][e] = a['est'].get(e, 0.0) + x['m3']
+    if not por_acta:
+        return "<div class=cob>El NOC no informa actas para esta faena en el período.</div>"
+
+    def mix(prod, total):
+        """Pod/Ase/Pul en tres números. En una columna de ~60 mm no cabe una tabla anidada."""
+        if not total:
+            return "—"
+        return " · ".join(f"{prod.get(p, 0.0)/total*100:.0f}" for p in ('PODADO', 'ASERRABLE', 'PULPABLE'))
+
+    def rodal(est, total):
+        if not est or not total:
+            return "<td>—</td>"
+        nom, m3 = max(est.items(), key=lambda y: y[1])
+        col = 'nf' if nom.lower().startswith('fresca') else 'tp'
+        return f"<td class={col}>{m3/total*100:.0f}% {nom.lower()[:6]}</td>"
+
     filas = ""
-    for p in ('PODADO', 'ASERRABLE', 'PULPABLE'):
-        m3 = tot.get(p, 0.0)
-        pct = f"{m3/suma*100:.1f}" if suma else "—"
-        real = f"<td class=nf>{pct}</td>" if suma else "<td>—</td>"
-        filas += (f"<tr><td class=l>{p.title()}</td>{real}<td class=nf>{fmt(m3)}</td></tr>")
-    actas = sorted({x['acta'] for x in regs if x['acta']})
-    pie = (f"<div class=cob>Real del NOC por producto ({fmt(suma)} m³ del mes"
-           f"{' · acta ' + ', '.join(actas[-3:]) if actas else ''}).</div>")
-    return ("<table><tr><th class=l>Producto</th><th>Real Ac. [%]</th>"
-            "<th>Real [m³]</th></tr>" + filas + "</table>" + pie)
+    suma = 0.0
+    tprod = {}
+    for acta, a in sorted(por_acta.items(), key=lambda y: -y[1]['m3']):
+        suma += a['m3']
+        for k, v in a['prod'].items():
+            tprod[k] = tprod.get(k, 0.0) + v
+        filas += (f"<tr><td class=l>{acta}</td><td class=nf>{fmt(a['m3'])}</td>"
+                  f"{rodal(a['est'], a['m3'])}<td>{mix(a['prod'], sum(a['prod'].values()))}</td></tr>")
+    filas += (f"<tr class=tot><td class=l><b>TOTAL</b></td><td class=nf>{fmt(suma)}</td>"
+              f"<td></td><td>{mix(tprod, sum(tprod.values()))}</td></tr>")
+    return ("<table><tr><th class=l>Acta</th><th>m³</th><th>Rodal</th>"
+            "<th title='Podado · Aserrable · Pulpable, en % del acta'>Pod·Ase·Pul</th></tr>"
+            + filas + "</table>"
+            "<div class=cob>Una fila por <b>acta</b>: es la unidad del rodal, y una faena "
+            "trabaja varias en el mismo mes con condiciones distintas. El <b>plan</b> del acta "
+            "(mix comprometido) no lo trae el NOC.</div>")
 
 
 def tabla_stock(regs, hasta_iso):
@@ -673,45 +716,6 @@ def nota_meta_procesos(metas_p, dias_con_flujo=0):
     return (f"<div class=cob><b>Volteo y madereo</b>: saldo descontado con la producción "
             f"declarada por el jefe en {dias_con_flujo} día(s) del mes. Los días sin declarar "
             f"no descuentan — el saldo queda arriba de lo real hasta que se informen.</div>")
-
-
-def estado_madera(regs):
-    """Mezcla del mes por condición del rodal, ponderada por m³ (no por número de folios: un
-    folio de 5 m³ no pesa igual que uno de 300).
-
-    "Quemada 2" se agrupa con "Quemada": son grados del mismo problema y separarlos parte una
-    barra chica en dos más chicas todavía. Devuelve None si el BN no trae el campo — sin dato
-    no se dibuja nada, no se asume "fresca".
-    """
-    tot = {}
-    for x in regs:
-        e = (x.get('estado') or '').strip()
-        if not e or x['m3'] <= 0:
-            continue
-        e = 'Quemada' if e.lower().startswith('quemada') else e
-        tot[e] = tot.get(e, 0.0) + x['m3']
-    suma = sum(tot.values())
-    if not suma:
-        return None
-    return {'mix': sorted(tot.items(), key=lambda y: -y[1]), 'm3': suma}
-
-
-def celda_madera(em):
-    """Campo 'Madera' de Información General: la mezcla del mes en una línea.
-
-    Va JUNTO a Especie y Tecnología porque es del mismo tipo de dato — describe el rodal, no la
-    producción. El color marca lo que no es madera sana: rendir 30 m³/hr con el rodal quemado no
-    es lo mismo que rendirlos con el rodal fresco, y hoy el informe los mostraba idénticos.
-    """
-    if not em:
-        return "<div><span>Madera</span><b class=fill>sin dato</b></div>"
-    partes = []
-    for nombre, m3 in em['mix'][:3]:
-        pct = m3 / em['m3'] * 100
-        col = '#1E8449' if nombre.lower().startswith('fresca') else '#a01b0b'
-        partes.append(f"<span style='color:{col}'>{pct:.0f}% {nombre.lower()}</span>")
-    return (f"<div title='Sobre {fmt(em['m3'])} m³ del mes informados al NOC'>"
-            f"<span>Madera</span><b>{' · '.join(partes)}</b></div>")
 
 
 def shoveleo_mes(cmms, fid, mes_key):
@@ -903,7 +907,6 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # que carga y ritmo: promedio de razones ≠ razón de totales).
     _arb = float(jul.arb.sum())
     vma_mes = (float(jul.m3.sum()) / _arb) if _arb > 0 else None
-    em = estado_madera((bn or {}).get(fa, []))   # condición del rodal (BN del NOC)
 
     # ── Información General ──
     ig = (f"<div class=ig>"
@@ -913,14 +916,15 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
           f"<div><span>Jefe de Faena</span>{campo_jefes(fa, ult)}</div>"
           f"<div><span>Especie</span><b>{especie}</b></div>"
           f"<div><span>Tecnología</span><b>{TECN.get(tec, tec)}</b></div>"
-          # VMA y estado del rodal van ACÁ, con especie y tecnología: los cuatro describen
-          # con qué te tocó trabajar, no lo que produjiste. El VMA además es el que elige
-          # contra qué tramo de la Guía te compara todo el resto del informe, y hasta hoy no
-          # aparecía en ninguna parte de la hoja.
+          # El VMA va ACÁ, junto a especie y tecnología: los tres describen con qué te tocó
+          # trabajar, no lo que produjiste. Y es el que elige contra qué tramo de la Guía te
+          # compara todo el resto del informe — hasta hoy no aparecía en la hoja.
+          # El ESTADO DEL RODAL no va acá: se abre por ACTA en Cumplimiento Acta. Una faena
+          # trabaja 2-6 actas al mes con condiciones distintas (M1.1: 98% fresca en una,
+          # 60% quemada en otra) y el promedio del mes escondía justamente eso.
           + (f"<div title='m³ ÷ árboles del mes · tramo {tramo_de(vma_mes)} de la Guía'>"
              f"<span>VMA</span><b>{vma_mes:.3f} m³/árbol</b></div>" if vma_mes else
-             "<div><span>VMA</span><b class=fill>sin dato</b></div>")
-          + celda_madera(em) + "</div>")
+             "<div><span>VMA</span><b class=fill>sin dato</b></div>") + "</div>")
 
     # ── Producción General ──
     pgen = (f"<div class=kpi>"
