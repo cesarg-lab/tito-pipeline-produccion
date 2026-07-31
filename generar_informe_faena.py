@@ -669,6 +669,54 @@ def nota_meta_procesos(metas_p, dias_con_flujo=0):
             f"no descuentan — el saldo queda arriba de lo real hasta que se informen.</div>")
 
 
+def shoveleo_mes(cmms, fid, mes_key):
+    """Shoveleo del mes para una faena, desde `turno_shoveleo` (lo declara el operador de la
+    shovel en su pre-uso, EN PROD 2026-07-31).
+
+    El indicador que sirve NO son las horas sueltas: es **qué parte del turno de la shovel se
+    va en acomodar madera** en vez de producir. El shoveleo es trabajo preparatorio — mueve y
+    apila para que el skidder pueda cargar —, así que un porcentaje alto sostenido dice que el
+    volteo está dejando la madera mal puesta, o que el terreno lo obliga.
+
+    Base = horas REALES del turno (Δ horómetro), que es lo que se guardó junto a la
+    declaración. Con la jornada nominal el porcentaje se pasaría del 100% la mitad de los días:
+    la mediana de Δ horómetro de las shovels es 12,5 h contra 10,5 configuradas.
+
+    Devuelve None si nadie declaró: la celda queda "rep.", nunca un 0 que se lea como medición.
+    """
+    filas = [x for x in ((cmms or {}).get('shoveleo', {}).get(fid) or [])
+             if str(x.get('fecha', ''))[:7] == mes_key]
+    if not filas:
+        return None
+    horas = sum(x['horas'] for x in filas)
+    # Solo los días que traen la base pueden entrar al porcentaje; los otros suman horas y nada
+    # más. Mezclarlos daría un porcentaje sobre un denominador incompleto.
+    con_base = [x for x in filas if x.get('horas_turno')]
+    base = sum(x['horas_turno'] for x in con_base)
+    h_base = sum(x['horas'] for x in con_base)
+    return {
+        'dias': len(filas),
+        'horas': horas,
+        'h_dia': horas / len(filas),
+        'pct': (h_base / base * 100) if base else None,
+        'dias_pct': len(con_base),
+        'equipos': sorted({x['equipo'] for x in filas if x.get('equipo')}),
+    }
+
+
+def nota_shoveleo(sh):
+    """Nota de procedencia del shoveleo: con cuántos turnos se calculó. Deja el gate de
+    adopción a la vista, igual que la cobertura del pre-uso."""
+    if not sh:
+        return ""
+    eq = " · ".join(sh['equipos']) if sh['equipos'] else "la shovel"
+    pct = (f" — <b>{sh['pct']:.0f}% del turno</b> ({sh['dias_pct']} día(s) con base de horas)"
+           if sh['pct'] is not None else "")
+    return (f"<div class=cob><b>Shoveleo</b>: {fmt(sh['horas'], 1)} h declaradas por {eq} en "
+            f"{sh['dias']} día(s) del mes{pct}. Son horas <b>trabajadas</b>, no tiempo perdido: "
+            f"el shoveleo acomoda la madera para que el madereo pueda cargar.</div>")
+
+
 def nota_ref(ref, tec, esp):
     """Deja a la vista de dónde sale la columna Plan. Importa decirlo: hasta el 2026-07-30 el
     plan era el p75 de la propia faena, así que una faena podía figurar 'sobre el plan' por el
@@ -1077,6 +1125,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # Referencia de Arauco para ESTA faena. Solo aplica a MADEREO: el NOC únicamente entrega
     # ciclos del equipo que reporta el folio, así que carga y ritmo no están medidos en los
     # otros procesos — y en la pizarra de Arauco tampoco aparecen ahí.
+    sh = shoveleo_mes(cmms, fid, mes_key)
     ref = ref_arauco(tec, especie_cod)
     r_ritmo, r_carga, r_rend = ref if ref else (None, None, None)
     ra = lambda v, d=2: gu(f"{v:.{d}f}") if v else vac
@@ -1085,7 +1134,17 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         "<div class=two>"
         + bloque("VOLTEO", [
             ("Horas [hrs]", vac, hplan, uso_cell('VOLTEO'), nada),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, "<td class=pr>rep.</td>", nada)])
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, "<td class=pr>rep.</td>", nada),
+            # Shoveleo: va en VOLTEO porque es donde lo lleva Arauco en su planilla, y porque
+            # la shovel trabaja para el volteo. Plan queda en "—": Arauco NO publica una
+            # referencia de shoveleo (lo verifiqué en las 4 hojas de su libro), y poner una
+            # inventada sería peor que no tenerla.
+            ("Shoveleo [hrs/día]", vac, vac,
+             (f"<td class=nf title='{sh['horas']:g} h en {sh['dias']} día(s) declarados'>"
+              f"{sh['h_dia']:.1f}</td>") if sh else "<td class=pr>rep.</td>", nada),
+            ("Shoveleo [% turno]", vac, vac,
+             (f"<td class=nf>{sh['pct']:.0f}%</td>" if (sh and sh['pct'] is not None)
+              else "<td class=pr>rep.</td>"), nada)])
         + bloque("MADEREO", [
             ("Horas [hrs]", vac, hplan, uso_cell('MADEREO'), nada),
             ("Rendimiento [m³/hr]", f"<td>{pp['plan_rend']}</td>", ra(r_rend, 1),
@@ -1101,7 +1160,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         + bloque("CLASIFICADO", [
             ("Horas [hrs]", vac, hplan, uso_cell('CLASIFICADO'), nada),
             ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, rend_cell('CLASIFICADO'), nada)])
-        + "</div>" + nota_ref(ref, tec, especie_cod)
+        + "</div>" + nota_ref(ref, tec, especie_cod) + nota_shoveleo(sh)
         + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
@@ -1191,7 +1250,8 @@ def datos_cmms():
     # tp: faena -> [{fecha, dia, proceso, causa, detalle, horas}]
     # horas: faena -> {(día_int, proceso) -> {horas, equipos, dotacion}}
     # _auth: RPCs que rechazaron la credencial → main() aborta con EXIT_CMMS_AUTH.
-    out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}, 'preuso_dias': {}, '_auth': []}
+    out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}, 'preuso_dias': {},
+           'shoveleo': {}, '_auth': []}
     url = os.environ.get('SUPABASE_URL'); key = os.environ.get('SUPABASE_KEY')
     if not url or not key:
         return out
@@ -1253,6 +1313,17 @@ def datos_cmms():
                 (str(r['fecha'])[:10], r['proceso']))
     except Exception as e:
         print(f"  ⚠️  CMMS días de preuso no disponibles ({e}); la columna T.P no marca turnos limpios")
+    # Horas de shoveleo declaradas por la shovel (tabla turno_shoveleo, EN PROD 2026-07-31).
+    # Son horas TRABAJADAS, no tiempo perdido: por eso vienen de su propia RPC y NO de
+    # informe_tp_faena. Ver la migración 20260731c del CMMS.
+    try:
+        for r in rpc('informe_shoveleo_faena'):
+            out['shoveleo'].setdefault(r['faena_id'], []).append(
+                {'fecha': str(r['fecha'])[:10], 'equipo': r.get('equipo'),
+                 'horas': float(r['horas']),
+                 'horas_turno': None if r.get('horas_turno') is None else float(r['horas_turno'])})
+    except Exception as e:
+        print(f"  ⚠️  CMMS shoveleo no disponible ({e}); la fila de shoveleo queda 'por reportar'")
     return out
 
 def datos_tm():
