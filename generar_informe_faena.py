@@ -751,11 +751,25 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     for t in tp_faena:
         tp_dia_proc[(t['dia'], t['proceso'])] = tp_dia_proc.get((t['dia'], t['proceso']), 0) + t['horas']
 
-    # Horas del preuso: se necesitan ACÁ (no solo en la tabla de productividad) para saber qué
-    # días tuvieron pre-uso de ese proceso. Sin eso no se puede distinguir un día SIN tiempo
-    # perdido de un día que nadie declaró.
     hp = horas_preuso(fa, cmms, real_por_dia, mes_key)
-    dias_con_preuso = {(dd, proc) for proc, a in hp.items() for dd in a['dias']}
+
+    # Qué días quedaron CONFIRMADOS: el tiempo perdido de un día se declara en el pre-uso de la
+    # mañana SIGUIENTE ("ayer tu equipo trabajó"), así que el día D lo confirma el pre-uso de
+    # D+1. Se usa `informe_preuso_dias` y NO las horas de `informe_horas_faena`: las horas
+    # necesitan dos pre-usos de días CONSECUTIVOS (Δ horómetro) y ahí se pierden los días en que
+    # el operador sí declaró pero el par no se pudo formar. Caso real (M7, julio): la GM-07 hizo
+    # pre-uso el 28 y el 30 — con el salto de un día el par se descarta, y el clasificado de M7
+    # quedaba sin una sola marca en todo el mes pese a haber declarado dos veces.
+    from datetime import date, timedelta
+    _pd = (cmms or {}).get('preuso_dias', {}).get(fid, set())
+    dias_con_preuso = set()
+    for f_iso, proc in _pd:
+        try:
+            d_conf = date.fromisoformat(f_iso) - timedelta(days=1)   # el pre-uso de hoy confirma AYER
+        except Exception:
+            continue
+        if d_conf.strftime('%Y-%m') == mes_key:
+            dias_con_preuso.add((d_conf.day, proc))
 
     def tp_cell(dd, proc):
         """Celda de tiempo perdido. Tres estados, y la diferencia importa:
@@ -771,7 +785,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         if h:
             return f"<td class=tp>{h:g}</td>"
         if (dd, proc) in dias_con_preuso:
-            return "<td class=sp title='Con pre-uso y sin tiempo perdido declarado'>✓</td>"
+            return ("<td class=sp title='El operador declaró este día en el pre-uso de la mañana "
+                    "siguiente y no reportó tiempo perdido'>✓</td>")
         return "<td class=bl></td>"
 
     # ── Información General ──
@@ -1176,7 +1191,7 @@ def datos_cmms():
     # tp: faena -> [{fecha, dia, proceso, causa, detalle, horas}]
     # horas: faena -> {(día_int, proceso) -> {horas, equipos, dotacion}}
     # _auth: RPCs que rechazaron la credencial → main() aborta con EXIT_CMMS_AUTH.
-    out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}, '_auth': []}
+    out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}, 'preuso_dias': {}, '_auth': []}
     url = os.environ.get('SUPABASE_URL'); key = os.environ.get('SUPABASE_KEY')
     if not url or not key:
         return out
@@ -1230,6 +1245,14 @@ def datos_cmms():
                 'dotacion': int(r['dotacion'])}
     except Exception as e:
         print(f"  ⚠️  CMMS horas de preuso no disponibles ({e}); Uso/Rend real quedan 'por reportar'")
+    # Días con pre-uso (≠ días con horas calculadas): marca el turno limpio en la columna T.P.
+    # Ver el comentario en sheet() sobre por qué NO sirven las horas para esto.
+    try:
+        for r in rpc('informe_preuso_dias'):
+            out['preuso_dias'].setdefault(r['faena_id'], set()).add(
+                (str(r['fecha'])[:10], r['proceso']))
+    except Exception as e:
+        print(f"  ⚠️  CMMS días de preuso no disponibles ({e}); la columna T.P no marca turnos limpios")
     return out
 
 def datos_tm():
