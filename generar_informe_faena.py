@@ -66,6 +66,10 @@ td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 td.sp{background:#eaf3e0;color:#2d5202;font-weight:700}    /* turno limpio CONFIRMADO */
 td.nd{color:#b7bec6;font-size:6.5px;letter-spacing:-.2px}  /* sin pre-uso: nadie declaró */
+td.jA{background:#e3ecf5;box-shadow:inset 3px 0 0 #4a7ba7}  /* turno del jefe A */
+td.jB{background:#f7efe2;box-shadow:inset 3px 0 0 #b9863e}  /* turno del jefe B */
+.leyj{font-size:8.5px;color:#4a5a6a;margin:3px 0 0}
+.leyj i{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 3px -1px 9px}
 .tpaclab{font-size:9.5px;color:#778;text-transform:uppercase;letter-spacing:.3px;margin:2px 0}
 .ig .jefe{flex:2;min-width:180px}
 .cand{display:inline-block;font-size:11px;font-weight:600;color:#1b3a05;margin-right:9px;
@@ -618,6 +622,35 @@ def jefe_de_turno(fa, dia_iso):
         return None
 
 
+_TURNOS_CACHE = {}
+
+
+def turno_de(fa, dia_iso):
+    """(nombre del jefe, 'A'|'B') para ese día, o (None, None). Misma matriz 7×7 que
+    `jefe_de_turno`, pero devolviendo también CUÁL de los dos es, que es lo que permite pintar
+    el bloque de turno en la tabla diaria. Cachea el JSON: si no, son 248 lecturas por corrida."""
+    import json
+    from datetime import date
+    if 'cfg' not in _TURNOS_CACHE:
+        try:
+            _TURNOS_CACHE['cfg'] = json.loads((BASE / "turnos_config.json").read_text(encoding='utf-8'))
+        except Exception:
+            _TURNOS_CACHE['cfg'] = None
+    cfg = _TURNOS_CACHE['cfg']
+    if not cfg:
+        return None, None
+    try:
+        c = cfg.get('faenas', {}).get(NOMBRE.get(fa, fa))
+        if not c:
+            return None, None
+        ref = date.fromisoformat(cfg.get('ref', '2026-07-01'))
+        ciclo = int(cfg.get('ciclo_dias', 14))
+        pos = (c['posR'] + (date.fromisoformat(dia_iso[:10]) - ref).days) % ciclo
+        return (c['jefeA'], 'A') if pos < ciclo // 2 else (c['jefeB'], 'B')
+    except Exception:
+        return None, None
+
+
 def campo_jefes(fa, dia_iso):
     """Campo 'Jefe de Faena': UN nombre, el que está de turno ese día según la matriz.
     Sin matriz → línea en blanco para llenar a mano (el informe nunca deja de servir)."""
@@ -1058,8 +1091,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             if p in saldos_p and _av_d.get(k) is not None:
                 saldos_p[p] = max(0.0, saldos_p[p] - float(_av_d[k]))
         # Días futuros: fila en blanco (la meta es día a día, no se proyecta hacia adelante).
+        jnom, jlado = turno_de(fa, f"{mes_key}-{d:02d}")
+        cl_dia = f"l j{jlado}" if jlado else "l"
+        ttl = f" title='Turno de {jnom}'" if jnom else ""
         if d > ult_dia:
-            filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
+            # Día futuro: sin datos, pero CON su color de turno — la rotación se sabe de
+            # antemano y así el jefe ve en la hoja impresa cuándo le toca volver.
+            filas += (f"<tr><td class='{cl_dia}'{ttl}>{d:02d}</td>"
+                      + "<td class=bl></td>" * 16 + "</tr>")
             continue
         tot_real += real_por_dia.get(d, 0.0)
         tot_tp += sum(v for (dd_, _p), v in tp_dia_proc.items() if dd_ == d)
@@ -1165,13 +1204,28 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             c_ac, c_di = pm_ac, pm_di
         cla = f"<td>{c_ac}</td><td>{c_di}</td>{rr}{tp_cell(d,'CLASIFICADO')}"
         cl_hoy = " class=hoy" if d == ult_dia else ""
-        filas += f"<tr{cl_hoy}><td class=l>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
+        # Bloque de turno en la celda del DÍA (no en la fila): la fila lleva celdas verdes,
+        # rojas, azules y la barra amarilla de HOY, y un fondo encima las arruinaría todas.
+        # Pintando solo el día queda una banda a la izquierda que muestra los bloques de 7 días
+        # de un jefe y 7 del otro — y con eso se puede leer el mes por turno, no por faena.
+        filas += f"<tr{cl_hoy}><td class='{cl_dia}'{ttl}>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
     # Fila de TOTALES del mes al pie (lo que el tablero de Arauco cierra abajo).
     v4 = "<td class=bl></td>" * 4
     tot_row = (f"<tr class=tot><td class=l><b>TOTAL</b></td>{v4}{v4}"
                f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td class=tp>{tot_tp:g}</td>"
                f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td></td></tr>")
-    diaria = (f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>"
+    # Leyenda de los dos turnos. Con los NOMBRES: un color sin nombre obliga a adivinar, y el
+    # sentido de esto es poder decir "este bloque es de fulano".
+    jefes = []
+    for lado in ('A', 'B'):
+        nom = next((turno_de(fa, f"{mes_key}-{dd:02d}")[0] for dd in range(1, n_mes + 1)
+                    if turno_de(fa, f"{mes_key}-{dd:02d}")[1] == lado), None)
+        if nom:
+            jefes.append(f"<i style='background:{'#e3ecf5' if lado=='A' else '#f7efe2'};"
+                         f"border-left:3px solid {'#4a7ba7' if lado=='A' else '#b9863e'}'></i>{nom}")
+    ley_turnos = (f"<div class=leyj>Turnos 7×7 en la columna del día:{''.join(jefes)}</div>"
+                  if len(jefes) == 2 else "")
+    diaria = (f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>" + ley_turnos
               + nota_meta_procesos(metas_p, dias_con_flujo))
 
     # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC + horómetro del pre-uso) ──
