@@ -477,6 +477,12 @@ def cargar_bn():
                     'm3': num(r.get('M3SSC')),
                     'stock': num(r.get('STOCK')),
                     'acta': str(r.get('NUMERO_ACTA', '')).strip(),
+                    # Condición del RODAL (Fresca / Quemada / Manchada). Llega en el BN desde
+                    # siempre y no se usaba: es un dato de ENTRADA —con qué te tocó trabajar—,
+                    # distinto del PRODUCTO, que es lo que salió. Explica por qué dos faenas
+                    # con el mismo equipo y la misma especie rinden distinto, y relativiza la
+                    # comparación contra la referencia de Arauco, que supone madera sana.
+                    'estado': (r.get('ESTADO_MADERA') or '').strip(),
                 })
     except Exception as e:
         print(f"  ⚠️  Base2NOC.csv no legible ({e}); acta y stock quedan en blanco")
@@ -669,6 +675,45 @@ def nota_meta_procesos(metas_p, dias_con_flujo=0):
             f"no descuentan — el saldo queda arriba de lo real hasta que se informen.</div>")
 
 
+def estado_madera(regs):
+    """Mezcla del mes por condición del rodal, ponderada por m³ (no por número de folios: un
+    folio de 5 m³ no pesa igual que uno de 300).
+
+    "Quemada 2" se agrupa con "Quemada": son grados del mismo problema y separarlos parte una
+    barra chica en dos más chicas todavía. Devuelve None si el BN no trae el campo — sin dato
+    no se dibuja nada, no se asume "fresca".
+    """
+    tot = {}
+    for x in regs:
+        e = (x.get('estado') or '').strip()
+        if not e or x['m3'] <= 0:
+            continue
+        e = 'Quemada' if e.lower().startswith('quemada') else e
+        tot[e] = tot.get(e, 0.0) + x['m3']
+    suma = sum(tot.values())
+    if not suma:
+        return None
+    return {'mix': sorted(tot.items(), key=lambda y: -y[1]), 'm3': suma}
+
+
+def celda_madera(em):
+    """Campo 'Madera' de Información General: la mezcla del mes en una línea.
+
+    Va JUNTO a Especie y Tecnología porque es del mismo tipo de dato — describe el rodal, no la
+    producción. El color marca lo que no es madera sana: rendir 30 m³/hr con el rodal quemado no
+    es lo mismo que rendirlos con el rodal fresco, y hoy el informe los mostraba idénticos.
+    """
+    if not em:
+        return "<div><span>Madera</span><b class=fill>sin dato</b></div>"
+    partes = []
+    for nombre, m3 in em['mix'][:3]:
+        pct = m3 / em['m3'] * 100
+        col = '#1E8449' if nombre.lower().startswith('fresca') else '#a01b0b'
+        partes.append(f"<span style='color:{col}'>{pct:.0f}% {nombre.lower()}</span>")
+    return (f"<div title='Sobre {fmt(em['m3'])} m³ del mes informados al NOC'>"
+            f"<span>Madera</span><b>{' · '.join(partes)}</b></div>")
+
+
 def shoveleo_mes(cmms, fid, mes_key):
     """Shoveleo del mes para una faena, desde `turno_shoveleo` (lo declara el operador de la
     shovel en su pre-uso, EN PROD 2026-07-31).
@@ -744,8 +789,23 @@ def aviso_ciclos(pp):
             f"NOC). El volumen y el rendimiento del mes NO se tocan: usan todos los días.</div>")
 
 
-def guia_tabla(tec, esp, cell, teo):
-    """Tabla Habitual/Meta/Teórico por tramo VMA, para la tecnología+especie de la faena."""
+def tramo_de(vma):
+    """En qué tramo de la Guía VMA cae un árbol de ese tamaño. None si no hay VMA."""
+    if vma is None or vma != vma:
+        return None
+    for i in range(len(TR) - 1):
+        if TR[i] < vma <= TR[i + 1]:
+            return LB[i]
+    return LB[-1] if vma > TR[-2] else LB[0]
+
+
+def guia_tabla(tec, esp, cell, teo, vma=None):
+    """Tabla Habitual/Meta/Teórico por tramo VMA, para la tecnología+especie de la faena.
+
+    RESALTA el tramo en el que está la faena. Sin eso la guía es una tabla de 6 filas y el jefe
+    no tiene cómo saber cuál es la suya — que era justo el problema: todo el informe se apoya en
+    el VMA para elegir contra qué compararte, y el número no aparecía por ninguna parte."""
+    mio = tramo_de(vma)
     filas = ""
     for tr in LB:
         c = cell.get((tec, esp, tr))
@@ -755,7 +815,9 @@ def guia_tabla(tec, esp, cell, teo):
         teov = f"{t}" if t is not None else "—"
         if not c and t is None:
             continue
-        filas += (f"<tr><td class=l>{tr}</td><td>{hab}</td><td class=nf>{meta}</td>"
+        marca = " style='background:#fff3cf;font-weight:700' title='Tramo de esta faena'" if tr == mio else ""
+        flecha = " ←" if tr == mio else ""
+        filas += (f"<tr{marca}><td class=l>{tr}{flecha}</td><td>{hab}</td><td class=nf>{meta}</td>"
                   f"<td class=gu>{teov}</td></tr>")
     if not filas:
         return "<div class=pr>Sin muestra suficiente de VMA para esta tecnología/especie.</div>"
@@ -837,6 +899,12 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                     "siguiente y no reportó tiempo perdido'>✓</td>")
         return "<td class=bl></td>"
 
+    # VMA del mes: m³ ÷ árboles ACUMULADOS, no el promedio de los VMA diarios (misma regla
+    # que carga y ritmo: promedio de razones ≠ razón de totales).
+    _arb = float(jul.arb.sum())
+    vma_mes = (float(jul.m3.sum()) / _arb) if _arb > 0 else None
+    em = estado_madera((bn or {}).get(fa, []))   # condición del rodal (BN del NOC)
+
     # ── Información General ──
     ig = (f"<div class=ig>"
           f"<div><span>Fecha</span><b>{ult_dia:02d} / {mes:02d} / {anio}</b></div>"
@@ -844,7 +912,15 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
           f"<div><span>Predio</span><b>{predio}</b></div>"
           f"<div><span>Jefe de Faena</span>{campo_jefes(fa, ult)}</div>"
           f"<div><span>Especie</span><b>{especie}</b></div>"
-          f"<div><span>Tecnología</span><b>{TECN.get(tec, tec)}</b></div></div>")
+          f"<div><span>Tecnología</span><b>{TECN.get(tec, tec)}</b></div>"
+          # VMA y estado del rodal van ACÁ, con especie y tecnología: los cuatro describen
+          # con qué te tocó trabajar, no lo que produjiste. El VMA además es el que elige
+          # contra qué tramo de la Guía te compara todo el resto del informe, y hasta hoy no
+          # aparecía en ninguna parte de la hoja.
+          + (f"<div title='m³ ÷ árboles del mes · tramo {tramo_de(vma_mes)} de la Guía'>"
+             f"<span>VMA</span><b>{vma_mes:.3f} m³/árbol</b></div>" if vma_mes else
+             "<div><span>VMA</span><b class=fill>sin dato</b></div>")
+          + celda_madera(em) + "</div>")
 
     # ── Producción General ──
     pgen = (f"<div class=kpi>"
@@ -1193,7 +1269,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             objetivos += cruce_clasificado(av, tp_faena, hp)
     else:
         objetivos = "Ritmo del procesador: sin capacidad cargada (sin dato de trozado del mes)."
-    guia = guia_tabla(tec, especie_cod, cell, teo)
+    guia = guia_tabla(tec, especie_cod, cell, teo, vma_mes)
     guia_block = f"<div class=guia>{objetivos}</div>"
 
     # ── Stock en Bosque + Cumplimiento Acta (ambos del BN del NOC, ver cargar_bn) ──
