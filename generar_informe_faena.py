@@ -21,7 +21,7 @@ import pandas as pd, numpy as np
 
 # Reutiliza TODO lo ya probado del generador del tablero (mismo módulo, mismos datos).
 from generar_tablero_faena import (
-    base_diaria, tabla_p75, teorico, metas_excel, cargar_pg,
+    base_diaria, tabla_p75, teorico, metas_excel, metas_procesos, cargar_pg,
     CSS, TEC_NORM, TEAM_MAP, NOMBRE, ESP, ESPN, TECN, LB, TR, TRAMO_MID,
     USO, HDISP, METAS_DEFAULT, LOGO,
 )
@@ -107,6 +107,41 @@ tr.hoy td.l{font-weight:700;color:#7a5c00}
 
 MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto',
          'Septiembre','Octubre','Noviembre','Diciembre']
+
+
+# ── Referencia OFICIAL de Arauco: ritmo y carga esperados por tecnología × especie ──────────
+# Fuente: "Productividad Faena, KPI.xlsx" (hoja Madereo, bloque "Datos Referenciales").
+#
+# Decisión de gerencia 2026-07-30: ESTA es la columna "Plan". Antes el plan salía del p75 de
+# nuestro propio historial, o sea la faena se comparaba consigo misma y una faena mediocre
+# aparecía "sobre el plan" por el solo hecho de repetir su promedio. Ese p75 sigue a la vista
+# como "Habitual" — sirve para saber qué se logra hoy, no para fijar la meta.
+#
+# OJO: ritmo × carga da el mismo rendimiento en las dos especies del skidder (8×5,2 = 13×3,2 =
+# 41,6 m³/hr): Arauco reparte distinto entre viajes y carga según el árbol, pero espera la misma
+# productividad. Forwarder y Clambunk no están en la flota; van por completitud de la tabla.
+REF_ARAUCO = {
+    ('TORRE',               'EUGL'): (19.0,  1.2),
+    ('TORRE',               'PIRA'): (12.0,  2.0),
+    ('TORRE',               'EUNI'): (15.0,  1.8),
+    ('SKIDDER 6X6 GRAPPLE', 'EUGL'): (13.0,  3.2),
+    ('SKIDDER 6X6 GRAPPLE', 'PIRA'): ( 8.0,  5.2),
+    ('SKIDDER 6X6 GRAPPLE', 'EUNI'): ( 8.0,  5.0),
+    ('FORWARDER',           'EUGL'): ( 2.0, 16.0),
+    ('FORWARDER',           'PIRA'): ( 1.6, 15.0),
+    ('FORWARDER',           'EUNI'): ( 2.5, 15.0),
+    ('CLAMBUNK',            'PIRA'): ( 2.3, 14.0),
+}
+
+
+def ref_arauco(tec, esp):
+    """(ritmo, carga, rendimiento) de la referencia de Arauco. None si esa combinación no está
+    en la tabla — el informe muestra "—" y nunca un número inventado."""
+    v = REF_ARAUCO.get((str(tec).upper(), str(esp).upper()))
+    if not v:
+        return None
+    ritmo, carga = v
+    return ritmo, carga, ritmo * carga
 
 
 # Feriados IRRENUNCIABLES (los únicos días que la faena no puede trabajar por ley).
@@ -605,6 +640,43 @@ def cobertura_preuso(hp, ult_dia):
 
 
 
+def nota_meta_procesos(metas_p):
+    """Explica bajo la tabla diaria qué metas por proceso están cargadas y por qué volteo y
+    madereo no pueden mostrar Saldo.
+
+    El motivo NO es que falte la meta: es que de esos dos procesos no se conoce la producción
+    del día. `avance_faena` guarda el NIVEL del colchón (m³ volteados esperando madereo, m³ en
+    cancha esperando trozado), no el flujo. Un nivel no se descuenta de una meta. Derivarlo de
+    dos días seguidos es álgebra simple —madereo(d) = cancha(d-1) − cancha(d) + trozado(d)—
+    pero con estimaciones al ojo el error se amplifica: probado con M7 daba volteo NEGATIVO."""
+    faltan = [p.title() for p in ('VOLTEO', 'MADEREO', 'CLASIFICADO')
+              if not (metas_p or {}).get(p)]
+    if faltan:
+        return ("<div class=cob><b>Metas por proceso</b>: falta cargar "
+                f"<b>{', '.join(faltan)}</b> en la hoja CONFIGURACIÓN del Excel maestro "
+                "(columnas I, J y K). Mientras tanto esas columnas van en blanco — no se "
+                "inventa una meta.</div>")
+    return ("<div class=cob><b>Volteo y madereo no llevan Saldo</b>: el jefe declara el "
+            "<b>colchón</b> (m³ esperando el proceso siguiente), no lo producido en el día, y "
+            "un nivel no se descuenta de una meta. La Meta día que se muestra es el plan lineal "
+            "(meta ÷ días operables).</div>")
+
+
+def nota_ref(ref, tec, esp):
+    """Deja a la vista de dónde sale la columna Plan. Importa decirlo: hasta el 2026-07-30 el
+    plan era el p75 de la propia faena, así que una faena podía figurar 'sobre el plan' por el
+    solo hecho de repetir su promedio."""
+    if not ref:
+        return ("<div class=cob><b>Plan</b>: Arauco no publica referencia para "
+                f"{TECN.get(tec, tec)} × {ESPN.get(esp, esp)}, así que la columna queda en "
+                "'—'. <b>Habitual</b> es el p75 del historial de esta faena.</div>")
+    ritmo, carga, rend = ref
+    return (f"<div class=cob><b>Plan</b> = referencia de Arauco para {TECN.get(tec, tec)} × "
+            f"{ESPN.get(esp, esp)}: <b>{ritmo:g} ciclo/hr × {carga:g} m³/ciclo = "
+            f"{rend:.1f} m³/hr</b>. <b>Habitual</b> es el p75 del historial de esta faena — "
+            "sirve para saber qué se logra hoy, no para fijar la meta.</div>")
+
+
 def aviso_ciclos(pp):
     """Avisa si se dejaron días fuera del cálculo de Carga y Ritmo. Es visible a propósito:
     un día descartado es un día MAL DECLARADO al NOC, y el aviso es lo que empuja a corregirlo."""
@@ -636,7 +708,7 @@ def guia_tabla(tec, esp, cell, teo):
             "<th>Meta<br>[m³/hr]</th><th>Teórico<br>[m³/hr]</th></tr>" + filas + "</table>")
 
 
-def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
+def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_p=None):
     mes_key = g.dia.str[:7].max()
     anio, mes = int(mes_key[:4]), int(mes_key[5:7])
     jul = g[(g.faena == fa) & (g.dia.str[:7] == mes_key)].copy()
@@ -770,13 +842,29 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     # va atrasado el saldo no llega a 0, y eso es justamente la información que hay que ver.
     # MES COMPLETO (gerencia): el informe replica el tablero de Arauco que se llena en faena,
     # así que no puede perder días. Los totales van abajo.
+    #
+    # SALDO = el que se tiene al EMPEZAR el día, no al cerrarlo (así lo lleva Arauco en su
+    # "meta acumulada"). Antes se mostraba el de cierre y la Meta día de al lado se calculaba
+    # con el de apertura: en la fila del día 1 se leía "7.520 | 258", donde el 258 sale de
+    # 8.000 — un número que no aparecía en ninguna parte de la fila. Ahora las dos columnas
+    # hablan del mismo saldo.
+    #
+    # Cada proceso lleva SU meta y por lo tanto SU saldo (metas_p). El clasificado descuenta el
+    # mismo m³ del NOC que el procesado (si la GM no está en pana clasifica todo lo trozado).
+    # Volteo y madereo NO tienen saldo: el CMMS captura el NIVEL del colchón, no la producción
+    # del día, y un nivel no se puede descontar de una meta. Ver nota_meta_procesos().
+    meta_cla = (metas_p or {}).get('CLASIFICADO')
     filas = ""
     tot_real = tot_tp = 0.0
     saldo = float(meta_mes)
+    saldo_cla = float(meta_cla) if meta_cla else None
     for d in range(1, n_mes+1):
         es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
         saldo_previo = saldo        # lo que faltaba al EMPEZAR el día → da la meta de ese día
+        saldo_cla_previo = saldo_cla
         saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
+        if saldo_cla is not None:
+            saldo_cla = max(0.0, saldo_cla - real_por_dia.get(d, 0.0))
         # Días futuros: fila en blanco (la meta es día a día, no se proyecta hacia adelante).
         if d > ult_dia:
             filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
@@ -788,15 +876,24 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         # VOLTEO / MADEREO: Real = lo que el jefe declaró ese día (avance_faena); T.P del preuso.
         v_real = f"<td class=nf>{av['volteado']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
         m_real = f"<td class=nf>{av['cancha']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
-        vol = f"<td class=bl></td><td class=bl></td>{v_real}{tp_cell(d,'VOLTEO')}"
-        mad = f"<td class=bl></td><td class=bl></td>{m_real}{tp_cell(d,'MADEREO')}"
+        # Meta día de VOLTEO / MADEREO: plan LINEAL (meta ÷ días operables), no dinámica. La
+        # dinámica necesita saber cuánto se lleva acumulado, y de estos dos procesos no se sabe:
+        # lo que el jefe declara es el colchón, no lo producido. Saldo queda en blanco.
+        def meta_plan(proc):
+            m = (metas_p or {}).get(proc)
+            if not m or not es_op:
+                return "<td class=bl></td>" if not m else "<td>—</td>"
+            return f"<td>{fmt(m / max(len(ops), 1))}</td>"
+
+        vol = f"<td class=bl></td>{meta_plan('VOLTEO')}{v_real}{tp_cell(d,'VOLTEO')}"
+        mad = f"<td class=bl></td>{meta_plan('MADEREO')}{m_real}{tp_cell(d,'MADEREO')}"
         # PROCESADO: pre-llenado del NOC.
         # Meta día es DINÁMICA TODOS los días, no solo hoy: es lo que ese día había que trozar para
         # llegar a la meta, dado lo que se llevaba trozado hasta el día ANTERIOR, repartido en
         # los días que quedaban desde ahí. Si un día se produce poco, la meta de los siguientes
         # SUBE; si se produce de más, baja. El plan lineal fijo (meta ÷ días del mes) no servía:
         # no sabe cómo viene el mes.
-        pm_ac = fmt(saldo)
+        pm_ac = fmt(saldo_previo)
         if not es_op:
             pm_di = "—"
         elif d == ult_dia:
@@ -815,7 +912,19 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
         # clasifica TODA la madera del procesador → su Real Día es el mismo m³ del NOC.
         # Cuando la GM se empana el PM sigue trozando y queda madera sin clasificar: ese
         # pendiente lo informa el jefe en el CMMS (aún por capturar) y ahí habrá que restarlo.
-        cla = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}{tp_cell(d,'CLASIFICADO')}"
+        # Con meta propia cargada, el clasificado lleva SU saldo y SU meta día; si no, repite las
+        # del procesado (es el comportamiento que había, y sigue siendo cierto: clasifica lo mismo
+        # que se trozó — lo único que cambia es contra qué meta se mide).
+        if saldo_cla_previo is not None:
+            c_ac = fmt(saldo_cla_previo)
+            if not es_op:
+                c_di = "—"
+            else:
+                dias_desde_d = len([x for x in ops if x >= d]) or 1
+                c_di = fmt(max(0.0, saldo_cla_previo) / dias_desde_d)
+        else:
+            c_ac, c_di = pm_ac, pm_di
+        cla = f"<td>{c_ac}</td><td>{c_di}</td>{rr}{tp_cell(d,'CLASIFICADO')}"
         cl_hoy = " class=hoy" if d == ult_dia else ""
         filas += f"<tr{cl_hoy}><td class=l>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
     # Fila de TOTALES del mes al pie (lo que el tablero de Arauco cierra abajo).
@@ -823,7 +932,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     tot_row = (f"<tr class=tot><td class=l><b>TOTAL</b></td>{v4}{v4}"
                f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td class=tp>{tot_tp:g}</td>"
                f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td></td></tr>")
-    diaria = f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>"
+    diaria = (f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>"
+              + nota_meta_procesos(metas_p))
 
     # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC + horómetro del pre-uso) ──
     # Uso Real y Rend Real salen del HORÓMETRO DEL PRE-USO (ver horas_preuso). Donde no hay
@@ -859,30 +969,61 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None):
     # en madereo — el NOC solo entrega ciclos del equipo que reporta el folio —, así que en la
     # pizarra esas filas no están en los otros procesos y acá tampoco.
     def bloque(titulo, filas):
-        fs = "".join(f"<tr><td class=l>{lab}</td>{plan}{real}</tr>" for lab, plan, real in filas)
-        return (f"<div><table class=prod><tr><th class=proc colspan=3>{titulo}</th></tr>"
-                f"<tr><th class=l>Factores</th><th>Plan</th><th>Real</th></tr>{fs}</table></div>")
+        fs = "".join(f"<tr><td class=l>{lab}</td>{hab}{plan}{real}{cum}</tr>"
+                     for lab, hab, plan, real, cum in filas)
+        return (f"<div><table class=prod><tr><th class=proc colspan=5>{titulo}</th></tr>"
+                f"<tr><th class=l>Factores</th>"
+                f"<th title='Lo que esta faena logra habitualmente (p75 de su propio historial)'>"
+                f"Habitual</th>"
+                f"<th title='Referencia de Arauco para esta tecnología y especie'>Plan</th>"
+                f"<th>Real</th><th>Cumpl.</th></tr>{fs}</table></div>")
 
-    gu = lambda v: f"<td class=gu>{v}</td>"
+    gu  = lambda v: f"<td class=gu>{v}</td>"
+    vac = "<td>—</td>"
+    nada = "<td></td>"
     hplan = gu(f"{HDISP:g}")
+
+    def cumpl(real, plan):
+        """Columna '% cumplimiento' del tablero de Arauco (Real ÷ Plan). Sin plan o sin real
+        queda vacía: el porcentaje contra un número que no existe no informa nada."""
+        try:
+            if not plan or real is None or real != real:
+                return nada
+            p = real / plan * 100
+        except Exception:
+            return nada
+        col = '#1E8449' if p >= 90 else ('#B9770E' if p >= 60 else '#943126')
+        return f"<td style='color:{col};font-weight:600'>{p:.0f}%</td>"
+
+    # Referencia de Arauco para ESTA faena. Solo aplica a MADEREO: el NOC únicamente entrega
+    # ciclos del equipo que reporta el folio, así que carga y ritmo no están medidos en los
+    # otros procesos — y en la pizarra de Arauco tampoco aparecen ahí.
+    ref = ref_arauco(tec, especie_cod)
+    r_ritmo, r_carga, r_rend = ref if ref else (None, None, None)
+    ra = lambda v, d=2: gu(f"{v:.{d}f}") if v else vac
+
     prodv = (
         "<div class=two>"
         + bloque("VOLTEO", [
-            ("Horas [hrs]", hplan, uso_cell('VOLTEO')),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", "<td class=pr>rep.</td>")])
+            ("Horas [hrs]", vac, hplan, uso_cell('VOLTEO'), nada),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, "<td class=pr>rep.</td>", nada)])
         + bloque("MADEREO", [
-            ("Horas [hrs]", hplan, uso_cell('MADEREO')),
-            ("Rendimiento [m³/hr]", gu(pp['plan_rend']), f"<td class=nf>{pp['real_rend']:.1f}</td>"),
-            ("Carga [m³/ciclo]", gu(pp['plan_carga']), f"<td class=nf>{pp['real_carga']:.2f}</td>"),
-            ("Ritmo [ciclo/hr]", gu(pp['plan_ritmo']), f"<td class=nf>{pp['real_ritmo']:.2f}</td>")])
+            ("Horas [hrs]", vac, hplan, uso_cell('MADEREO'), nada),
+            ("Rendimiento [m³/hr]", f"<td>{pp['plan_rend']}</td>", ra(r_rend, 1),
+             f"<td class=nf>{pp['real_rend']:.1f}</td>", cumpl(pp['real_rend'], r_rend)),
+            ("Carga [m³/ciclo]", f"<td>{pp['plan_carga']}</td>", ra(r_carga),
+             f"<td class=nf>{pp['real_carga']:.2f}</td>", cumpl(pp['real_carga'], r_carga)),
+            ("Ritmo [ciclo/hr]", f"<td>{pp['plan_ritmo']}</td>", ra(r_ritmo),
+             f"<td class=nf>{pp['real_ritmo']:.2f}</td>", cumpl(pp['real_ritmo'], r_ritmo))])
         + "</div><div class=two>"
         + bloque("PROCESADO", [
-            ("Horas [hrs]", hplan, uso_cell('PROCESADO')),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", rend_cell('PROCESADO'))])
+            ("Horas [hrs]", vac, hplan, uso_cell('PROCESADO'), nada),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, rend_cell('PROCESADO'), nada)])
         + bloque("CLASIFICADO", [
-            ("Horas [hrs]", hplan, uso_cell('CLASIFICADO')),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", rend_cell('CLASIFICADO'))])
-        + "</div>" + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
+            ("Horas [hrs]", vac, hplan, uso_cell('CLASIFICADO'), nada),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, rend_cell('CLASIFICADO'), nada)])
+        + "</div>" + nota_ref(ref, tec, especie_cod)
+        + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
@@ -1052,6 +1193,7 @@ def main():
     d, cell = tabla_p75(g)
     teo = teorico(d)
     metas = metas_excel()
+    metas_proc = metas_procesos()   # las 4 metas por proceso (E + I/J/K del Excel)
     mes_key = g.dia.str[:7].max()
     gm = g[g.dia.str[:7] == mes_key]
     cap = {fa: round(x.m3.quantile(.90)) for fa, x in gm.groupby('faena')}
@@ -1103,9 +1245,8 @@ def main():
             'Carga': max((pps[f]['real_carga'] for f in pares if pps[f]['real_carga'] == pps[f]['real_carga']), default=None),
         }
 
-    hojas = {fa: (sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
-                        cmms, kpis, bn)
-)
+    hojas = {fa: sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
+                       cmms, kpis, bn, metas_proc.get(fa))
              for fa in faenas}
     sheets = "".join(hojas[fa] for fa in faenas)
 

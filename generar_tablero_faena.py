@@ -62,6 +62,39 @@ def metas_excel():
         except Exception as e: print(f"⚠️  metas Excel: {e}; uso defaults")
     return m
 
+def metas_procesos():
+    """Metas mensuales POR PROCESO, de la hoja CONFIGURACIÓN del Excel maestro.
+
+    El tablero de Arauco lleva UNA meta por proceso, no una por faena: volteas más de lo que
+    madereas, madereas más de lo que trozas (cascada de colchón). En su plantilla R21 van
+    10.000 / 9.000 / 7.860 / 7.860.
+
+    Columnas: E = meta del PROCESADO (la que ya existía; es lo que el NOC mide en m³),
+    I = volteo, J = madereo, K = clasificado. Celda vacía → None, y el informe deja esa
+    columna en blanco en vez de inventar un número.
+    """
+    procesos = {'VOLTEO': 9, 'MADEREO': 10, 'CLASIFICADO': 11}   # columnas I, J, K
+    base = metas_excel()
+    out = {t: {'PROCESADO': base.get(t)} for t in base}
+    xl = BASE / "Dashboard_CosechaForestal.xlsx"
+    if not xl.exists():
+        return out
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(str(xl), data_only=True)
+        if "CONFIGURACIÓN" in wb.sheetnames:
+            ws = wb["CONFIGURACIÓN"]
+            teams = ['M1.1','M1.2','M1.3','M1.4','M5','M7','M9','M11']
+            for i, t in enumerate(teams):
+                for proc, col in procesos.items():
+                    v = ws.cell(24+i, col).value
+                    out.setdefault(t, {})[proc] = float(v) if v else None
+        wb.close()
+    except Exception as e:
+        print(f"⚠️  metas por proceso: {e}; solo se usa la del procesado")
+    return out
+
+
 def base_diaria(df):
     d=pd.DataFrame({
       'dia': df['hora_inicio'].astype(str).str[:10],   # DIA TRABAJADO
