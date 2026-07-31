@@ -897,12 +897,19 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             if not m:
                 # Sin meta cargada no hay ni saldo ni meta día: no se inventa el denominador.
                 return f"<td class=bl></td><td class=bl></td>{real}"
-            sal = fmt(prev_p.get(proc, m))
+            sal = fmt(prev_p.get(proc, m)) if dias_con_flujo else "<span class=pr>—</span>"
             if not es_op:
                 mdia = "—"
+            elif not dias_con_flujo:
+                # SIN NINGUNA declaración en el mes, la meta dinámica se dispara sola: el saldo
+                # nunca baja, los días restantes sí, y para fin de mes pide un número absurdo
+                # (M1.1 llegaba a 4.721 m³/día). Con cero datos lo honesto es el PLAN LINEAL, y
+                # el saldo va en "—" en vez de repetir la meta entera 31 veces como si nada se
+                # hubiera hecho. Al primer día declarado, las dos columnas pasan a ser dinámicas.
+                mdia = fmt(m / max(len(ops), 1))
             else:
                 # Misma meta día dinámica que el procesado: lo que falta, repartido en los días
-                # que quedan desde hoy. Solo tiene sentido si el saldo se está descontando.
+                # que quedan desde hoy.
                 dias_desde_d = len([x for x in ops if x >= d]) or 1
                 mdia = fmt(max(0.0, prev_p.get(proc, m)) / dias_desde_d)
             return f"<td>{sal}</td><td>{mdia}</td>{real}"
