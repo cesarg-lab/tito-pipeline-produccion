@@ -61,21 +61,36 @@ echo "▶️  [2.7/9] Calculando KPIs Uso/Ritmo/Carga/VMA y generando Dashboard_
 # (generar_tablero_faena.py queda solo como librería: el informe importa sus funciones.)
 echo ""
 echo "▶️  [2.8/8] Generando Informe de Faena (tablero Arauco, mitad productividad, 1 hoja A4/faena)..."
-python3 generar_informe_faena.py 2>&1 | tee -a "$LOG_PIPELINE"
-# PIPESTATUS[0] y no $?: con el `tee` de por medio $? es el de tee (siempre 0), así que el
-# `|| echo` que había acá NUNCA se ejecutaba — el informe podía reventar entero en silencio.
-INFORME_RC=${PIPESTATUS[0]}
-if [ "$INFORME_RC" = "3" ]; then
-    # 3 = EXIT_CMMS_AUTH: el CMMS rechazó la credencial (401/403). Esto NO es "no crítico":
-    # el informe saldría sin la mitad del contenido. Se corta el pipeline para que el run
-    # quede en rojo y llegue el aviso, en vez de publicar un PDF mutilado con un ✅ al lado.
-    echo ""
-    echo "  ❌ Informe de faena: el CMMS rechazó la credencial. Se aborta el pipeline."
-    echo "     Arreglar SUPABASE_KEY / los permisos de las RPC informe_* y volver a correr."
-    exit 1
-elif [ "$INFORME_RC" != "0" ]; then
-    echo "  ⚠️  Informe de faena falló (no crítico, el pipeline sigue)"
-fi
+# REINTENTO: la falla típica acá es que el NOC devuelva basura por un momento. El 31-07-2026
+# contestó "1 registros" para el mes entero, el DataFrame quedó sin la columna hora_inicio, el
+# generador reventó y —como esto es "no crítico"— el run siguió VERDE dejando en el hosting el
+# informe de la corrida anterior. Nadie se entera de eso mirando el ✅ de GitHub.
+# Un minuto después el mismo endpoint devolvía los 283 registros: por eso un reintento resuelve
+# la mayoría de los casos sin molestar a nadie.
+INFORME_FALLO=""
+for INTENTO in 1 2; do
+    python3 generar_informe_faena.py 2>&1 | tee -a "$LOG_PIPELINE"
+    # PIPESTATUS[0] y no $?: con el `tee` de por medio $? es el de tee (siempre 0), así que el
+    # `|| echo` que había acá NUNCA se ejecutaba — el informe podía reventar en silencio.
+    INFORME_RC=${PIPESTATUS[0]}
+    if [ "$INFORME_RC" = "3" ]; then
+        # 3 = EXIT_CMMS_AUTH: el CMMS rechazó la credencial (401/403). Esto NO es transitorio y
+        # NO es "no crítico": el informe saldría sin la mitad del contenido. Se corta el
+        # pipeline para que el run quede en rojo, en vez de publicar un PDF mutilado con un ✅.
+        echo ""
+        echo "  ❌ Informe de faena: el CMMS rechazó la credencial. Se aborta el pipeline."
+        echo "     Arreglar SUPABASE_KEY / los permisos de las RPC informe_* y volver a correr."
+        exit 1
+    fi
+    [ "$INFORME_RC" = "0" ] && break
+    if [ "$INTENTO" = "1" ]; then
+        echo "  ⚠️  Informe de faena falló (código $INFORME_RC) — reintentando en 45 s…"
+        sleep 45
+    else
+        INFORME_FALLO="código $INFORME_RC en dos intentos"
+        echo "  ❌ Informe de faena falló dos veces. El pipeline sigue, pero se avisa por Telegram."
+    fi
+done
 
 # ── 3. Generar HTML ───────────────────────────────────────────────────────
 echo ""
@@ -229,6 +244,20 @@ else
         fi
     done
     echo "  📄 $PDF_OK PDF(s) generados"
+fi
+
+# Aviso al chat cuando el informe NO se generó. Va a Telegram y no solo al log porque es donde
+# la gente efectivamente mira: el run puede quedar VERDE (el informe es no crítico) y sin este
+# mensaje los jefes simplemente no reciben su PDF, sin ninguna señal de que algo pasó. Lo que
+# queda publicado en el hosting es el informe de la corrida ANTERIOR, que parece al día.
+if [ -n "$INFORME_FALLO" ] && [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    AVISO="⚠️ <b>Informe de Faena no se generó hoy</b>
+Falló $INFORME_FALLO (se reintentó una vez).
+El informe publicado en produccion.millalemu.com es el de la corrida anterior — <b>no está al día</b>.
+La causa más común es que el NOC devuelva datos incompletos por un rato; suele resolverse solo en la próxima corrida."
+    RESP=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+         -d "chat_id=${TELEGRAM_CHAT_ID}" -d "parse_mode=HTML" --data-urlencode "text=${AVISO}")
+    tg_check "aviso de informe no generado" "$RESP"
 fi
 
 # ── 9. Cierre ────────────────────────────────────────────────────────────────
