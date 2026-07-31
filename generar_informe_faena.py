@@ -640,15 +640,14 @@ def cobertura_preuso(hp, ult_dia):
 
 
 
-def nota_meta_procesos(metas_p):
-    """Explica bajo la tabla diaria qué metas por proceso están cargadas y por qué volteo y
-    madereo no pueden mostrar Saldo.
+def nota_meta_procesos(metas_p, dias_con_flujo=0):
+    """Nota bajo la tabla diaria: qué metas por proceso están cargadas y con cuántos días de
+    producción declarada se está llenando volteo/madereo.
 
-    El motivo NO es que falte la meta: es que de esos dos procesos no se conoce la producción
-    del día. `avance_faena` guarda el NIVEL del colchón (m³ volteados esperando madereo, m³ en
-    cancha esperando trozado), no el flujo. Un nivel no se descuenta de una meta. Derivarlo de
-    dos días seguidos es álgebra simple —madereo(d) = cancha(d-1) − cancha(d) + trozado(d)—
-    pero con estimaciones al ojo el error se amplifica: probado con M7 daba volteo NEGATIVO."""
+    Volteo y madereo dependen de dos cosas: la meta (Excel) y el FLUJO del día, que el jefe
+    declara en /t/avance desde el 2026-07-31. Antes solo se guardaba el NIVEL del colchón, y un
+    nivel no se descuenta de una meta (derivar el flujo restando dos niveles se probó con M7 y
+    daba volteo NEGATIVO: son estimaciones al ojo)."""
     faltan = [p.title() for p in ('VOLTEO', 'MADEREO', 'CLASIFICADO')
               if not (metas_p or {}).get(p)]
     if faltan:
@@ -656,10 +655,14 @@ def nota_meta_procesos(metas_p):
                 f"<b>{', '.join(faltan)}</b> en la hoja CONFIGURACIÓN del Excel maestro "
                 "(columnas I, J y K). Mientras tanto esas columnas van en blanco — no se "
                 "inventa una meta.</div>")
-    return ("<div class=cob><b>Volteo y madereo no llevan Saldo</b>: el jefe declara el "
-            "<b>colchón</b> (m³ esperando el proceso siguiente), no lo producido en el día, y "
-            "un nivel no se descuenta de una meta. La Meta día que se muestra es el plan lineal "
-            "(meta ÷ días operables).</div>")
+    if not dias_con_flujo:
+        return ("<div class=cob><b>Volteo y madereo</b>: las metas están cargadas, pero el "
+                "saldo no baja hasta que el jefe declare cuánto se <b>volteó y madereó cada "
+                "día</b> en la app de terreno (Avance del día). El colchón que ya informa es un "
+                "nivel, y un nivel no se descuenta de una meta.</div>")
+    return (f"<div class=cob><b>Volteo y madereo</b>: saldo descontado con la producción "
+            f"declarada por el jefe en {dias_con_flujo} día(s) del mes. Los días sin declarar "
+            f"no descuentan — el saldo queda arriba de lo real hasta que se informen.</div>")
 
 
 def nota_ref(ref, tec, esp):
@@ -854,6 +857,13 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # Volteo y madereo NO tienen saldo: el CMMS captura el NIVEL del colchón, no la producción
     # del día, y un nivel no se puede descontar de una meta. Ver nota_meta_procesos().
     meta_cla = (metas_p or {}).get('CLASIFICADO')
+    # VOLTEO y MADEREO ya tienen saldo cuando el jefe declara el FLUJO del día (columnas
+    # m3_volteado_dia / m3_madereado_dia, EN PROD desde el 2026-07-31). Con la meta cargada y
+    # el flujo declarado, la cuenta regresiva es la misma que la del procesado.
+    flujo = {'VOLTEO': 'vol_dia', 'MADEREO': 'mad_dia'}
+    dias_con_flujo = sum(1 for k, v in av_dias.items()
+                         if k[:7] == mes_key and v.get('vol_dia') is not None)
+    saldos_p = {p: float(metas_p[p]) for p in flujo if (metas_p or {}).get(p)}
     filas = ""
     tot_real = tot_tp = 0.0
     saldo = float(meta_mes)
@@ -862,9 +872,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
         saldo_previo = saldo        # lo que faltaba al EMPEZAR el día → da la meta de ese día
         saldo_cla_previo = saldo_cla
+        prev_p = dict(saldos_p)
         saldo = max(0.0, saldo - real_por_dia.get(d, 0.0))
         if saldo_cla is not None:
             saldo_cla = max(0.0, saldo_cla - real_por_dia.get(d, 0.0))
+        _av_d = av_dias.get(f"{mes_key}-{d:02d}") or {}
+        for p, k in flujo.items():
+            if p in saldos_p and _av_d.get(k) is not None:
+                saldos_p[p] = max(0.0, saldos_p[p] - float(_av_d[k]))
         # Días futuros: fila en blanco (la meta es día a día, no se proyecta hacia adelante).
         if d > ult_dia:
             filas += f"<tr><td class=l>{d:02d}</td>" + "<td class=bl></td>" * 16 + "</tr>"
@@ -872,21 +887,28 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         tot_real += real_por_dia.get(d, 0.0)
         tot_tp += sum(v for (dd_, _p), v in tp_dia_proc.items() if dd_ == d)
         real = real_por_dia.get(d)
-        av = av_dias.get(f"{mes_key}-{d:02d}")
-        # VOLTEO / MADEREO: Real = lo que el jefe declaró ese día (avance_faena); T.P del preuso.
-        v_real = f"<td class=nf>{av['volteado']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
-        m_real = f"<td class=nf>{av['cancha']:,.0f}</td>" if av else "<td class=pr>rep.</td>"
-        # Meta día de VOLTEO / MADEREO: plan LINEAL (meta ÷ días operables), no dinámica. La
-        # dinámica necesita saber cuánto se lleva acumulado, y de estos dos procesos no se sabe:
-        # lo que el jefe declara es el colchón, no lo producido. Saldo queda en blanco.
-        def meta_plan(proc):
+        # VOLTEO / MADEREO: Real = lo PRODUCIDO ese día (flujo declarado por el jefe), que es lo
+        # que significa la columna "Volumen día" del tablero de Arauco. NO el colchón: ese es un
+        # nivel y vive en el bloque de buffers, no acá.
+        def celdas_proc(proc, clave):
             m = (metas_p or {}).get(proc)
-            if not m or not es_op:
-                return "<td class=bl></td>" if not m else "<td>—</td>"
-            return f"<td>{fmt(m / max(len(ops), 1))}</td>"
+            prod = _av_d.get(clave)
+            real = f"<td class=nf>{prod:,.0f}</td>" if prod is not None else "<td class=pr>rep.</td>"
+            if not m:
+                # Sin meta cargada no hay ni saldo ni meta día: no se inventa el denominador.
+                return f"<td class=bl></td><td class=bl></td>{real}"
+            sal = fmt(prev_p.get(proc, m))
+            if not es_op:
+                mdia = "—"
+            else:
+                # Misma meta día dinámica que el procesado: lo que falta, repartido en los días
+                # que quedan desde hoy. Solo tiene sentido si el saldo se está descontando.
+                dias_desde_d = len([x for x in ops if x >= d]) or 1
+                mdia = fmt(max(0.0, prev_p.get(proc, m)) / dias_desde_d)
+            return f"<td>{sal}</td><td>{mdia}</td>{real}"
 
-        vol = f"<td class=bl></td>{meta_plan('VOLTEO')}{v_real}{tp_cell(d,'VOLTEO')}"
-        mad = f"<td class=bl></td>{meta_plan('MADEREO')}{m_real}{tp_cell(d,'MADEREO')}"
+        vol = f"{celdas_proc('VOLTEO', 'vol_dia')}{tp_cell(d,'VOLTEO')}"
+        mad = f"{celdas_proc('MADEREO', 'mad_dia')}{tp_cell(d,'MADEREO')}"
         # PROCESADO: pre-llenado del NOC.
         # Meta día es DINÁMICA TODOS los días, no solo hoy: es lo que ese día había que trozar para
         # llegar a la meta, dado lo que se llevaba trozado hasta el día ANTERIOR, repartido en
@@ -933,7 +955,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td class=tp>{tot_tp:g}</td>"
                f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td></td></tr>")
     diaria = (f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>"
-              + nota_meta_procesos(metas_p))
+              + nota_meta_procesos(metas_p, dias_con_flujo))
 
     # ── PRODUCTIVIDAD por proceso (Plan guía vs Real NOC + horómetro del pre-uso) ──
     # Uso Real y Rend Real salen del HORÓMETRO DEL PRE-USO (ver horas_preuso). Donde no hay
@@ -1129,8 +1151,14 @@ def datos_cmms():
             fid = r['faena_id']; dia = str(r['fecha'])[:10]   # clave = fecha ISO, no día suelto
             # sin_clasificar: None = ese día no se informó (es campo nuevo), ≠ 0 declarado.
             sc = r.get('m3_sin_clasificar')
+            # NIVEL del colchón (volteado/cancha) vs FLUJO del día (vol_dia/mad_dia). Son cosas
+            # distintas: el nivel alimenta el semáforo de colchón, el flujo descuenta la meta
+            # del proceso. None = no informado ≠ 0 declarado.
+            vd, md = r.get('m3_volteado_dia'), r.get('m3_madereado_dia')
             v = {'volteado': float(r['m3_volteado']), 'cancha': float(r['m3_cancha']),
-                 'sin_clasificar': None if sc is None else float(sc)}
+                 'sin_clasificar': None if sc is None else float(sc),
+                 'vol_dia': None if vd is None else float(vd),
+                 'mad_dia': None if md is None else float(md)}
             out['avance_dias'].setdefault(fid, {})[dia] = v
             if fid not in out['avance']:         # primer registro = el más reciente = buffer
                 out['avance'][fid] = {**v, 'fecha': r['fecha']}
