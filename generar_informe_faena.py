@@ -787,6 +787,95 @@ def shoveleo_mes(cmms, fid, mes_key):
     }
 
 
+# Tipo de máquina de Wialon → proceso del informe. El nombre de la unidad en Wialon ya trae
+# faena y tipo ("CEMA-Z.CONS-MILL-MILLALEMU 1.3-SKIDDER-T5869"), así que el crosswalk sale de
+# ahí y no de un CSV a mano.
+# OJO: solo las máquinas que efectivamente SE DESPLAZAN para hacer su trabajo.
+#   · MADEREO = skidder y grapple: arrastran, y la distancia ES el trabajo.
+#   · VOLTEO  = shovel y feller: avanzan por el frente.
+# TIMBERMAX y FALCON quedan FUERA a propósito: son AM = **asistencia**, no arrastre. En el
+# CMMS cuelgan de madereo (ahí la pregunta es a qué proceso se imputan sus horas), pero
+# promediar sus km con los del skidder mezcla dos cosas distintas — en julio dieron 0,0 y
+# 0,3 km/día contra 8-34 de los skidders, y metidos al promedio lo hunden sin significar nada.
+# Se mide el SG y el HM, y nada más (gerencia 2026-07-31). Son las dos máquinas para las que
+# DESPLAZARSE ES EL TRABAJO: el skidder arrastra hasta cancha, la shovel acomoda por el frente.
+#   · SG (skidder) → Wialon lo nombra SKIDDER o GRAPPLE según la unidad (el T5882 de M1.1 es
+#     el SG-13 y figura como GRAPPLE).
+#   · HM (shovel)  → SHOVEL.
+# FUERA quedan:
+#   · AM (TIMBERMAX / FALCON) = **asistencia**, no arrastre. En el CMMS cuelga de madereo
+#     porque ahí la pregunta es a qué proceso se imputan sus horas; sus km miden otra cosa.
+#     En julio dieron 0,0 y 0,3 km/día contra 8-34 de los skidders.
+#   · FM (FELLER): corta avanzando por el frente, otro trabajo. Promediarlo con la shovel
+#     mezclaría dos cosas bajo un solo número.
+TIPO_MAQUINA = {
+    'SKIDDER': 'SG', 'GRAPPLE': 'SG',
+    'SHOVEL': 'HM',
+}
+
+# Un Tigercat 625H no pasa de 12-13 km/h: sobre eso el equipo iba en CAMA BAJA, no trabajando.
+# Ese día no es un día de faena y contarlo dispara el promedio (se midieron traslados de 108 y
+# 133 km, contra 7-23 km de un día normal).
+VEL_CAMA_BAJA = 13.0
+
+
+def datos_wialon():
+    """Desplazamiento diario por faena y proceso, del GPS. Lo produce descargar_wialon.py en el
+    paso previo del pipeline. Sin archivo → {} y la fila queda 'por reportar'."""
+    import json
+    p = BASE / "wialon_km.json"
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding='utf-8'))
+    except Exception as e:
+        print(f"  ⚠️  wialon_km.json no legible ({e}); el desplazamiento queda sin dato")
+        return {}
+
+
+def desplazamiento(wia, fa, maquina):
+    """km/día promedio de esa máquina (SG o HM) en esa faena, sobre los días CON movimiento.
+
+    Se descartan los días de traslado en cama baja y los días sin mover: promediar sobre días
+    en que la máquina no salió mete ceros que no son producción, sino que no hubo faena.
+    Devuelve None si no queda nada — nunca un 0 que se lea como "no se desplazó".
+    """
+    eq = [v for v in (wia or {}).values()
+          if v.get('faena') == fa and TIPO_MAQUINA.get(v.get('tipo')) == maquina]
+    if not eq:
+        return None
+    km = 0.0
+    dias = 0
+    fuera = 0
+    for v in eq:
+        for d in (v.get('dias') or {}).values():
+            k, h = d.get('km', 0.0), d.get('h_mov', 0.0)
+            if k <= 0.5 or h <= 0:
+                continue
+            if k / h > VEL_CAMA_BAJA:
+                fuera += 1
+                continue
+            km += k
+            dias += 1
+    if not dias:
+        return None
+    return {'km_dia': km / dias, 'dias': dias, 'fuera': fuera,
+            'equipos': sorted({v['tipo'].title() for v in eq})}
+
+
+def celda_km(dsp):
+    """Celda del desplazamiento. El tooltip lleva la cobertura: un promedio de 3 días y uno de
+    25 se ven idénticos en la tabla y no valen lo mismo."""
+    if not dsp:
+        return "<td class=pr>rep.</td>"
+    eqs = ", ".join(dsp['equipos'])
+    n = dsp['dias']
+    km = dsp['km_dia']
+    # Comillas simples adentro y variables fuera: anidar comillas dobles en un f-string es
+    # sintaxis de 3.12+, y el runner del pipeline corre 3.11.
+    return f"<td class=nf title='{n} día(s) con movimiento · {eqs}'>{km:.1f}</td>"
+
+
 def nota_shoveleo(sh):
     """Nota de procedencia del shoveleo: con cuántos turnos se calculó. Deja el gate de
     adopción a la vista, igual que la cobertura del pre-uso."""
@@ -863,7 +952,7 @@ def guia_tabla(tec, esp, cell, teo, vma=None):
             "<th>Meta<br>[m³/hr]</th><th>Teórico<br>[m³/hr]</th></tr>" + filas + "</table>")
 
 
-def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_p=None):
+def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_p=None, wia=None):
     mes_key = g.dia.str[:7].max()
     anio, mes = int(mes_key[:4]), int(mes_key[5:7])
     jul = g[(g.faena == fa) & (g.dia.str[:7] == mes_key)].copy()
@@ -1290,6 +1379,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # ciclos del equipo que reporta el folio, así que carga y ritmo no están medidos en los
     # otros procesos — y en la pizarra de Arauco tampoco aparecen ahí.
     sh = shoveleo_mes(cmms, fid, mes_key)
+    dsp_vol = desplazamiento(wia, fa, 'HM')   # shovel
+    dsp_mad = desplazamiento(wia, fa, 'SG')   # skidder
     ref = ref_arauco(tec, especie_cod)
     r_ritmo, r_carga, r_rend = ref if ref else (None, None, None)
     ra = lambda v, d=2: gu(f"{v:.{d}f}") if v else vac
@@ -1308,7 +1399,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
               f"{sh['h_dia']:.1f}</td>") if sh else "<td class=pr>rep.</td>", nada),
             ("Shoveleo [% turno]", vac, vac,
              (f"<td class=nf>{sh['pct']:.0f}%</td>" if (sh and sh['pct'] is not None)
-              else "<td class=pr>rep.</td>"), nada)])
+              else "<td class=pr>rep.</td>"), nada),
+            # Desplazamiento del GPS. Plan en "—": Arauco no publica referencia de distancia
+            # en ninguna de las 4 hojas de su libro, y una inventada sería peor que ninguna.
+            ("Desplaz. shovel [km/día]", vac, vac, celda_km(dsp_vol), nada)])
         + bloque("MADEREO", [
             ("Horas [hrs]", vac, hplan, uso_cell('MADEREO'), nada),
             ("Rendimiento [m³/hr]", f"<td>{pp['plan_rend']}</td>", ra(r_rend, 1),
@@ -1316,7 +1410,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             ("Carga [m³/ciclo]", f"<td>{pp['plan_carga']}</td>", ra(r_carga),
              f"<td class=nf>{pp['real_carga']:.2f}</td>", cumpl(pp['real_carga'], r_carga)),
             ("Ritmo [ciclo/hr]", f"<td>{pp['plan_ritmo']}</td>", ra(r_ritmo),
-             f"<td class=nf>{pp['real_ritmo']:.2f}</td>", cumpl(pp['real_ritmo'], r_ritmo))])
+             f"<td class=nf>{pp['real_ritmo']:.2f}</td>", cumpl(pp['real_ritmo'], r_ritmo)),
+            ("Desplaz. skidder [km/día]", vac, vac, celda_km(dsp_mad), nada)])
         + "</div><div class=two>"
         + bloque("PROCESADO", [
             ("Horas [hrs]", vac, hplan, uso_cell('PROCESADO'), nada),
@@ -1545,6 +1640,7 @@ def main():
         return EXIT_CMMS_AUTH
     kpis = datos_kpis()
     bn = cargar_bn()      # acta + stock del NOC (reporte BN)
+    wia = datos_wialon()  # desplazamiento diario del GPS
     tm = datos_tm()       # top causas de tiempo perdido del NOC
 
     logo_img = ('<img src="' + LOGO + '">') if LOGO else ''
@@ -1581,7 +1677,7 @@ def main():
         }
 
     hojas = {fa: sheet(fa, g, cell, teo, metas.get(fa, METAS_DEFAULT.get(fa, 0)), cap.get(fa),
-                       cmms, kpis, bn, metas_proc.get(fa))
+                       cmms, kpis, bn, metas_proc.get(fa), wia)
              for fa in faenas}
     sheets = "".join(hojas[fa] for fa in faenas)
 

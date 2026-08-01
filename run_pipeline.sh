@@ -56,6 +56,14 @@ echo ""
 echo "▶️  [2.7/9] Calculando KPIs Uso/Ritmo/Carga/VMA y generando Dashboard_KPIs.html..."
 ( python3 compute_kpis.py && python3 generar_dashboard_kpis.py kpis.json tm_por_faena.json Dashboard_KPIs.html ) 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  KPIs fallaron (no crítico, el pipeline sigue)"
 
+# ── 2.75 Desplazamiento del GPS (Wialon) — alimenta las filas de km/día del informe ──
+# Va ANTES del informe porque el informe lee wialon_km.json. Es incremental: refresca los
+# últimos días y acumula sobre el archivo versionado (bajar el mes entero son ~20 min).
+# NO crítico: sin token o sin red, se conserva el archivo anterior y el informe muestra "rep.".
+echo ""
+echo "▶️  [2.75/9] Actualizando desplazamiento GPS (Wialon)..."
+timeout 300 python3 descargar_wialon.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  Wialon no respondió a tiempo (no crítico, se usa lo ya guardado)"
+
 # ── 2.8. Informe de Faena (tablero Arauco + guía productividad, imprimible A4) ──
 # Entregable único: consolida el tablero pre-llenado y la guía VMA×especie por faena.
 # (generar_tablero_faena.py queda solo como librería: el informe importa sus funciones.)
