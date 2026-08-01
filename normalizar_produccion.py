@@ -11,6 +11,26 @@ y GENERAR_IMAGEN.py para mantener una sola lógica de mapeo.
 """
 
 import pandas as pd
+from datetime import datetime, timedelta
+
+# Hora a la que se da por terminada la jornada en terreno (Chile). El turno es de 10,5 h y
+# cierra entre 19:00 y 19:30; pasada esta hora el día ya no tiene producción por delante.
+FIN_JORNADA_H = 20
+
+
+def dia_en_curso(anio: int, mes: int, ult_dia: int, fin_jornada_h: int = FIN_JORNADA_H) -> bool:
+    """¿El último día con datos es HOY y la jornada todavía NO termina?
+
+    Una sola definición para toda la salida (grilla, resumen, KPIs, informes). Si el día está
+    en curso hay que proyectar lo que le falta; si ya cerró, no hay nada que proyectar y la
+    proyección del mes tiene que dar exactamente el acumulado.
+
+    Sin esto, la corrida de las 22:47 del último día del mes mandaba TRES cifras distintas del
+    mismo mes cerrado (31-07-2026: dashboard 48.993, kpis 49.6k, Telegram 50.573).
+    """
+    hoy = datetime.utcnow() - timedelta(hours=4)        # Chile = UTC-4
+    return (hoy.year == anio and hoy.month == mes
+            and hoy.day == ult_dia and hoy.hour < fin_jornada_h)
 
 
 def _hhmm_a_segundos(valor):

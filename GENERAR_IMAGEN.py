@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).parent
 CSV_PROD = BASE_DIR / "Base2NOC.csv"
 CSV_TM   = BASE_DIR / "TiemposPerdidos.csv"
 sys.path.insert(0, str(BASE_DIR))
-from normalizar_produccion import normalizar  # noqa: E402
+from normalizar_produccion import normalizar, dia_en_curso  # noqa: E402
 
 TEAM_MAP = {
     'S123':'Millalemu 1.1','S58':'Millalemu 1.2','S223':'Millalemu 1.3',
@@ -171,7 +171,17 @@ def generate():
     _ULT = int(prod['Dia'].max())
     DT = sum(1 for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
     DD = sum(1 for d in range(1, _ULT + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
-    DR = max(DT - DD, 1)
+
+    # ¿El último día con datos es HOY y la jornada sigue abierta? Entonces le queda producción
+    # por delante y hay que proyectarla. Regla compartida (normalizar_produccion) para que la
+    # grilla, el resumen, los KPIs y el dashboard hablen del mismo número.
+    HOY_EN_CURSO = dia_en_curso(ANIO, MES, _ULT)
+    # El piso era 1 y no 0: con el mes cerrado seguía proyectando un día más de producción que
+    # nunca va a pasar. Junio cerró en 45.949 m³ y la grilla mandaba 47.481 (+1 día promedio,
+    # +3,3%), que además subía el % de cierre 2,6 pts y podía cambiar el color del semáforo.
+    # Mes cerrado ⇒ DR = 0 ⇒ proyección = acumulado, al peso.
+    DR = max(DT - DD + (1 if HOY_EN_CURSO else 0), 0)
+    MES_CERRADO = (DR == 0)
 
     # Vol suma por fila (cada producto del folio aporta m³ distinto), pero HrsEf y
     # Turno_seg son valores del FOLIO (se repiten en cada fila-producto). Sumarlos por
@@ -228,7 +238,7 @@ def generate():
 
     # KPIs por equipo
     team_data = {}
-    total_acum = 0; total_hrs = 0; total_tm_mant = 0
+    total_acum = 0; total_hrs = 0; total_tm_mant = 0; total_proy = 0
     meta_total = sum(METAS[t] for t in TEAMS)
 
     # Mantención por equipo desde registros CRUDOS (no la tabla cruzada con
@@ -243,11 +253,25 @@ def generate():
         turno_seg = td['Turno_seg'].sum()
         dias_t = DD; meta = METAS[t]  # días hábiles (regla: faltar no premia)
         prom = acum / dias_t if dias_t > 0 else 0
-        proy = acum + prom * DR
+        # Proyección = lo ya producido + lo que le falta a HOY + los días completos que quedan.
+        # El promedio que proyecta sale de los días CERRADOS: si se mete la jornada de hoy, que
+        # va a medias, el promedio se hunde y arrastra la proyección hacia abajo justo el día
+        # que más se mira. De hoy se suma solo el RESTO (prom − lo que ya lleva); si hoy ya
+        # superó el promedio no se suma nada, en vez de restar y castigar un buen día.
+        _hoy_vol = float(td[td['Dia'] == _ULT]['Vol'].sum()) if HOY_EN_CURSO else 0.0
+        _dias_cerr = dias_t - (1 if HOY_EN_CURSO else 0)
+        # Día 1 del mes en curso: no hay ningún día cerrado del que sacar el promedio, así que
+        # no se proyecta (antes se estiraba media jornada a todo el mes). Igual que kpis.json.
+        prom_cerr = (acum - _hoy_vol) / _dias_cerr if _dias_cerr > 0 else 0
+        _resto_hoy = max(prom_cerr - _hoy_vol, 0.0) if HOY_EN_CURSO else 0.0
+        _dias_completos = max(DR - (1 if HOY_EN_CURSO else 0), 0)
+        proy = acum + _resto_hoy + prom_cerr * _dias_completos
         plan_dia = meta / DT
         avance_plan = plan_dia * DD
         dif_plan = acum - avance_plan
-        ritmo = (meta - acum) / max(DR, 1)
+        # Ritmo que falta por día. Con el mes cerrado no queda día donde ponerlo: antes el
+        # max(DR,1) escupía la brecha entera como si fuera exigible mañana. Va '—'.
+        ritmo = (meta - acum) / DR if DR > 0 else float('nan')
         rendimiento = acum / hrs if hrs > 0 else 0
         # Disponibilidad = (1 - TM_Mantención / Turno) × 100
         # tm_mant en minutos, turno_seg en segundos → ambos a minutos
@@ -255,6 +279,7 @@ def generate():
         disp = (1 - tm_mant / turno_min) * 100 if turno_min > 0 else 100
         disp = max(0, min(100, disp))
         total_acum += acum; total_hrs += hrs; total_tm_mant += tm_mant; total_turno_seg += turno_seg
+        total_proy += proy
         team_data[t] = {
             'meta': meta, 'plan_dia': plan_dia, 'acum': acum,
             'avance_plan': avance_plan, 'dif_plan': dif_plan,
@@ -263,11 +288,14 @@ def generate():
         }
 
     prom_total = total_acum / DD if DD > 0 else 0
-    proy_total = total_acum + prom_total * DR
+    # El Total es la SUMA de las columnas, no un cálculo aparte: la proyección de cada faena
+    # trata la jornada en curso por separado, así que recalcular el total con el promedio
+    # global daba un número que no cuadraba con la fila de arriba.
+    proy_total = total_proy
     plan_dia_total = meta_total / DT
     avance_plan_total = plan_dia_total * DD
     dif_total = total_acum - avance_plan_total
-    ritmo_total = (meta_total - total_acum) / max(DR, 1)
+    ritmo_total = (meta_total - total_acum) / DR if DR > 0 else float('nan')
     rend_total = total_acum / total_hrs if total_hrs > 0 else 0
     turno_min_total = total_turno_seg / 60
     disp_total = (1 - total_tm_mant / turno_min_total) * 100 if turno_min_total > 0 else 100
@@ -281,7 +309,7 @@ def generate():
         ultimo_dia_calc = int(daily['Dia'].max())
         daily_ayer = daily[daily['Dia'] < ultimo_dia_calc]
         DD_ayer = daily_ayer['Dia'].nunique() if len(daily_ayer) > 0 else DD - 1
-        DR_ayer = max(DT - DD_ayer, 1)
+        DR_ayer = max(DT - DD_ayer, 0)   # ayer es un día CERRADO: no lleva el +1 de hoy
         acum_ayer = daily_ayer['Vol'].sum()
         prom_ayer = acum_ayer / DD_ayer if DD_ayer > 0 else 0
         proy_ayer = acum_ayer + prom_ayer * DR_ayer
@@ -404,12 +432,16 @@ def generate():
         cierre_c = '#FDE68A'   # amarillo
     else:
         cierre_c = '#FCA5A5'   # rojo
+    # Con el mes cerrado ya no hay nada que proyectar: el número es el cierre. Mismo criterio
+    # que el dashboard HTML ('Total Mes'), para que las dos vistas no se contradigan.
+    LBL_PCT  = 'Cumplimiento' if MES_CERRADO else 'Cierre Proy.'
+    LBL_PROY = 'Total Mes'    if MES_CERRADO else 'Proyección'
     # Cada box: (label, valor, unidad, color_valor, sub_texto, ancho, fs_valor)
     kpi_boxes = [
         ('Acumulado',  f"{total_acum:,.0f}".replace(',','.'), 'm³ SSC', 'white', None, 1.00*kpi_scale, int(12*kpi_scale)),
         ('Meta',       f"{meta_total:,.0f}".replace(',','.'), 'm³ SSC', 'white', None, 0.95*kpi_scale, int(12*kpi_scale)),
-        ('Cierre Proy.', f"{pct_total:.1f}%", None, cierre_c, None, 2.10*kpi_scale, int(28*kpi_scale)),
-        ('Proyección', f"{proy_total:,.0f}".replace(',','.'), None, 'white',
+        (LBL_PCT,      f"{pct_total:.1f}%", None, cierre_c, None, 2.10*kpi_scale, int(28*kpi_scale)),
+        (LBL_PROY,     f"{proy_total:,.0f}".replace(',','.'), None, 'white',
          f"Brecha: {brecha:+,.0f}".replace(',','.'), 1.85*kpi_scale, int(22*kpi_scale)),
     ]
     total_w = sum(b[5] for b in kpi_boxes)
@@ -417,7 +449,7 @@ def generate():
 
     bx = kpi_start_x
     for bi, (lbl, val, unit, val_c, sub, box_w, fs_val) in enumerate(kpi_boxes):
-        is_highlight = lbl in ('Cierre Proy.', 'Proyección')
+        is_highlight = lbl in (LBL_PCT, LBL_PROY)
         if bi > 0:
             ax.plot([bx, bx], [y - 0.10, y - TITLE_H + 0.06],
                     color='#2E6B8F', lw=0.8, clip_on=False)
@@ -427,7 +459,7 @@ def generate():
         val_y = y - 0.52 if is_highlight else y - 0.38
         t(bx + box_w/2, val_y, val, fs=fs_val, c=val_c, ha='center', bold=True)
         # Mini-indicador de tendencia DEBAJO del % Cierre Proy. (en fila inferior, separado)
-        if lbl == 'Cierre Proy.' and abs(delta_pct) >= 0.05:
+        if lbl == LBL_PCT and abs(delta_pct) >= 0.05:
             arrow = '▲' if delta_pct > 0 else '▼'
             trend_c = '#4ADE80' if delta_pct > 0 else '#F87171'
             trend_txt = f"{arrow} {abs(delta_pct):.1f} pts vs ayer"
@@ -458,7 +490,8 @@ def generate():
     # ── KPI ROWS ──
     # (label, val_fn, total_val, bg, color_fn, bold, total_color)
     kpi_defs = [
-        ('% Proy',     lambda tm: f"{(team_data[tm]['proy']/METAS[tm]*100):.0f}%", f"{pct_total:.0f}%", '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
+        ('% Cumpl' if MES_CERRADO else '% Proy',
+                       lambda tm: f"{(team_data[tm]['proy']/METAS[tm]*100):.0f}%", f"{pct_total:.0f}%", '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
         ('Meta',       lambda tm: fmt(METAS[tm]),                         fmt(meta_total),           '#F5F7FA', None, True, TXT),
         ('Acumulado',  lambda tm: fmt(team_data[tm]['acum']),             fmt(total_acum),           '#EBF0F5',
             lambda tm: '#059669' if team_data[tm]['avance_plan']>0 and team_data[tm]['acum']/team_data[tm]['avance_plan']>=1.0 else '#D97706' if team_data[tm]['avance_plan']>0 and team_data[tm]['acum']/team_data[tm]['avance_plan']>=0.85 else RED,
@@ -470,7 +503,7 @@ def generate():
         ('Ritmo',      lambda tm: fmt(team_data[tm]['ritmo']),            fmt(ritmo_total),          '#F5F7FA', lambda tm: RED if team_data[tm]['ritmo']>team_data[tm]['prom'] else TXT, 'red_bold', RED if ritmo_total>prom_total else TXT),
         ('m³/hr',      lambda tm: f"{team_data[tm]['rendimiento']:.1f}",  f"{rend_total:.1f}",       '#EBF0F5', lambda tm: RED if team_data[tm]['rendimiento']<15 else TXT, 'red_bold', RED if rend_total<15 else TXT),
         ('TM(h)',      lambda tm: f"{team_data[tm]['tm_mant_hrs']:.1f}",  f"{total_tm_mant/60:.1f}", '#F5F7FA', lambda tm: RED if team_data[tm]['tm_mant_hrs']>33 else TXT, 'red_bold', RED if total_tm_mant/60>33 else TXT),
-        ('Proyección', lambda tm: fmt(team_data[tm]['proy']),             fmt(proy_total),           '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
+        (LBL_PROY,     lambda tm: fmt(team_data[tm]['proy']),             fmt(proy_total),           '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
     ]
 
     yc = y_hdr
@@ -488,7 +521,7 @@ def generate():
         ym = yc + row_h/2
 
         # Fila Proyección o 'big' → fuente un poco más grande
-        is_highlighted = (label == 'Proyección') or (extra == 'big')
+        is_highlighted = (label == LBL_PROY) or (extra == 'big')
         fs_val = F_KPI_V + 2.5 if is_highlighted else F_KPI_V
         fs_lbl = F_KPI_L + 1.5 if is_highlighted else F_KPI_L
 

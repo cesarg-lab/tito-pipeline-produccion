@@ -20,7 +20,7 @@ CSV_PROD = BASE_DIR / "Base2NOC.csv"
 CSV_TM   = BASE_DIR / "TiemposPerdidos.csv"
 import sys as _sys
 _sys.path.insert(0, str(BASE_DIR))
-from normalizar_produccion import normalizar  # noqa: E402
+from normalizar_produccion import normalizar, dia_en_curso  # noqa: E402
 
 TEAM_MAP = {
     'S123':'M1.1','S58':'M1.2','S223':'M1.3','S246':'M1.4',
@@ -166,7 +166,16 @@ def generate():
     _ULT = int(prod_mes['Dia'].max())
     DT = sum(1 for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
     DD = sum(1 for d in range(1, _ULT + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
-    DR = max(DT - DD, 1)
+
+    # ¿El último día con datos es HOY y la jornada sigue abierta? Entonces le queda producción
+    # por delante y hay que proyectarla. Regla compartida (normalizar_produccion) para que la
+    # grilla, el resumen, los KPIs y el dashboard hablen del mismo número.
+    HOY_EN_CURSO = dia_en_curso(ANIO, MES, _ULT)
+    # El piso era 1 y no 0: con el mes cerrado seguía proyectando un día más de producción que
+    # nunca va a pasar. Junio cerró en 45.949 m³ y el resumen mandaba 47.481 (+1 día promedio,
+    # +3,3%), con un "Quedan 1 días" que tampoco era cierto.
+    # Mes cerrado ⇒ DR = 0 ⇒ proyección = acumulado, al peso.
+    DR = max(DT - DD + (1 if HOY_EN_CURSO else 0), 0)
 
     prod_dia = prod_mes[prod_mes['Fecha_dt'] == ultimo]
     tm_dia = tm_mes[tm_mes['Fecha_dt'] == ultimo]
@@ -258,9 +267,37 @@ def generate():
     # Top causas TM del día
     top_causas = tm_dia.groupby('Descripción')['Tiempo (Min)'].sum().sort_values(ascending=False).head(5)
 
-    # Proyección mensual
+    # ── Proyección por faena ──────────────────────────────────────────────
+    # Proyección = lo ya producido + lo que le falta a HOY + los días completos que quedan.
+    # El promedio que proyecta sale de los días CERRADOS: si se mete la jornada de hoy, que va
+    # a medias, el promedio se hunde y arrastra la proyección hacia abajo justo el día que más
+    # se mira. De hoy se suma solo el RESTO (prom − lo que ya lleva); si hoy ya superó el
+    # promedio no se suma nada, en vez de restar y castigar un buen día.
+    _vol_ult = {}
+    if HOY_EN_CURSO:
+        _s_ult = prod_mes[prod_mes['Dia'] == _ULT].groupby('Team')['Vol'].sum()
+        for t in TEAMS:
+            v = vol_oficial_diario.get((t, _ULT)) if vol_oficial_diario is not None else None
+            _vol_ult[t] = float(v) if v is not None else float(_s_ult.get(t, 0))
+    _dias_cerr = DD - (1 if HOY_EN_CURSO else 0)
+    _dias_completos = max(DR - (1 if HOY_EN_CURSO else 0), 0)
+
+    proy_equipo = []
+    for t in TEAMS:
+        acum = vol_mes_total.get(t, 0)
+        meta = METAS[t]
+        hoy_vol = _vol_ult.get(t, 0.0)
+        prom = (acum - hoy_vol) / _dias_cerr if _dias_cerr > 0 else 0
+        resto_hoy = max(prom - hoy_vol, 0.0) if HOY_EN_CURSO else 0.0
+        proy = acum + resto_hoy + prom * _dias_completos
+        pct = proy / meta * 100 if meta > 0 else 0
+        proy_equipo.append({'team': t, 'acum': acum, 'meta': meta, 'proy': proy, 'pct': pct})
+
+    # Proyección mensual — el total es la SUMA de las faenas, no un cálculo aparte: cada una
+    # trata su jornada en curso por separado y con el promedio global el total no cuadraba
+    # con el desglose de abajo.
     meta_total = sum(METAS[t] for t in TEAMS if t in METAS)
-    proy_total = acum_total + prom_dia_total * DR
+    proy_total = sum(p['proy'] for p in proy_equipo)
     pct_total = proy_total / meta_total * 100 if meta_total > 0 else 0
     brecha_total = proy_total - meta_total
 
@@ -281,16 +318,6 @@ def generate():
 
     equipos_bajo_rend = [d for d in dia_data if d['rend'] < 15 and d['hrs'] > 0]
     equipos_bajo_rend.sort(key=lambda x: x['rend'])
-
-    # Proyección por equipo
-    proy_equipo = []
-    for t in TEAMS:
-        acum = vol_mes_total.get(t, 0)
-        meta = METAS[t]
-        prom = acum / DD if DD > 0 else 0
-        proy = acum + prom * DR
-        pct = proy / meta * 100 if meta > 0 else 0
-        proy_equipo.append({'team': t, 'acum': acum, 'meta': meta, 'proy': proy, 'pct': pct})
 
     proy_equipo.sort(key=lambda x: x['pct'])
 
@@ -375,12 +402,15 @@ def generate():
     L.append("")
 
     # ── PROYECCIÓN MENSUAL ──
+    # Con el mes cerrado no hay nada que proyectar: el número es el cierre. Se rotula así para
+    # que nadie lea como "estimación" lo que ya es el resultado del mes.
+    _cerrado = (DR == 0)
     L.append(f"━━━━━━━━━━━━━━━━━━━━━")
-    L.append(f"*📊 PROYECCIÓN {MESES[MES].upper()} {ANIO}*")
-    L.append(f"Día {DD} de {DT} | Quedan {DR} días")
+    L.append(f"*📊 {'CIERRE' if _cerrado else 'PROYECCIÓN'} {MESES[MES].upper()} {ANIO}*")
+    L.append(f"Día {DD} de {DT} | " + ("mes cerrado" if _cerrado else f"Quedan {DR} días"))
     L.append("")
     L.append(f"Acumulado: *{fmt(acum_total)} m³* de {fmt(meta_total)}")
-    L.append(f"Proyección: *{fmt(proy_total)} m³* ({pct_total:.0f}%)")
+    L.append(f"{'Cierre' if _cerrado else 'Proyección'}: *{fmt(proy_total)} m³* ({pct_total:.0f}%)")
     brecha_emoji = '✅' if brecha_total >= 0 else '⚠️'
     L.append(f"Brecha: {brecha_emoji} *{brecha_total:+,.0f} m³*".replace(',','.'))
     L.append("")
@@ -388,7 +418,10 @@ def generate():
     # Por equipo (de peor a mejor)
     L.append(f"*Por faena:*")
     for p in proy_equipo:
-        if p['pct'] >= 80:
+        # Umbral único de la operación: VERDE solo ≥90%. Este texto se había quedado en 80 y en
+        # el MISMO mensaje de Telegram la faena salía verde acá y ámbar en la grilla (junio:
+        # M1.4 en 89%). Mismo criterio que GENERAR_IMAGEN y el dashboard HTML.
+        if p['pct'] >= 90:
             emoji = '🟢'
         elif p['pct'] >= 60:
             emoji = '🟡'

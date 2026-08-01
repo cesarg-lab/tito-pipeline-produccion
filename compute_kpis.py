@@ -22,7 +22,7 @@ import sys
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
-from normalizar_produccion import normalizar
+from normalizar_produccion import normalizar, dia_en_curso
 
 TEAM_MAP = {'S123':'M1.1','S58':'M1.2','S223':'M1.3','S246':'M1.4','MG5':'M5','TEA02':'M7','TEA08':'M9','T125':'M11','TEA30':'M1.3'}
 NOMBRE   = {'M1.1':'Millalemu 1.1','M1.2':'Millalemu 1.2','M1.3':'Millalemu 1.3','M1.4':'Millalemu 1.4','M5':'Millalemu 5','M7':'Millalemu 7','M9':'Millalemu 9','M11':'Millalemu 11'}
@@ -198,14 +198,20 @@ def main():
     # de lo que resta de la jornada) y metía una jornada a medias al promedio diario, que
     # bajaba. El 31-07-2026 M7 llevaba 140 m³ a media mañana contra ~198 de promedio, y la
     # proyección del mes salía IGUAL al acumulado: 6.135 y 6.135.
-    _hoy = (_dt.datetime.utcnow() - _dt.timedelta(hours=4))     # Chile = UTC-4
-    HOY_EN_CURSO = (_hoy.year == ANIO and _hoy.month == MES and _hoy.day == ult_dia)
+    # La corrida programada es a las 22:47 de Chile, con la jornada ya terminada: ahí el día NO
+    # está en curso y no hay nada que proyectarle. Mirar solo la fecha hacía que el último día
+    # del mes siguiera proyectando y el "mes cerrado" cerrara por encima del acumulado
+    # (31-07-2026: acum 83,0% vs proy 84%). La regla vive en normalizar_produccion.
+    HOY_EN_CURSO = dia_en_curso(ANIO, MES, ult_dia)
 
     # El día en curso NO cuenta como transcurrido: vuelve a los restantes.
     DR = max(DT - DD + (1 if HOY_EN_CURSO else 0), 0)
     parcial = ult_dia < DM
 
     faenas, tmf = [], {}
+    # Totales del mes en crudo: sumar los valores ya redondeados de cada faena (vol a 1 decimal,
+    # proyección a 0) hacía que el mes cerrado cerrara 2-3 m³ arriba o abajo del acumulado.
+    _sum_vol = _sum_proy = 0.0
     for t in ['M1.1','M1.2','M1.3','M1.4','M5','M7','M9','M11']:
         d = prod_mes[prod_mes['Team'] == t]
         if len(d) == 0:
@@ -232,6 +238,7 @@ def main():
         _resto_hoy = max(prom - _hoy_vol, 0.0) if HOY_EN_CURSO else 0.0
         _dias_completos = max(DR - (1 if HOY_EN_CURSO else 0), 0)
         proy = vol + _resto_hoy + prom * _dias_completos
+        _sum_vol += float(vol); _sum_proy += float(proy)
         tmt = tm_mes[tm_mes['Team'] == t]
         # Detalle diario para la cartilla (jornada a jornada)
         dias_det = []
@@ -301,8 +308,8 @@ def main():
             else:
                 f['meta_status'] = ('gestion' if f['proy_potencial_pct'] >= 100 else ('multipalanca' if pot_full >= f['meta_m3'] else 'rodal'))
 
-    acum = sum(f['vol_m3'] for f in faenas); meta = sum(f['meta_m3'] for f in faenas)
-    proy = sum(f['proy_cierre_m3'] for f in faenas); arbt = sum(f['arboles'] for f in faenas)
+    acum = _sum_vol; meta = sum(f['meta_m3'] for f in faenas)
+    proy = _sum_proy; arbt = sum(f['arboles'] for f in faenas)
     out = dict(mes=f"{MESES[MES]} {ANIO}", mes_num=MES, anio=ANIO, parcial=bool(parcial), ultimo_dia=ult_dia,
         dias_con_datos=DD, dias_habiles_mes=DT, dias_restantes=DR,
         totales=dict(acum_m3=round(acum, 0), meta_m3=meta, cumpl_pct=round(acum / meta * 100, 1) if meta else 0,
