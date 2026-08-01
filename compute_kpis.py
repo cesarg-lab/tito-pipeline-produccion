@@ -16,6 +16,7 @@ Reusa la lógica autoritativa de GENERAR_RESUMEN.py (folio-dedup, TEAM_MAP, CLAS
 Auto-detecta el mes en curso; marca parcial=True si el mes no está completo.
 """
 import pandas as pd, numpy as np, json, calendar
+import datetime as _dt
 from pathlib import Path
 import sys
 
@@ -191,7 +192,17 @@ def main():
     ult_dia = int(prod_mes['Fecha_dt'].dt.day.max())
     DT = sum(1 for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
     DD = sum(1 for d in range(1, ult_dia + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
-    DR = max(DT - DD, 0)
+
+    # ¿El último día con datos es HOY? Entonces está EN CURSO, no terminado. Contarlo como
+    # día cerrado rompía la proyección por los dos lados: dejaba DR en 0 (no proyectaba nada
+    # de lo que resta de la jornada) y metía una jornada a medias al promedio diario, que
+    # bajaba. El 31-07-2026 M7 llevaba 140 m³ a media mañana contra ~198 de promedio, y la
+    # proyección del mes salía IGUAL al acumulado: 6.135 y 6.135.
+    _hoy = (_dt.datetime.utcnow() - _dt.timedelta(hours=4))     # Chile = UTC-4
+    HOY_EN_CURSO = (_hoy.year == ANIO and _hoy.month == MES and _hoy.day == ult_dia)
+
+    # El día en curso NO cuenta como transcurrido: vuelve a los restantes.
+    DR = max(DT - DD + (1 if HOY_EN_CURSO else 0), 0)
     parcial = ult_dia < DM
 
     faenas, tmf = [], {}
@@ -208,8 +219,19 @@ def main():
         ritmo = ciclos / hrs if hrs > 0 else 0
         carga = vol / ciclos if ciclos > 0 else 0
         vma = vol / arb if arb > 0 else 0
-        prom = vol / ndias if ndias > 0 else 0
-        proy = vol + prom * DR
+        # El promedio diario se saca de los días CERRADOS. Con la jornada de hoy a medias, el
+        # promedio se hunde y arrastra la proyección hacia abajo justo el día que más se mira.
+        _hoy_vol = float(d[d['Fecha_dt'].dt.day == ult_dia]['Vol'].sum()) if HOY_EN_CURSO else 0.0
+        _cerrados = ndias - 1 if (HOY_EN_CURSO and ndias > 1) else ndias
+        # Promedio de los días CERRADOS: volumen cerrado ÷ días cerrados. Meter la jornada de
+        # hoy —que va a medias— por cualquiera de los dos lados deforma el número.
+        prom = (vol - _hoy_vol) / _cerrados if _cerrados > 0 else 0
+        # Proyección = lo ya producido + lo que falta de HOY + los días completos que quedan.
+        # De hoy se proyecta solo el RESTO (prom − lo que ya lleva); si hoy ya superó el
+        # promedio no se suma nada, en vez de restar y castigar un buen día.
+        _resto_hoy = max(prom - _hoy_vol, 0.0) if HOY_EN_CURSO else 0.0
+        _dias_completos = max(DR - (1 if HOY_EN_CURSO else 0), 0)
+        proy = vol + _resto_hoy + prom * _dias_completos
         tmt = tm_mes[tm_mes['Team'] == t]
         # Detalle diario para la cartilla (jornada a jornada)
         dias_det = []
