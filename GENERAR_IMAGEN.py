@@ -395,7 +395,10 @@ def generate():
     # --- Lado derecho: KPIs grandes ---
     brecha = proy_total - meta_total
     # Color condicional para Cierre Proy. (mismos umbrales que dashboard HTML)
-    if pct_total >= 80:
+    # Umbral único de la operación: VERDE solo ≥90%. Esta imagen se quedó en 80 cuando se
+    # unificó, así que el mismo mes salía VERDE en Telegram y ÁMBAR en el dashboard — con el
+    # total de julio en 84% estaba pasando de verdad. Ver la nota de umbrales del proyecto.
+    if pct_total >= 90:
         cierre_c = '#A3E635'   # verde
     elif pct_total >= 60:
         cierre_c = '#FDE68A'   # amarillo
@@ -455,7 +458,7 @@ def generate():
     # ── KPI ROWS ──
     # (label, val_fn, total_val, bg, color_fn, bold, total_color)
     kpi_defs = [
-        ('% Proy',     lambda tm: f"{(team_data[tm]['proy']/METAS[tm]*100):.0f}%", f"{pct_total:.0f}%", '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=80 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=80 else '#D97706' if pct_total>=60 else RED),
+        ('% Proy',     lambda tm: f"{(team_data[tm]['proy']/METAS[tm]*100):.0f}%", f"{pct_total:.0f}%", '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
         ('Meta',       lambda tm: fmt(METAS[tm]),                         fmt(meta_total),           '#F5F7FA', None, True, TXT),
         ('Acumulado',  lambda tm: fmt(team_data[tm]['acum']),             fmt(total_acum),           '#EBF0F5',
             lambda tm: '#059669' if team_data[tm]['avance_plan']>0 and team_data[tm]['acum']/team_data[tm]['avance_plan']>=1.0 else '#D97706' if team_data[tm]['avance_plan']>0 and team_data[tm]['acum']/team_data[tm]['avance_plan']>=0.85 else RED,
@@ -467,7 +470,7 @@ def generate():
         ('Ritmo',      lambda tm: fmt(team_data[tm]['ritmo']),            fmt(ritmo_total),          '#F5F7FA', lambda tm: RED if team_data[tm]['ritmo']>team_data[tm]['prom'] else TXT, 'red_bold', RED if ritmo_total>prom_total else TXT),
         ('m³/hr',      lambda tm: f"{team_data[tm]['rendimiento']:.1f}",  f"{rend_total:.1f}",       '#EBF0F5', lambda tm: RED if team_data[tm]['rendimiento']<15 else TXT, 'red_bold', RED if rend_total<15 else TXT),
         ('TM(h)',      lambda tm: f"{team_data[tm]['tm_mant_hrs']:.1f}",  f"{total_tm_mant/60:.1f}", '#F5F7FA', lambda tm: RED if team_data[tm]['tm_mant_hrs']>33 else TXT, 'red_bold', RED if total_tm_mant/60>33 else TXT),
-        ('Proyección', lambda tm: fmt(team_data[tm]['proy']),             fmt(proy_total),           '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=80 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=80 else '#D97706' if pct_total>=60 else RED),
+        ('Proyección', lambda tm: fmt(team_data[tm]['proy']),             fmt(proy_total),           '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
     ]
 
     yc = y_hdr

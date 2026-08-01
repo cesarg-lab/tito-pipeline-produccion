@@ -258,6 +258,28 @@ else
         fi
     done
     echo "  📄 $PDF_OK PDF(s) generados"
+
+    # ── Gráfico de desplazamiento (GPS) ──
+    # Va acá y no en el paso 6 porque se rasteriza con el MISMO Chrome de los PDF, en vez de
+    # sumar una segunda librería de gráficos al pipeline. Es el único indicador del GPS que no
+    # aparece en ninguna otra salida: la grilla ya manda acumulado, meta, proyección y brecha.
+    python3 generar_grafico_desplazamiento.py 2>&1 | tee -a "$LOG_PIPELINE"
+    if [ -f grafico_desplazamiento.html ]; then
+        timeout 60 "$CHROME" --headless --disable-gpu --no-sandbox --hide-scrollbars \
+                  --force-device-scale-factor=2 --window-size=1080,520 \
+                  --virtual-time-budget=8000 \
+                  --screenshot="grafico_desplazamiento.png" \
+                  "file://$(pwd)/grafico_desplazamiento.html" >/dev/null 2>&1 || true
+        if [ -s grafico_desplazamiento.png ] && [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            RESP=$(curl -s -F "chat_id=${TELEGRAM_CHAT_ID}" \
+                 -F "photo=@grafico_desplazamiento.png" \
+                 -F "caption=🛰️ Desplazamiento diario por faena — datos al ${ULT_DIA_NOC:-—}" \
+                 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto")
+            tg_check "gráfico de desplazamiento" "$RESP"
+        else
+            echo "  ⚠️  gráfico de desplazamiento no se pudo generar (no crítico)"
+        fi
+    fi
 fi
 
 # Aviso al chat cuando el informe NO se generó. Va a Telegram y no solo al log porque es donde
