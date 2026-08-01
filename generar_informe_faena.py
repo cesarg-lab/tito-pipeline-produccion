@@ -959,7 +959,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     if len(jul) == 0:
         return ""
     ult = jul.dia.max()
-    ult_dia = int(ult[8:10])
+    ult_dia = int(ult[8:10])          # último día con producción CERRADA en el NOC
+    # HOY es el día de calendario, NO el último con datos: el NOC va uno o dos días atrás y la
+    # hoja se imprime y se usa HOY. Marcar el 30 como "hoy" un día 31 hace que el jefe lea una
+    # hoja que parece de ayer. Solo aplica si el informe es del mes en curso; en un mes cerrado
+    # no hay "hoy" que marcar.
+    from datetime import datetime, timedelta
+    _hoy = datetime.utcnow() - timedelta(hours=4)          # Chile = UTC-4
+    hoy_dia = _hoy.day if _hoy.strftime('%Y-%m') == mes_key else None
     last = jul[jul.dia == ult].iloc[0]
     predio = last.predio
     especie_cod = last.especie
@@ -1041,8 +1048,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 
     # ── Información General ──
     ig = (f"<div class=ig>"
-          f"<div><span>Fecha</span><b>{ult_dia:02d} / {mes:02d} / {anio}</b></div>"
-          f"<div><span>Team</span><b>{fa}</b></div>"
+          # Las DOS fechas: la del día que se está viviendo y la del último dato cerrado del
+          # NOC. Mostrar solo una de las dos confunde — con "30/07" en un día 31 la hoja
+          # parece atrasada, y con "31/07" parecería que hay datos del 31 y no los hay.
+          + (f"<div><span>Fecha</span><b>{hoy_dia:02d} / {mes:02d} / {anio}</b>"
+             f"<span style='text-transform:none'>datos al {ult_dia:02d}/{mes:02d}</span></div>"
+             if hoy_dia and hoy_dia != ult_dia else
+             f"<div><span>Fecha</span><b>{ult_dia:02d} / {mes:02d} / {anio}</b></div>")
+          + f"<div><span>Team</span><b>{fa}</b></div>"
           f"<div><span>Predio</span><b>{predio}</b></div>"
           f"<div><span>Jefe de Faena</span>{campo_jefes(fa, ult)}</div>"
           f"<div><span>Especie</span><b>{especie}</b></div>"
@@ -1186,8 +1199,26 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         if d > ult_dia:
             # Día futuro: sin datos, pero CON su color de turno — la rotación se sabe de
             # antemano y así el jefe ve en la hoja impresa cuándo le toca volver.
-            filas += (f"<tr><td class='{cl_dia}'{ttl}>{d:02d}</td>"
-                      + "<td class=bl></td>" * 16 + "</tr>")
+            # Y con el resaltado de HOY si corresponde: el NOC va uno o dos días atrás, así que
+            # el día que se está viviendo casi siempre cae en esta rama. Sin esto, la hoja que
+            # el jefe tiene en la mano hoy marca ayer.
+            hoy_cl = " class=hoy" if d == hoy_dia else ""
+            if d == hoy_dia and es_op:
+                # HOY sí lleva saldo y meta: es EL día en que el jefe necesita saber cuánto le
+                # falta. Real va vacío porque el día está en curso — el NOC lo cierra mañana.
+                # Los otros procesos quedan en blanco: sin flujo declarado no hay saldo que
+                # mostrar, y el clasificado sigue al procesado.
+                m_hoy = fmt(pg['meta_dia_req'])
+                s_hoy = fmt(saldo)
+                v16 = ("<td class=bl></td>" * 4) * 2
+                pro_hoy = f"<td>{s_hoy}</td><td>{m_hoy}</td><td class=bl></td><td class=bl></td>"
+                cla_hoy = (f"<td>{fmt(saldo_cla)}</td><td>{m_hoy}</td>"
+                           if saldo_cla is not None else f"<td>{s_hoy}</td><td>{m_hoy}</td>")
+                filas += (f"<tr{hoy_cl}><td class='{cl_dia}'{ttl}>{d:02d}</td>"
+                          + v16 + pro_hoy + cla_hoy + "<td class=bl></td><td class=bl></td></tr>")
+            else:
+                filas += (f"<tr{hoy_cl}><td class='{cl_dia}'{ttl}>{d:02d}</td>"
+                          + "<td class=bl></td>" * 16 + "</tr>")
             continue
         tot_real += real_por_dia.get(d, 0.0)
         tot_tp += sum(v for (dd_, _p), v in tp_dia_proc.items() if dd_ == d)
@@ -1226,7 +1257,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             sal = fmt(prev_p.get(proc, m)) if dias_con_flujo else "<span class=pr>—</span>"
             if not es_op:
                 mdia = "—"
-            elif dias_con_flujo and d == ult_dia:
+            elif dias_con_flujo and d == hoy_dia:
                 # Mismo criterio que procesado y clasificado en el día de hoy: días restantes
                 # del kpis.json, para que las cuatro columnas cuenten la misma historia.
                 mdia = fmt(max(0.0, saldos_p.get(proc, m)) / max(int(pg['dias_rest']), 1))
@@ -1255,10 +1286,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         pm_ac = fmt(saldo_previo)
         if not es_op:
             pm_di = "—"
-        elif d == ult_dia:
-            # HOY muestra el MISMO número que "Meta día p/ llegar" de Producción General: lo que
-            # exige de aquí en adelante, ya descontado lo trozado hoy. Es lo que el jefe necesita
-            # al mirar el informe, y evita dos "metas del día" distintas en la misma hoja.
+        elif d == hoy_dia:
+            # Si HOY ya tiene datos del NOC (pasa cuando el NOC va al día), muestra el MISMO
+            # número que "Meta día p/ llegar" de Producción General: lo que exige de aquí en
+            # adelante. Evita dos "metas del día" distintas en la misma hoja.
             pm_di = fmt(pg['meta_dia_req'])
         else:
             # Días pasados: lo que ESE día había que trozar, con lo que se llevaba hasta el
@@ -1278,7 +1309,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             c_ac = fmt(saldo_cla_previo)
             if not es_op:
                 c_di = "—"
-            elif d == ult_dia:
+            elif d == hoy_dia:
                 # MISMO criterio que el procesado en el día de hoy: lo que falta DESPUÉS de hoy,
                 # repartido en los días restantes de `kpis.json`. Sin esto los dos procesos
                 # mostraban metas distintas en columnas pegadas (30-07: procesado 2.065 contra
@@ -1292,7 +1323,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         else:
             c_ac, c_di = pm_ac, pm_di
         cla = f"<td>{c_ac}</td><td>{c_di}</td>{rr}{tp_cell(d,'CLASIFICADO')}"
-        cl_hoy = " class=hoy" if d == ult_dia else ""
+        cl_hoy = " class=hoy" if d == hoy_dia else ""
         # Bloque de turno en la celda del DÍA (no en la fila): la fila lleva celdas verdes,
         # rojas, azules y la barra amarilla de HOY, y un fondo encima las arruinaría todas.
         # Pintando solo el día queda una banda a la izquierda que muestra los bloques de 7 días
