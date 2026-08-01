@@ -60,10 +60,13 @@ def main():
         print(f"  ⚠️  no legible ({e}); no se genera el gráfico")
         return 0
 
-    mes = kpi.get('mes') or {}
-    mes_key = f"{mes.get('anio')}-{int(mes.get('numero', 0)):02d}" if mes.get('numero') else None
-    if not mes_key:
-        # kpis.json no siempre trae el número del mes; se deduce del propio wialon.
+    # kpis.json trae `mes` como TEXTO ("Julio 2026") y el número aparte en `mes_num`/`anio`.
+    # (Lo aprendí rompiendo producción: probé contra un kpis.json que yo mismo inventé con otra
+    # forma, así que el test pasó y el runner falló. Comprobar la estructura REAL, no la
+    # supuesta.) Si faltara, el mes se deduce del propio wialon.
+    try:
+        mes_key = f"{int(kpi['anio'])}-{int(kpi['mes_num']):02d}"
+    except Exception:
         fechas = [f for v in wia.values() for f in (v.get('dias') or {})]
         mes_key = max(fechas)[:7] if fechas else None
     if not mes_key:
