@@ -1394,6 +1394,17 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     nada = "<td></td>"
     hplan = gu(f"{HDISP:g}")
 
+    # Umbral del cumplimiento: 95%, BINARIO. Es la regla que Arauco fijó por escrito al
+    # entregar el piloto del tablero de gestión integrado: "bajo 95% se marcará de color
+    # rojo entregando una alerta para realizar gestión; sobre el 95% no requiere gestión,
+    # se marcará de color verde". Sin ámbar: para el cliente o requiere gestión o no.
+    #
+    # Antes acá había 90/60 (verde/ámbar/rojo), que es el semáforo del DASHBOARD DE COSECHA
+    # — otra métrica y otra decisión de gerencia, que NO se toca. Con 90 una faena al 92%
+    # le salía verde a nuestro jefe y roja al cliente: le decíamos "vas bien" justo donde
+    # Arauco pide gestionar.
+    CUMPL_OK = 95
+
     def cumpl(real, plan):
         """Columna '% cumplimiento' del tablero de Arauco (Real ÷ Plan). Sin plan o sin real
         queda vacía: el porcentaje contra un número que no existe no informa nada."""
@@ -1403,7 +1414,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             p = real / plan * 100
         except Exception:
             return nada
-        col = '#1E8449' if p >= 90 else ('#B9770E' if p >= 60 else '#943126')
+        col = '#1E8449' if p >= CUMPL_OK else '#943126'
         return f"<td style='color:{col};font-weight:600'>{p:.0f}%</td>"
 
     # Referencia de Arauco para ESTA faena. Solo aplica a MADEREO: el NOC únicamente entrega
