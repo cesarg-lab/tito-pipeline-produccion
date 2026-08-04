@@ -916,6 +916,50 @@ def aviso_ciclos(pp):
             f"NOC). El volumen y el rendimiento del mes NO se tocan: usan todos los días.</div>")
 
 
+# Cuánto tiene que moverse el colchón de cancha, como fracción del volumen del mes, para
+# que la Carga deje de ser leíble como medición. Bajo esto el sesgo es menor que el ruido
+# propio de una estimación al ojo del jefe.
+COLCHON_SESGO = 0.10
+
+
+def aviso_colchon(av_dias, mes_key, m3_mes, hay_carga):
+    """Avisa cuando el colchón de cancha se movió y la Carga quedó sesgada.
+
+    La Carga es m³ ÷ ciclos, pero los dos números son de procesos DISTINTOS: el volumen
+    es lo que trozó el PROCESADOR y los ciclos son los viajes del MADEREO (el NOC entrega
+    los ciclos del equipo que firma el folio). Mientras lo madereado ≈ lo trozado el ratio
+    es la carga real del skidder; en cuanto la cancha se acumula o se vacía, deja de serlo:
+
+      · cancha SUBE  → el skidder movió más de lo que se trozó → la Carga SUBESTIMA
+      · cancha BAJA  → se trozó de la cancha vieja            → la Carga SOBREESTIMA
+
+    El nivel lo declara el jefe en /t/avance; sin al menos dos días declarados no hay forma
+    de saberlo, y eso también se dice — callarlo deja leer la Carga como si fuera medición.
+    """
+    if not hay_carga:
+        return ""
+    dias = sorted(d for d in (av_dias or {}) if str(d)[:7] == mes_key)
+    niveles = [(d, av_dias[d].get('cancha')) for d in dias]
+    niveles = [(d, v) for d, v in niveles if v is not None]
+    if len(niveles) < 2:
+        return ("<div class=cob><b>Carga</b>: no se puede saber si está sesgada. Divide los m³ "
+                "que trozó el procesador por los ciclos del madereo, así que solo es la carga "
+                "real del skidder si la cancha no se movió — y el nivel de cancha no se declaró "
+                "lo suficiente este mes para comprobarlo.</div>")
+    delta = niveles[-1][1] - niveles[0][1]
+    if not m3_mes or abs(delta) < m3_mes * COLCHON_SESGO:
+        return ""
+    if delta > 0:
+        que = (f"la cancha <b>subió {delta:,.0f} m³</b> — el madereo movió más de lo que se trozó, "
+               f"así que la Carga está <b>subestimada</b>")
+    else:
+        que = (f"la cancha <b>bajó {abs(delta):,.0f} m³</b> — parte de lo trozado salió del colchón "
+               f"viejo y no de los viajes de este mes, así que la Carga está <b>sobreestimada</b>")
+    return (f"<div class=cob><b>Carga sesgada este mes</b>: entre el {niveles[0][0]} y el "
+            f"{niveles[-1][0]} {que}, contra {m3_mes:,.0f} m³ trozados. El Ritmo (ciclo/hr) no se "
+            f"ve afectado: es del madereo de punta a punta.</div>")
+
+
 def tramo_de(vma):
     """En qué tramo de la Guía VMA cae un árbol de ese tamaño. None si no hay VMA."""
     if vma is None or vma != vma:
@@ -1462,7 +1506,9 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             ("Horas [hrs]", vac, hplan, uso_cell('CLASIFICADO'), nada),
             ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, rend_cell('CLASIFICADO'), nada)])
         + "</div>" + nota_ref(ref, tec, especie_cod) + nota_shoveleo(sh)
-        + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp))
+        + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp)
+        + aviso_colchon(av_dias, mes_key, float(jul.m3.sum()),
+                        bool(pp) and pp.get('real_carga') is not None))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
