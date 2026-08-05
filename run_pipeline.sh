@@ -56,6 +56,16 @@ echo ""
 echo "▶️  [2.7/9] Calculando KPIs Uso/Ritmo/Carga/VMA y generando Dashboard_KPIs.html..."
 ( python3 compute_kpis.py && python3 generar_dashboard_kpis.py kpis.json tm_por_faena.json Dashboard_KPIs.html ) 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  KPIs fallaron (no crítico, el pipeline sigue)"
 
+# ── 2.72 VMA diario al CMMS — es el factor con que la app de terreno convierte ──
+# El jefe de faena ya no estima m³ en /t/avance: CUENTA árboles y viajes, y el volumen sale de
+# m³ = árboles × VMA. Ese VMA vive acá (reporte PG del NOC) y el CMMS no lo sabe, así que hay
+# que empujárselo. La RPC además COMPLETA los conteos que el jefe declaró antes de que llegara
+# el VMA del día —que es el caso normal: él declara al cerrar el turno y esto corre en la
+# noche—. NO crítico: sin esto el conteo igual queda guardado y se convierte mañana.
+echo ""
+echo "▶️  [2.72/9] Publicando el VMA diario por faena al CMMS..."
+python3 publicar_vma.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  VMA no publicado (no crítico, se reintenta en la próxima corrida)"
+
 # ── 2.75 Desplazamiento del GPS (Wialon) — alimenta las filas de km/día del informe ──
 # Va ANTES del informe porque el informe lee wialon_km.json. Es incremental: refresca los
 # últimos días y acumula sobre el archivo versionado (bajar el mes entero son ~20 min).

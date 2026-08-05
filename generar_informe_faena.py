@@ -251,7 +251,12 @@ def plan_productividad(fa, jul, cell):
     real_ritmo = (_cic / _hrs_ok) if _hrs_ok > 0 else float('nan')
     return dict(plan_rend=plan_rend, plan_carga=plan_carga, plan_ritmo=plan_ritmo,
                 real_rend=real_rend, real_carga=real_carga, real_ritmo=real_ritmo,
-                dias_fuera=dias_fuera, dias_ok=int(len(_ok)))
+                dias_fuera=dias_fuera, dias_ok=int(len(_ok)),
+                # Ciclos del NOC de los días que SOBREVIVIERON el filtro de ritmo: son los
+                # mismos con que se calcularon Carga y Ritmo, así que comparar el conteo del
+                # jefe contra este número es comparar contra lo que el informe realmente usó
+                # (no contra el total sucio, que incluye los días descartados por absurdos).
+                ciclos_noc=_cic)
 
 
 def horas_preuso(fa, cmms, real_por_dia, mes_key):
@@ -1471,11 +1476,56 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     r_ritmo, r_carga, r_rend = ref if ref else (None, None, None)
     ra = lambda v, d=2: gu(f"{v:.{d}f}") if v else vac
 
+    # ── Lo que el JEFE contó este mes (árboles y viajes) ──
+    # Desde 2026-08-05 el jefe declara CONTEOS en /t/avance en vez de estimar m³. Se suman los
+    # días declarados del mes; los días sin declarar NO se cuentan como 0 (mentiría el total
+    # hacia abajo, que es el error caro — misma regla que el saldo).
+    def _cuenta(campo):
+        vals = [v.get(campo) for k, v in av_dias.items()
+                if str(k)[:7] == mes_key and v.get(campo) is not None]
+        return (sum(vals), len(vals)) if vals else (None, 0)
+
+    arb_vol_mes, dias_arb_vol = _cuenta('arb_vol_dia')
+    arb_mad_mes, dias_arb_mad = _cuenta('arb_mad_dia')
+    cic_jefe_mes, dias_cic = _cuenta('ciclos_dia')
+
+    def celda_conteo(total, dias):
+        """Conteo del mes con los días que lo respaldan en el tooltip. Sin declarar → 'rep.'"""
+        if total is None:
+            return "<td class=pr>rep.</td>"
+        return (f"<td class=nf title='{dias} día(s) declarado(s) por el jefe'>"
+                f"{total:,.0f}</td>".replace(',', '.'))
+
+    # Los ciclos del NOC del mes, para poner los dos números lado a lado. Los del NOC los
+    # declara Millalemu y vienen mal (M1.4 sistemático por turno, M7 un dedazo de 381
+    # ciclos/hr): tener las dos fuentes juntas es lo que hace visible la discrepancia en vez
+    # de que envenene Carga y Ritmo en silencio.
+    cic_noc_mes = pp.get('ciclos_noc') if pp else None
+
+    def celda_ciclos_noc():
+        if not cic_noc_mes:
+            return vac
+        return f"<td>{cic_noc_mes:,.0f}</td>".replace(',', '.')
+
+    def celda_brecha_ciclos():
+        """% que el conteo del jefe representa del que Millalemu declaró al NOC."""
+        if not cic_noc_mes or not cic_jefe_mes:
+            return nada
+        p = 100.0 * cic_jefe_mes / cic_noc_mes
+        # Verde si las dos fuentes se parecen (±15%); si no, hay que mirar quién cuenta qué.
+        col = '#1E8449' if 85 <= p <= 115 else '#943126'
+        return f"<td style='color:{col};font-weight:600'>{p:.0f}%</td>"
+
     prodv = (
         "<div class=two>"
         + bloque("VOLTEO", [
             ("Horas [hrs]", vac, hplan, uso_cell('VOLTEO'), nada),
             ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, "<td class=pr>rep.</td>", nada),
+            # Árboles volteados del mes, contados por el jefe. Es el dato que Arauco pide en su
+            # hoja de Volteo y que ninguna fuente propia tenía: el feller no firma folio en el
+            # NOC (solo aparecen SKIDDER, GRAPPLE, TORRE500 y FORWINCH), así que sin este
+            # conteo la casilla se llenaba a mano o se dejaba en blanco.
+            ("Árboles volteados [n°]", vac, vac, celda_conteo(arb_vol_mes, dias_arb_vol), nada),
             # Shoveleo: va en VOLTEO porque es donde lo lleva Arauco en su planilla, y porque
             # la shovel trabaja para el volteo. Plan queda en "—": Arauco NO publica una
             # referencia de shoveleo (lo verifiqué en las 4 hojas de su libro), y poner una
@@ -1497,6 +1547,13 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
              f"<td class=nf>{pp['real_carga']:.2f}</td>", cumpl(pp['real_carga'], r_carga)),
             ("Ritmo [ciclo/hr]", f"<td>{pp['plan_ritmo']}</td>", ra(r_ritmo),
              f"<td class=nf>{pp['real_ritmo']:.2f}</td>", cumpl(pp['real_ritmo'], r_ritmo)),
+            # Los VIAJES, con las DOS fuentes lado a lado: la columna de referencia trae los
+            # del NOC (los declara Millalemu y vienen mal — M1.4 tiene diferencia sistemática
+            # por turno y M7 tuvo un día en 381 ciclos/hr) y la de real trae los que contó el
+            # jefe. El % compara una contra otra: si se separan, alguien cuenta otra cosa.
+            ("Viajes [n°]", vac, celda_ciclos_noc(),
+             celda_conteo(cic_jefe_mes, dias_cic), celda_brecha_ciclos()),
+            ("Árboles madereados [n°]", vac, vac, celda_conteo(arb_mad_mes, dias_arb_mad), nada),
             ("Desplaz. skidder [km/día]", vac, vac, celda_km(dsp_mad), nada)])
         + "</div><div class=two>"
         + bloque("PROCESADO", [
@@ -1626,10 +1683,23 @@ def datos_cmms():
             # distintas: el nivel alimenta el semáforo de colchón, el flujo descuenta la meta
             # del proceso. None = no informado ≠ 0 declarado.
             vd, md = r.get('m3_volteado_dia'), r.get('m3_madereado_dia')
-            v = {'volteado': float(r['m3_volteado']), 'cancha': float(r['m3_cancha']),
-                 'sin_clasificar': None if sc is None else float(sc),
-                 'vol_dia': None if vd is None else float(vd),
-                 'mad_dia': None if md is None else float(md)}
+            # ⚠ TODOS los m³ pueden venir NULL desde 2026-08-05: son DERIVADOS (árboles × VMA)
+            # y quedan vacíos si el jefe declaró antes de que el NOC publicara el VMA del día.
+            # Un float(None) acá tumbaba el informe entero; 0.0 sería peor todavía, porque
+            # "colchón vacío" y "todavía sin convertir" son cosas distintas — por eso el nivel
+            # se deja en 0.0 solo para poder pintar, pero el FLUJO conserva el None.
+            f = lambda x: None if x is None else float(x)
+            i = lambda x: None if x is None else int(x)
+            v = {'volteado': f(r.get('m3_volteado')) or 0.0,
+                 'cancha': f(r.get('m3_cancha')) or 0.0,
+                 'sin_clasificar': f(sc),
+                 'vol_dia': f(vd), 'mad_dia': f(md),
+                 # Lo que el jefe CONTÓ. Los ciclos son la 2ª fuente contra los del NOC, que
+                 # vienen mal en M1.4 (sistemático por turno) y M7.
+                 'arb_vol_dia': i(r.get('arboles_volteados_dia')),
+                 'arb_mad_dia': i(r.get('arboles_madereados_dia')),
+                 'ciclos_dia': i(r.get('ciclos_madereo_dia')),
+                 'vma_usado': f(r.get('vma_usado'))}
             out['avance_dias'].setdefault(fid, {})[dia] = v
             if fid not in out['avance']:         # primer registro = el más reciente = buffer
                 out['avance'][fid] = {**v, 'fecha': r['fecha']}
