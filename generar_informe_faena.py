@@ -48,12 +48,22 @@ ZONAS = {
 }
 
 # ── CSS extra del informe (encima del CSS del tablero) ──────────────────────
+# Umbral del semáforo DIARIO del Real contra su Meta día: el mismo 95% binario que Arauco
+# entregó por escrito para el tablero (sobre 95% verde, bajo eso rojo, sin ámbar). Va a nivel
+# de módulo porque lo usa la tabla diaria, que se arma antes del bloque de cumplimiento.
+CUMPL_OK_DIA = 95
+
 CSS_INFORME = """
 button.noprint{position:fixed;top:12px;right:14px;z-index:99;background:#417505;color:#fff;
   border:0;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;
   box-shadow:0 2px 8px rgba(0,0,0,.2);font-family:'IBM Plex Sans',sans-serif}
 button.noprint:hover{background:#345d04}
 .sheet{max-width:194mm}
+/* VMA: bloque angosto pegado al día. El corregido por el jefe va en ámbar para
+   que se note a la pasada en qué días el factor NO es el medido por el NOC. */
+.grpv{background:#eef3ea}
+td.vma{font-variant-numeric:tabular-nums;color:#31708f}
+td.vmac{font-variant-numeric:tabular-nums;color:#8a5a00;font-weight:600}
 .ig{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
 .ig div{flex:1;min-width:96px;background:#f6f8fa;border:1px solid #e0e5ea;border-radius:5px;padding:4px 8px}
 .ig span{font-size:8.5px;color:#778;text-transform:uppercase;display:block}
@@ -62,6 +72,15 @@ button.noprint:hover{background:#345d04}
 td.bl{background:#fffdf5}                 /* celda en blanco para llenar */
 td.pr,.pr{color:#a06000;font-style:italic}/* "por reportar" (lo informa el jefe) */
 td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC */
+/* Real del día contra su Meta día. El verde NO puede ser decorativo: si pinta igual el
+   día que cumplió y el que no, deja de significar algo y se aprende a ignorar. Regla de
+   Arauco, la misma del resto del informe: 95% binario, sin ámbar. */
+td.ok{background:#eaf3e0;font-weight:700;color:#2d5202}
+/* Conteos declarados (árboles, ciclos, carga, shoveleo): son DATO, no desempeño. Van
+   neutros a propósito — si el verde también los pinta a ellos deja de querer decir
+   "cumplió la meta" y vuelve a ser decoración. */
+td.dato{font-weight:600;color:#333}
+td.bajo{background:#fbeaea;font-weight:700;color:#943126}
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 td.sp{background:#eaf3e0;color:#2d5202;font-weight:700}    /* turno limpio CONFIRMADO */
@@ -663,6 +682,68 @@ def campo_jefes(fa, dia_iso):
     return f"<b>{j}</b>" if j else "<b class=fill>____________</b>"
 
 
+def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo):
+    """Colchón CALCULADO por identidad contable, contra el que declaró el jefe.
+
+        cancha(d)   = cancha(d-1) + madereado(d) - trozado NOC(d)
+        volteado(d) = volteado(d-1) + volteado(d) - madereado(d)
+
+    POR QUÉ CONVIVEN Y NO SE REEMPLAZA UNO POR OTRO. El declarado se corrige solo cada día:
+    una mala cuenta de ayer no contamina la de hoy. El derivado ACUMULA: basta un día sin
+    declarar para que el error quede arrastrado el resto del mes. Pero el derivado ve algo que
+    el declarado no puede ver — que lo madereado y lo trozado no cuadran —, y esa brecha es
+    justamente la información. Por eso el ancla es el declarado y esto es el control.
+
+    El cruce con el TROZADO solo se puede hacer acá: la app de terreno no tiene el dato del
+    NOC. Devuelve '' si no hay con qué calcular; nunca un número inventado.
+    """
+    dias = sorted(k for k in (av_dias or {}) if str(k)[:7] == mes_key)
+    if len(dias) < 2:
+        return ""
+    # Se parte del PRIMER nivel declarado del mes y se acumulan los flujos desde ahí.
+    prim = av_dias[dias[0]]
+    base_c, base_v = prim.get('cancha'), prim.get('volteado')
+    if base_c is None and base_v is None:
+        return ""
+    cancha, volteado, usados = base_c, base_v, 0
+    for k in dias[1:]:
+        v = av_dias[k]
+        d = int(str(k)[8:10])
+        mad, vol = v.get('mad_dia'), v.get('vol_dia')
+        if mad is None and vol is None:
+            continue
+        usados += 1
+        if cancha is not None and mad is not None:
+            cancha = cancha + mad - real_por_dia.get(d, 0.0)
+        if volteado is not None and vol is not None and mad is not None:
+            volteado = volteado + vol - mad
+    if not usados:
+        return ""
+    ult = av_dias[dias[-1]]
+
+    def linea(nombre, calc, decl):
+        if calc is None or decl is None:
+            return ""
+        dif = decl - calc
+        # Tolerancia del 20% del nivel declarado (piso 50 m³): son conteos de terreno, no
+        # contabilidad. Se marca solo cuando la brecha ya no se explica por el redondeo.
+        tol = max(50.0, abs(decl) * 0.20)
+        col = '#943126' if abs(dif) > tol else '#555'
+        signo = '+' if dif > 0 else ''
+        return (f"<br>{nombre}: declarado <b>{decl:,.0f} m³</b> · calculado "
+                f"<b>{max(calc, 0):,.0f} m³</b> · <b style='color:{col}'>dif. {signo}{dif:,.0f}"
+                f" m³</b>")
+
+    cuerpo = linea('En cancha', cancha, ult.get('cancha')) + linea('Volteado', volteado, ult.get('volteado'))
+    if not cuerpo:
+        return ""
+    return (f"<div class=cob><b>Colchón declarado vs. calculado</b> "
+            f"(acumulando {usados} día(s) de flujo sobre el primer nivel del mes; la cancha "
+            f"además descuenta el trozado del NOC).{cuerpo}<br>"
+            f"<i>Una diferencia grande no dice cuál está mal: dice que lo declarado y lo "
+            f"movido no cuadran, y eso hay que mirarlo en terreno.</i></div>")
+
+
 def cruce_clasificado(av, tp_faena, hp):
     """CRUCE de dos fuentes independientes sobre el mismo hecho: la GM detenida.
 
@@ -1190,16 +1271,70 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 
     # ── PRODUCCIÓN — tabla diaria por proceso ──
     procesos = ['VOLTEO', 'MADEREO', 'PROCESADO', 'CLASIFICADO']
-    head1 = "<tr><th rowspan=2 class=l>Día</th>" + "".join(
-        f"<th colspan=4 class='{'grp1' if i%2==0 else 'grp2'}'>{p}</th>"
-        for i, p in enumerate(procesos)) + "</tr>"
-    head2 = "<tr>" + "".join(
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}' title='Saldo por cumplir: parte en la meta "
-        f"del mes y baja con lo producido'>Saldo<br>[m³]</th>"
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>Meta día<br>[m³]</th>"
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>Real<br>[m³]</th>"
-        f"<th class='{'grp1' if i%2==0 else 'grp2'}'>T.P<br>[hrs]</th>"
-        for i in range(4)) + "</tr>"
+    # Ancho de columnas por bloque: VOLTEO y MADEREO llevan los CONTEOS del jefe (árboles, y
+    # los viajes en madereo, que es el único proceso con ciclos). El VMA va pegado al día
+    # porque es contexto de TODA la fila —el tamaño de árbol del rodal de ese día— y con las
+    # dos lecturas al lado: la del procesador (medida) y la corregida por el jefe si tuvo que
+    # ajustarla. Ver de un vistazo cuándo y cuánto se corrigió es lo que da confianza en el m³.
+    # CLASIFICADO va con UNA sola columna, su T.P. Saldo, Meta y Real repetían EXACTAMENTE
+    # los del procesado —si la GM no está en pana clasifica toda la madera que el PM trozó, así
+    # que su m³ del día ES el del NOC (ver 20260725, commit 5f806e6)— y tres columnas gemelas
+    # gastan ancho y hacen dudar de si son el mismo número o dos que casualmente coinciden.
+    # Lo único propio del clasificado es el tiempo que perdió.
+    COLS = {'VOLTEO': 6, 'MADEREO': 7, 'PROCESADO': 4, 'CLASIFICADO': 1}
+    head1 = ("<tr><th rowspan=2 class=l>Día</th>"
+             "<th colspan=2 class=grpv title='Volumen medio del árbol. Proc. = medido por el "
+             "NOC (m³ ÷ árboles del procesador). Corr. = el que ajustó el jefe en terreno'>VMA "
+             "[m³/árbol]</th>" + "".join(
+        f"<th colspan={COLS[p]} class='{'grp1' if i%2==0 else 'grp2'}'>{p}</th>"
+        for i, p in enumerate(procesos)) + "</tr>")
+    def _sub(i, proc):
+        g = 'grp1' if i % 2 == 0 else 'grp2'
+        if proc == 'CLASIFICADO':
+            return (f"<th class='{g}' title='Saldo, meta y real son los MISMOS del procesado: "
+                    f"la GM clasifica lo que el PM trozó'>T.P<br>[hrs]</th>")
+        c = (f"<th class='{g}' title='Saldo por cumplir: parte en la meta del mes y baja con lo "
+             f"producido'>Saldo<br>[m³]</th><th class='{g}'>Meta día<br>[m³]</th>"
+             f"<th class='{g}'>Real<br>[m³]</th>")
+        if proc in ('VOLTEO', 'MADEREO'):
+            c += f"<th class='{g}' title='Árboles contados por el jefe'>Árb.<br>[n°]</th>"
+        if proc == 'VOLTEO':
+            # Horas que la shovel se llevó ACOMODANDO madera en vez de producir. Va en VOLTEO
+            # porque la shovel trabaja para él, y por día porque el promedio del mes esconde
+            # justo lo que interesa: los días en que el shoveleo se comió el turno.
+            c += (f"<th class='{g}' title='Horas de shoveleo declaradas por el operador de la "
+                  f"shovel en su pre-uso'>Shov.<br>[hrs]</th>")
+        if proc == 'MADEREO':
+            # Viajes y CARGA juntos: el viaje solo dice cuántas veces fue el skidder; la carga
+            # dice cuánto trajo en cada uno, que es el número que mira Arauco (su referencia
+            # para skidder en eucalipto es 3,2 m³/ciclo). Uno sin el otro no se puede leer.
+            c += (f"<th class='{g}' title='Viajes contados por el jefe'>Viajes<br>[n°]</th>"
+                  f"<th class='{g}' title='Carga por ciclo = m³ madereados ÷ ciclos declarados'>"
+                  f"Carga<br>[m³/ciclo]</th>")
+        return c + f"<th class='{g}'>T.P<br>[hrs]</th>"
+    head2 = ("<tr><th class=grpv>Proc.</th><th class=grpv>Corr.</th>"
+             + "".join(_sub(i, p) for i, p in enumerate(procesos)) + "</tr>")
+    # VMA del día: el MEDIDO por el NOC (m³ ÷ árboles, ambos del procesador) y el CORREGIDO
+    # por el jefe si tuvo que ajustarlo en terreno. Los dos al lado porque el m³ de volteo y
+    # madereo se calcula con este factor: ver cuándo se corrigió, y cuánto, es lo que permite
+    # confiar (o desconfiar) del volumen de esa fila.
+    sh_dias = (cmms or {}).get('shoveleo', {}).get(fid) or []
+    vma_noc_dia = {}
+    for k, g in jul.groupby('dia'):
+        _a = float(g.arb.sum())
+        if _a > 0:
+            vma_noc_dia[int(str(k)[8:10])] = float(g.m3.sum()) / _a
+
+    def celdas_vma(dd):
+        n = vma_noc_dia.get(dd)
+        av = av_dias.get(f"{mes_key}-{dd:02d}") or {}
+        c = av.get('vma_usado') if av.get('vma_origen') == 'jefe' else None
+        c_noc = f"<td class=vma>{n:.3f}</td>".replace('.', ',') if n else "<td class=bl></td>"
+        # La corregida solo se pinta si el jefe REALMENTE ajustó: si usó la del NOC, repetir el
+        # número en las dos columnas haría ruido y escondería los días que sí se tocaron.
+        c_cor = f"<td class=vmac>{c:.3f}</td>".replace('.', ',') if c else "<td class=bl></td>"
+        return c_noc + c_cor
+
     # SALDO por cumplir, no plan acumulado (así lo pide Arauco): la columna **parte en la meta
     # del mes y baja hasta 0** a medida que se produce, en vez de subir de 0 a la meta. Es una
     # cuenta regresiva de lo que falta. Descuenta lo REALMENTE trozado (no el plan): si el mes
@@ -1222,8 +1357,13 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # m3_volteado_dia / m3_madereado_dia, EN PROD desde el 2026-07-31). Con la meta cargada y
     # el flujo declarado, la cuenta regresiva es la misma que la del procesado.
     flujo = {'VOLTEO': 'vol_dia', 'MADEREO': 'mad_dia'}
+    # Días con producción declarada. Cuenta el CONTEO igual que el m³: desde 2026-08-06 el
+    # jefe declara árboles, y el m³ puede venir nulo si cuando declaró no había VMA publicado.
+    # Mirando solo el m³, un mes entero de conteos se leería como "nadie declaró" y el saldo
+    # se quedaría en "—" pese a haber datos todos los días.
     dias_con_flujo = sum(1 for k, v in av_dias.items()
-                         if k[:7] == mes_key and v.get('vol_dia') is not None)
+                         if k[:7] == mes_key
+                         and (v.get('vol_dia') is not None or v.get('arb_vol_dia') is not None))
     saldos_p = {p: float(metas_p[p]) for p in flujo if (metas_p or {}).get(p)}
     filas = ""
     tot_real = tot_tp = 0.0
@@ -1238,9 +1378,21 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         if saldo_cla is not None:
             saldo_cla = max(0.0, saldo_cla - real_por_dia.get(d, 0.0))
         _av_d = av_dias.get(f"{mes_key}-{d:02d}") or {}
+        # El saldo baja con lo PRODUCIDO. Si el m³ viene nulo (el jefe contó antes de que
+        # hubiera VMA), se deriva del conteo con el VMA del NOC de ese día: misma fórmula que
+        # la app. Sin esto el saldo no bajaría nunca y la meta día se dispararía sola, que es
+        # justo el absurdo que el guard de `dias_con_flujo` existe para evitar.
+        ARB_FLUJO = {'VOLTEO': 'arb_vol_dia', 'MADEREO': 'arb_mad_dia'}
         for p, k in flujo.items():
-            if p in saldos_p and _av_d.get(k) is not None:
-                saldos_p[p] = max(0.0, saldos_p[p] - float(_av_d[k]))
+            if p not in saldos_p:
+                continue
+            _prod = _av_d.get(k)
+            if _prod is None:
+                _a = _av_d.get(ARB_FLUJO.get(p, ''))
+                _v = vma_noc_dia.get(d)
+                _prod = _a * _v if (_a is not None and _v) else None
+            if _prod is not None:
+                saldos_p[p] = max(0.0, saldos_p[p] - float(_prod))
         # Días futuros: fila en blanco (la meta es día a día, no se proyecta hacia adelante).
         jnom, jlado = turno_de(fa, f"{mes_key}-{d:02d}")
         cl_dia = f"l j{jlado}" if jlado else "l"
@@ -1259,15 +1411,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 # mostrar, y el clasificado sigue al procesado.
                 m_hoy = fmt(pg['meta_dia_req'])
                 s_hoy = fmt(saldo)
-                v16 = ("<td class=bl></td>" * 4) * 2
+                v16 = "<td class=bl></td>" * 13  # VOLTEO(6) + MADEREO(7)
                 pro_hoy = f"<td>{s_hoy}</td><td>{m_hoy}</td><td class=bl></td><td class=bl></td>"
-                cla_hoy = (f"<td>{fmt(saldo_cla)}</td><td>{m_hoy}</td>"
-                           if saldo_cla is not None else f"<td>{s_hoy}</td><td>{m_hoy}</td>")
+                cla_hoy = "<td class=bl></td>"   # clasificado: solo T.P
                 filas += (f"<tr{hoy_cl}><td class='{cl_dia}'{ttl}>{d:02d}</td>"
-                          + v16 + pro_hoy + cla_hoy + "<td class=bl></td><td class=bl></td></tr>")
+                          + celdas_vma(d) + v16 + pro_hoy + cla_hoy + "</tr>")
             else:
                 filas += (f"<tr{hoy_cl}><td class='{cl_dia}'{ttl}>{d:02d}</td>"
-                          + "<td class=bl></td>" * 16 + "</tr>")
+                          + celdas_vma(d) + "<td class=bl></td>" * 18 + "</tr>")
             continue
         tot_real += real_por_dia.get(d, 0.0)
         tot_tp += sum(v for (dd_, _p), v in tp_dia_proc.items() if dd_ == d)
@@ -1278,11 +1429,35 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         # Nivel del colchón, por si ese día no hay flujo. Ver el comentario de abajo.
         NIVEL = {'VOLTEO': 'volteado', 'MADEREO': 'cancha'}
 
+        def _real_td(valor, meta_dia):
+            """Celda Real con el semáforo del día: verde si alcanzó su meta día (95%,
+            regla de Arauco), rojo si no. Sin meta día no hay contra qué comparar y va
+            neutra — pintar verde algo que no se puede evaluar sería inventar."""
+            txt = f"{valor:,.0f}".replace(',', '.')
+            if not meta_dia or meta_dia <= 0:
+                return f"<td class=nf>{txt}</td>"
+            cls = 'ok' if (valor / meta_dia) * 100 >= CUMPL_OK_DIA else 'bajo'
+            return f"<td class={cls} title='{valor:,.0f} de {meta_dia:,.0f} m³ = {valor/meta_dia*100:.0f}%'>{txt}</td>"
+
+        # Conteo del jefe por proceso, para poder derivar el m³ acá si el CMMS aún no lo hizo.
+        ARB = {'VOLTEO': 'arb_vol_dia', 'MADEREO': 'arb_mad_dia'}
+
         def celdas_proc(proc, clave):
             m = (metas_p or {}).get(proc)
             prod = _av_d.get(clave)
+            # RED DE SEGURIDAD: el jefe CONTÓ pero el m³ viene nulo porque cuando declaró
+            # todavía no había VMA publicado para ese día (el pipeline lo sube en la noche).
+            # Sin esto el informe diría "rep." —o sea "nadie declaró"— sobre un dato que sí
+            # entregó, que es el peor error posible de esta columna. Se deriva con el VMA del
+            # NOC de ese día, que es exactamente el mismo factor y la misma fórmula que usa
+            # la app; en cuanto el CMMS complete la conversión, los dos números coinciden.
+            if prod is None:
+                _arb = _av_d.get(ARB.get(proc, ''))
+                _vma_d = vma_noc_dia.get(d)
+                if _arb is not None and _vma_d:
+                    prod = _arb * _vma_d
             if prod is not None:
-                real = f"<td class=nf>{prod:,.0f}</td>"
+                real = None  # se arma al final: necesita la meta día para el semáforo
             else:
                 # Sin flujo declarado, se muestra el COLCHÓN si el jefe lo informó ese día,
                 # en el estilo azul de "guía" y con asterisco: es otro número, no la
@@ -1301,8 +1476,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 else:
                     real = "<td class=pr>rep.</td>"
             if not m:
-                # Sin meta cargada no hay ni saldo ni meta día: no se inventa el denominador.
-                return f"<td class=bl></td><td class=bl></td>{real}"
+                # Sin meta cargada no hay ni saldo ni meta día: no se inventa el denominador,
+                # y sin denominador tampoco hay semáforo — la celda va neutra.
+                cel = _real_td(prod, None) if real is None else real
+                return f"<td class=bl></td><td class=bl></td>{cel}"
             sal = fmt(prev_p.get(proc, m)) if dias_con_flujo else "<span class=pr>—</span>"
             if not es_op:
                 mdia = "—"
@@ -1322,10 +1499,38 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 # que quedan desde hoy.
                 dias_desde_d = len([x for x in ops if x >= d]) or 1
                 mdia = fmt(max(0.0, prev_p.get(proc, m)) / dias_desde_d)
+            # El semáforo compara contra la meta día que se acaba de calcular. `mdia` viene
+            # formateado con separador de miles, así que se rehace el número para comparar.
+            if real is None:
+                mnum = None
+                try:
+                    mnum = float(str(mdia).replace('.', '').replace(',', '.'))
+                except ValueError:
+                    mnum = None
+                real = _real_td(prod, mnum)
             return f"<td>{sal}</td><td>{mdia}</td>{real}"
 
-        vol = f"{celdas_proc('VOLTEO', 'vol_dia')}{tp_cell(d,'VOLTEO')}"
-        mad = f"{celdas_proc('MADEREO', 'mad_dia')}{tp_cell(d,'MADEREO')}"
+        # Conteos del jefe: lo que él OBSERVÓ, no derivado. Vacío = no declaró ese día;
+        # un 0 acá sería declarar por él que no volteó, que es otra cosa.
+        def _cnt(clave):
+            v = _av_d.get(clave)
+            return f"<td class=dato>{v:,.0f}</td>".replace(',', '.') if v is not None else "<td class=bl></td>"
+
+        # Shoveleo del día: suma de lo que declararon las shovels de la faena. Sin
+        # declaración queda vacío, nunca 0 — un 0 se leería como "no hizo shoveleo".
+        _sh_d = sum(x['horas'] for x in (sh_dias or []) if str(x.get('fecha', ''))[:10] == f"{mes_key}-{d:02d}")
+        _sh_hay = any(str(x.get('fecha', ''))[:10] == f"{mes_key}-{d:02d}" for x in (sh_dias or []))
+        shov = f"<td class=dato>{_sh_d:.1f}</td>".replace('.', ',') if _sh_hay else "<td class=bl></td>"
+        vol = (f"{celdas_proc('VOLTEO', 'vol_dia')}{_cnt('arb_vol_dia')}{shov}"
+               f"{tp_cell(d,'VOLTEO')}")
+        # Carga del skidder = m³ madereados ÷ viajes, los dos del MISMO día y de la misma
+        # fuente (lo que declaró el jefe). No se mezcla con el m³ del NOC, que es del
+        # procesador: ahí la carga saldría falseada cuando la cancha sube o baja.
+        _m3m, _cic = _av_d.get('mad_dia'), _av_d.get('ciclos_dia')
+        carga = (f"<td class=dato>{_m3m / _cic:.2f}</td>".replace('.', ',')
+                 if _m3m is not None and _cic else "<td class=bl></td>")
+        mad = (f"{celdas_proc('MADEREO', 'mad_dia')}{_cnt('arb_mad_dia')}"
+               f"{_cnt('ciclos_dia')}{carga}{tp_cell(d,'MADEREO')}")
         # PROCESADO: pre-llenado del NOC.
         # Meta día es DINÁMICA TODOS los días, no solo hoy: es lo que ese día había que trozar para
         # llegar a la meta, dado lo que se llevaba trozado hasta el día ANTERIOR, repartido en
@@ -1371,18 +1576,21 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 c_di = fmt(max(0.0, saldo_cla_previo) / dias_desde_d)
         else:
             c_ac, c_di = pm_ac, pm_di
-        cla = f"<td>{c_ac}</td><td>{c_di}</td>{rr}{tp_cell(d,'CLASIFICADO')}"
+        cla = tp_cell(d, 'CLASIFICADO')
         cl_hoy = " class=hoy" if d == hoy_dia else ""
         # Bloque de turno en la celda del DÍA (no en la fila): la fila lleva celdas verdes,
         # rojas, azules y la barra amarilla de HOY, y un fondo encima las arruinaría todas.
         # Pintando solo el día queda una banda a la izquierda que muestra los bloques de 7 días
         # de un jefe y 7 del otro — y con eso se puede leer el mes por turno, no por faena.
-        filas += f"<tr{cl_hoy}><td class='{cl_dia}'{ttl}>{d:02d}</td>{vol}{mad}{pro}{cla}</tr>"
+        filas += (f"<tr{cl_hoy}><td class='{cl_dia}'{ttl}>{d:02d}</td>"
+                  f"{celdas_vma(d)}{vol}{mad}{pro}{cla}</tr>")
     # Fila de TOTALES del mes al pie (lo que el tablero de Arauco cierra abajo).
-    v4 = "<td class=bl></td>" * 4
-    tot_row = (f"<tr class=tot><td class=l><b>TOTAL</b></td>{v4}{v4}"
+    v5 = "<td class=bl></td>" * 6   # VOLTEO
+    v6 = "<td class=bl></td>" * 7   # MADEREO
+    tot_row = (f"<tr class=tot><td class=l><b>TOTAL</b></td>"
+               f"<td class=bl></td><td class=bl></td>{v5}{v6}"
                f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td class=tp>{tot_tp:g}</td>"
-               f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td></td></tr>")
+               f"<td></td></tr>")
     # Leyenda de los dos turnos. Con los NOMBRES: un color sin nombre obliga a adivinar, y el
     # sentido de esto es poder decir "este bloque es de fulano".
     jefes = []
@@ -1594,6 +1802,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             objetivos += (f"<br><b>Reportado por el jefe</b> ({av['fecha']}): "
                           f"volteado adelantado {colchon(av['volteado'], 3)} · "
                           f"en cancha {colchon(av['cancha'], 2)}{extra}.")
+            objetivos += colchon_derivado(av_dias, real_por_dia, mes_key, ritmo)
             objetivos += cruce_clasificado(av, tp_faena, hp)
     else:
         objetivos = "Ritmo del procesador: sin capacidad cargada (sin dato de trozado del mes)."
@@ -1699,7 +1908,10 @@ def datos_cmms():
                  'arb_vol_dia': i(r.get('arboles_volteados_dia')),
                  'arb_mad_dia': i(r.get('arboles_madereados_dia')),
                  'ciclos_dia': i(r.get('ciclos_madereo_dia')),
-                 'vma_usado': f(r.get('vma_usado'))}
+                 'vma_usado': f(r.get('vma_usado')),
+                 # 'jefe' = lo corrigió en terreno; 'noc' = el medido. Decide si se pinta
+                 # la columna VMA corregido de la tabla diaria.
+                 'vma_origen': r.get('vma_origen')}
             out['avance_dias'].setdefault(fid, {})[dia] = v
             if fid not in out['avance']:         # primer registro = el más reciente = buffer
                 out['avance'][fid] = {**v, 'fecha': r['fecha']}
