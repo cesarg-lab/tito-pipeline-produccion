@@ -35,9 +35,14 @@ import pandas as pd
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
-from compute_kpis import TEAM_MAP, _num  # misma fuente de verdad que los KPIs
+from compute_kpis import TEAM_MAP, _num, _fetch_pg_api  # misma fuente de verdad que los KPIs
 from normalizar_produccion import normalizar
 
+# ⚠ El CSV es el RESPALDO, no la fuente. En el runner de GitHub NO existe: compute_kpis
+# baja el reporte PG por la API del NOC y solo cae al CSV si la API falla. La primera
+# versión de este script leía únicamente el CSV, así que el paso corría, avisaba
+# "No está ProductividadGenerico.csv" y seguía sin publicar nada — dos corridas en
+# verde con la tabla vacía. Misma fuente que los KPIs o los números se separan.
 CSV_PROD = BASE / "ProductividadGenerico.csv"
 
 # Código de faena → id del nodo en el CMMS. Espejo de FAENA_ID de generar_informe_faena.py:
@@ -51,20 +56,31 @@ FAENA_ID = {'M1.1': 'faena-m1-1', 'M1.2': 'faena-m1-2', 'M1.3': 'faena-m1-3',
 VMA_MAX = 20.0
 
 
-def filas_vma():
-    """[{faena_id, fecha, m3, arboles, vma}] por faena y día, del CSV que ya bajó el pipeline."""
-    if not CSV_PROD.exists():
-        print(f"   ⚠️  No está {CSV_PROD.name}; no hay VMA que publicar.")
-        return []
+def _cargar_prod():
+    """El reporte PG: primero la API del NOC (lo que usa compute_kpis), CSV de respaldo."""
+    prod = _fetch_pg_api()
+    if prod is not None and len(prod):
+        print(f"   📡 PG por API del NOC: {len(prod)} folios.")
+        return prod
+    if CSV_PROD.exists():
+        print(f"   📄 API sin datos; uso {CSV_PROD.name}.")
+        return normalizar(pd.read_csv(CSV_PROD, sep=';', encoding='utf-8-sig'))
+    print("   ⚠️  Ni API ni CSV: no hay VMA que publicar.")
+    return None
 
-    prod = normalizar(pd.read_csv(CSV_PROD, sep=';', encoding='utf-8-sig'))
+
+def filas_vma():
+    """[{faena_id, fecha, m3, arboles, vma}] por faena y día. Misma fuente que los KPIs."""
+    prod = _cargar_prod()
+    if prod is None:
+        return []
     for c in ['Volumen SSC PU', 'Volumen SSC AS']:
         if c not in prod.columns:
             prod[c] = 0
         prod[c] = _num(prod[c])
     prod['Vol'] = prod['Volumen SSC PU'].fillna(0) + prod['Volumen SSC AS'].fillna(0)
     if 'Árboles Madereados' not in prod.columns:
-        print("   ⚠️  El CSV no trae árboles (Base2NOC no los tiene); sin VMA que publicar.")
+        print("   ⚠️  La fuente no trae árboles (Base2NOC no los tiene); sin VMA que publicar.")
         return []
     prod['Arb'] = _num(prod['Árboles Madereados']).fillna(0)
     prod['Team'] = prod['Equipo'].map(TEAM_MAP)
