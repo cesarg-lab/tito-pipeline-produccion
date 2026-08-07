@@ -1339,8 +1339,11 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # del mes y baja hasta 0** a medida que se produce, en vez de subir de 0 a la meta. Es una
     # cuenta regresiva de lo que falta. Descuenta lo REALMENTE trozado (no el plan): si el mes
     # va atrasado el saldo no llega a 0, y eso es justamente la información que hay que ver.
-    # MES COMPLETO (gerencia): el informe replica el tablero de Arauco que se llena en faena,
-    # así que no puede perder días. Los totales van abajo.
+    # HASTA HOY, no el mes completo. La tabla llegaba hasta el día 31 con las filas de los días
+    # que todavía no ocurren en blanco. En la bajada a faena eso se lee como un informe roto —
+    # el que lo recibe por primera vez no distingue "todavía no pasa" de "nadie lo declaró", que
+    # es justo la distinción que la hoja tiene que hacer. En un mes ya cerrado no se recorta
+    # nada: todos sus días ocurrieron.
     #
     # SALDO = el que se tiene al EMPEZAR el día, no al cerrarlo (así lo lleva Arauco en su
     # "meta acumulada"). Antes se mostraba el de cierre y la Meta día de al lado se calculaba
@@ -1369,7 +1372,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     tot_real = tot_tp = 0.0
     saldo = float(meta_mes)
     saldo_cla = float(meta_cla) if meta_cla else None
-    for d in range(1, n_mes+1):
+    ult_fila = hoy_dia or n_mes
+    for d in range(1, ult_fila+1):
         es_op = f"{mes:02d}-{d:02d}" not in FERIADOS_IRR   # se trabaja todos los días
         saldo_previo = saldo        # lo que faltaba al EMPEZAR el día → da la meta de ese día
         saldo_cla_previo = saldo_cla
