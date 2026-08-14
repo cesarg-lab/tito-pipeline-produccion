@@ -72,7 +72,7 @@ CLASIF = {
 METAS_DEFAULT = {
     'Millalemu 1.1': 7000, 'Millalemu 1.2': 7000, 'Millalemu 1.3': 7000,
     'Millalemu 1.4': 7000, 'Millalemu 5': 7000, 'Millalemu 7': 7000,
-    'Millalemu 9': 7000, 'Millalemu 11': 6000
+    'Millalemu 9': 10000, 'Millalemu 11': 6000
 }
 METAS = dict(METAS_DEFAULT)
 

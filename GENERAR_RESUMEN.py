@@ -52,7 +52,7 @@ SUBTITULO = GRUPOS[GRUPO]['subtitulo']
 OUTPUT = BASE_DIR / GRUPOS[GRUPO]['output']
 
 METAS = {'M1.1':7000,'M1.2':7000,'M1.3':7000,'M1.4':7000,
-         'M5':4500,'M7':7000,'M9':7000,'M11':6000}
+         'M5':4500,'M7':7000,'M9':10000,'M11':6000}
 
 CLASIF = {
     # Mantención — falla / reparación / mantención de equipos
