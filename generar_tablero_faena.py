@@ -18,7 +18,7 @@ BASE = Path(__file__).parent
 TEAM_MAP = {'S123':'M1.1','S58':'M1.2','S223':'M1.3','S246':'M1.4','MG5':'M5','TEA02':'M7','TEA08':'M9','T125':'M11','TEA30':'M1.3'}
 NOMBRE = {'M1.1':'Millalemu 1.1','M1.2':'Millalemu 1.2','M1.3':'Millalemu 1.3','M1.4':'Millalemu 1.4','M5':'Millalemu 5','M7':'Millalemu 7','M9':'Millalemu 9','M11':'Millalemu 11'}
 ESP = {'PIRA':'Pino radiata','EUGL':'Euca globulus','EUNI':'Euca nitens'}
-METAS_DEFAULT = {'M1.1':8000,'M1.2':8000,'M1.3':8000,'M1.4':8000,'M5':7000,'M7':8060,'M9':5940,'M11':6000}
+METAS_DEFAULT = {'M1.1':8000,'M1.2':8000,'M1.3':8000,'M1.4':8000,'M5':7000,'M7':8060,'M9':10000,'M11':6000}
 USO, HDISP = 0.90, 10.5
 TR=[0,.15,.25,.35,.50,.75,9]; LB=['<0,15','0,15-0,25','0,25-0,35','0,35-0,50','0,50-0,75','>0,75']
 
