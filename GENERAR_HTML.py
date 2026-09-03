@@ -94,7 +94,7 @@ CLASIF = {
 # Leer metas desde Excel si existe, sino usar defaults
 EXCEL = os.path.join(BASE_DIR, "Dashboard_CosechaForestal.xlsx")
 METAS_DEFAULT = {
-    'Millalemu 1.1': 8000.0, 'Millalemu 1.2': 8000.0, 'Millalemu 1.3': 8000.0,
+    'Millalemu 1.1': 20000.0, 'Millalemu 1.2': 8000.0, 'Millalemu 1.3': 8000.0,
     'Millalemu 1.4': 8000.0, 'Millalemu 5': 4500.0, 'Millalemu 7': 8060.0,
     'Millalemu 9': 10000.0, 'Millalemu 11': 6000.0
 }

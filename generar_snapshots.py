@@ -49,6 +49,9 @@ CLASIF = {
 # Metas mensuales por equipo (m³). Objetivo vigente desde julio 2026.
 # OJO: se aplican a cualquier mes que se regenere con este script; los meses
 # ya cerrados con metas anteriores conservan sus valores en su meta.json subido.
+# Septiembre 2026: M1.1 subió a 20.000 (Excel CONFIGURACIÓN E24). NO se refleja
+# aquí a propósito — este script solo regenera meses PASADOS, que se cerraron
+# con 8.000; ponerlo acá haría que un --force los mostrara con la meta de sept.
 METAS = {'Millalemu 1.1':8000.0,'Millalemu 1.2':8000.0,'Millalemu 1.3':8000.0,
          'Millalemu 1.4':8000.0,'Millalemu 5':7000.0,'Millalemu 7':8060.0,
          'Millalemu 9':10000.0,'Millalemu 11':6000.0}

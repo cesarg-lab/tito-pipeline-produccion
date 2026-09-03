@@ -35,7 +35,7 @@ GRUPO_TEC = {'M1.1':'Skidder','M1.2':'Skidder','M1.3':'Skidder','M1.4':'Skidder'
 # con los mismos defaults, para que el cumplimiento calce EXACTO con el dashboard de producción.
 _TEAMS_FULL = ['Millalemu 1.1','Millalemu 1.2','Millalemu 1.3','Millalemu 1.4','Millalemu 5','Millalemu 7','Millalemu 9','Millalemu 11']
 _ABR = {n: n.replace('Millalemu ', 'M') for n in _TEAMS_FULL}
-_METAS_NOMBRE = {'Millalemu 1.1':8000.0,'Millalemu 1.2':8000.0,'Millalemu 1.3':8000.0,'Millalemu 1.4':8000.0,
+_METAS_NOMBRE = {'Millalemu 1.1':20000.0,'Millalemu 1.2':8000.0,'Millalemu 1.3':8000.0,'Millalemu 1.4':8000.0,
                  'Millalemu 5':4500.0,'Millalemu 7':8060.0,'Millalemu 9':10000.0,'Millalemu 11':6000.0}
 _EXCEL_META = Path(__file__).parent / "Dashboard_CosechaForestal.xlsx"
 if _EXCEL_META.exists():
