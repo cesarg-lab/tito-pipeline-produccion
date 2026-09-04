@@ -1004,7 +1004,10 @@ if os.path.isdir(_sd):
 snapshots_disponibles = sorted(snapshots_disponibles)
 
 data_json = json.dumps({
+    # 'fer' = días del mes que son feriado irrenunciable. El JS los necesita para no
+    # repartir meta sobre ellos ni pintarlos en rojo por no producir.
     'cfg': {'mes':MES,'anio':ANIO,'dm':DM,'dd':DD,'dt':DT,'dr':DR,
+            'fer':[d for d in range(1, DM+1) if not _habil(MES, d)],
             'ta': round(daily['Vol'].sum(),1), 'tm': sum(METAS.values()),
             'mesNombre': MESES[MES]},
     'kpis': team_kpis,
@@ -1637,6 +1640,7 @@ function showTeamDetail(teamName) {{
   const avancePlan = Math.round(planTeorico * cfg.dd);
   const difPlan = Math.round(k.a - avancePlan);
   const days = Object.keys(D.grid).map(Number).sort((a,b) => a-b);
+  const FERS = new Set(cfg.fer || []);
 
   const kpis = [
     {{ l:'Meta Mensual', v:fmt(k.m), c:NEUTRAL }},
@@ -1664,15 +1668,27 @@ function showTeamDetail(teamName) {{
   let acumR = 0;
   days.forEach((d, ri) => {{
     const acumPrev = acumR;  // acumulado al inicio del día (antes de este día)
-    const diasRest = cfg.dm - d + 1;  // días restantes incluyendo este día
+    const esFer = FERS.has(d);        // feriado irrenunciable: ese día no se exige producción
+    // Días OPERABLES de hoy al cierre, NO días corridos. Repartir la meta también sobre los
+    // feriados la diluía: en septiembre bajaba el plan de TODOS los días del mes por dos días
+    // en que la faena no puede trabajar por ley.
+    let diasRest = 0;
+    for (let x = d; x <= cfg.dm; x++) if (!FERS.has(x)) diasRest++;
     const metaRest = k.m - acumPrev;
-    const planDiaDinamico = diasRest > 0 ? Math.round(metaRest / diasRest) : 0;
+    const planDiaDinamico = (esFer || diasRest <= 0) ? 0 : Math.round(metaRest / diasRest);
     const v = D.grid[d] ? (D.grid[d][teamName] || 0) : 0;
     acumR += v;
     const dif = v - planDiaDinamico;
     const bg = ri%2===0 ? '#eef1f6' : 'white';
-    // Color del NÚMERO según volumen (celda blanca, igual que la grilla principal)
-    const cellTxt = v===0?'#d8392b':v>=200?'#2e9b3f':v>=100?'#CA8A04':'#e8a200';
+    // Color del NÚMERO contra el PLAN DEL DÍA DE ESTE EQUIPO — el número de la columna de al
+    // lado —, no contra un m³ absoluto. Los cortes fijos (verde ≥200, amarillo ≥100) trataban
+    // igual a faenas cuyas metas se diferencian 3×: con M1.1 en 20.000 m³/mes un día de 250 m³
+    // salía VERDE siendo el 35% de lo que le tocaba. Cortes 90/60 = el semáforo de producción
+    // del resto del tablero. Feriado: gris, no se le exige nada.
+    const pctDia = planDiaDinamico > 0 ? v / planDiaDinamico * 100 : null;
+    const cellTxt = esFer ? '#8a949f'
+                  : pctDia === null ? NEUTRAL
+                  : pctDia >= 90 ? '#2e9b3f' : pctDia >= 60 ? '#CA8A04' : '#d8392b';
     gridRows += `<tr style="background:${{bg}}">
       <td style="padding:5px 10px;font-weight:700;color:#417505;border-right:1px solid #e2e6ea">${{d}}</td>
       <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:13px;color:${{cellTxt}};border-right:1px solid #e2e6ea">${{v>0?fmt(v):'—'}}</td>

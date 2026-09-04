@@ -682,7 +682,79 @@ def campo_jefes(fa, dia_iso):
     return f"<b>{j}</b>" if j else "<b class=fill>____________</b>"
 
 
-def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo):
+def tramos_predio(jul, mes_key):
+    """Parte el mes de la faena en TRAMOS por predio. Devuelve [(predio, [días...]), ...].
+
+    POR QUÉ EXISTE. El colchón (volteado, cancha) es un saldo físico que vive en un paño
+    concreto. Cuando la faena se muda, la madera volteada del paño viejo **no viaja**: se queda
+    en el monte o ya se consumió. Arrastrar el saldo por encima del cambio hacía que el
+    "calculado" se despegara del "declarado" justo ahí, y el informe lo reportaba como que los
+    conteos de terreno no cuadran — cuando en terreno no pasaba nada. En agosto 2026 ninguna
+    faena trabajó un solo paño (M1.4 y M7, siete actas cada una), así que no es un borde raro.
+
+    ⚠️ EL PREDIO ES EL DEL NOC, o sea el de la máquina que firma el folio (madereo), NO el del
+    frente de volteo, que va adelante. El aviso llega con uno o dos días de desfase contra la
+    mudanza real del feller. Es una aproximación deliberada: el dato del frente solo lo tiene el
+    jefe y hoy no se captura (avance_faena no tiene columna de predio).
+
+    DOS REGLAS DE RUIDO, las dos por el mismo motivo — un reinicio falso destruye la cuenta del
+    mes entero, así que ante la duda NO se corta:
+      · Día sin predio informado por el NOC: se arrastra el anterior, no es un cambio.
+      · Día suelto en otro paño (un camión de sobras del predio viejo, o dos actas abiertas a la
+        vez) se absorbe en el tramo anterior. Un cambio necesita DOS días seguidos para contar.
+        Efecto lateral buscado: una mudanza real el último día del mes no se toma hasta el día
+        siguiente. Preferible a reiniciar por un camión.
+    """
+    filas = [(str(d), str(p).strip()) for d, p in zip(jul.dia, jul.predio)
+             if str(d)[:7] == mes_key and str(p).strip()]
+    if not filas:
+        return []
+    filas.sort()
+    runs = []
+    for d, p in filas:
+        if runs and runs[-1][0] == p:
+            runs[-1][1].append(d)
+        else:
+            runs.append([p, [d]])
+    # Absorber los días sueltos y volver a fundir los tramos que quedan pegados del mismo predio.
+    fus = []
+    for p, ds in runs:
+        if len(ds) == 1 and fus:
+            fus[-1][1].extend(ds)
+        elif fus and fus[-1][0] == p:
+            fus[-1][1].extend(ds)
+        else:
+            fus.append([p, list(ds)])
+    i = 0
+    while i < len(fus) - 1:
+        if fus[i][0] == fus[i + 1][0]:
+            fus[i][1].extend(fus.pop(i + 1)[1])
+        else:
+            i += 1
+    for _, ds in fus:
+        ds.sort()
+    return [(p, ds) for p, ds in fus]
+
+
+def aviso_predio_nuevo(tramos, ritmo):
+    """Anuncia el paño nuevo y el colchón que hay que volver a levantar.
+
+    Al abrir predio el buffer parte de cero otra vez: el objetivo de 3 días de volteo adelantado
+    no es un saldo que se hereda, es un peak de trabajo que hay que rehacer antes de que el
+    procesador se quede sin qué trozar. El informe nunca lo decía."""
+    if len(tramos) < 2 or not ritmo:
+        return ""
+    predio, dias = tramos[-1]
+    ant = tramos[-2][0]
+    return (f"<div class=cob><b>Predio nuevo</b>: el NOC pasó del predio {ant} al "
+            f"<b>{predio}</b> el <b>{dias[0]}</b>. El colchón se cuenta desde ahí — la madera "
+            f"volteada del paño anterior no se arrastra, se quedó allá. Para no parar el "
+            f"procesador hay que volver a levantar <b>{ritmo*3:,.0f} m³</b> de volteo adelantado "
+            f"y <b>{ritmo*2:,.0f} m³</b> en cancha. <i>El predio es el que reporta el NOC "
+            f"(madereo); el frente de volteo se mudó uno o dos días antes.</i></div>")
+
+
+def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos=None):
     """Colchón CALCULADO por identidad contable, contra el que declaró el jefe.
 
         cancha(d)   = cancha(d-1) + madereado(d) - trozado NOC(d)
@@ -694,13 +766,28 @@ def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo):
     el declarado no puede ver — que lo madereado y lo trozado no cuadran —, y esa brecha es
     justamente la información. Por eso el ancla es el declarado y esto es el control.
 
+    EL CAMBIO DE PREDIO ES UN "1 DE MES" PARA EL COLCHÓN (ver tramos_predio). La cuenta se
+    re-ancla en el nivel que declaró el jefe el primer día del paño nuevo. Se re-ancla, NO se
+    pone en cero: la faena muchas veces deja madera volteada atrás para maderearla después, y
+    cero sería tan inventado como arrastrar el saldo viejo.
+
     El cruce con el TROZADO solo se puede hacer acá: la app de terreno no tiene el dato del
     NOC. Devuelve '' si no hay con qué calcular; nunca un número inventado.
     """
     dias = sorted(k for k in (av_dias or {}) if str(k)[:7] == mes_key)
+    # Ancla: el primer día declarado DEL TRAMO en curso, no del mes.
+    desde, predio_act, hubo_cambio = None, None, False
+    if tramos and len(tramos) > 1:
+        predio_act, dtr = tramos[-1]
+        desde, hubo_cambio = dtr[0], True
+        dias = [k for k in dias if k >= desde]
     if len(dias) < 2:
+        if hubo_cambio:
+            return (f"<div class=cob><b>Colchón declarado vs. calculado</b>: la cuenta se "
+                    f"reinició el <b>{desde}</b> al entrar al predio {predio_act}, y todavía no "
+                    f"hay dos días declarados en el paño nuevo para compararla.</div>")
         return ""
-    # Se parte del PRIMER nivel declarado del mes y se acumulan los flujos desde ahí.
+    # Se parte del PRIMER nivel declarado del tramo y se acumulan los flujos desde ahí.
     prim = av_dias[dias[0]]
     base_c, base_v = prim.get('cancha'), prim.get('volteado')
     if base_c is None and base_v is None:
@@ -737,8 +824,10 @@ def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo):
     cuerpo = linea('En cancha', cancha, ult.get('cancha')) + linea('Volteado', volteado, ult.get('volteado'))
     if not cuerpo:
         return ""
+    desde_txt = (f"desde el <b>{desde}</b>, cuando entró al predio {predio_act} (la cuenta del "
+                 f"paño anterior no se arrastra)" if hubo_cambio else "sobre el primer nivel del mes")
     return (f"<div class=cob><b>Colchón declarado vs. calculado</b> "
-            f"(acumulando {usados} día(s) de flujo sobre el primer nivel del mes; la cancha "
+            f"(acumulando {usados} día(s) de flujo {desde_txt}; la cancha "
             f"además descuenta el trozado del NOC).{cuerpo}<br>"
             f"<i>Una diferencia grande no dice cuál está mal: dice que lo declarado y lo "
             f"movido no cuadran, y eso hay que mirarlo en terreno.</i></div>")
@@ -1008,7 +1097,7 @@ def aviso_ciclos(pp):
 COLCHON_SESGO = 0.10
 
 
-def aviso_colchon(av_dias, mes_key, m3_mes, hay_carga):
+def aviso_colchon(av_dias, mes_key, m3_mes, hay_carga, tramos=None):
     """Avisa cuando el colchón de cancha se movió y la Carga quedó sesgada.
 
     La Carga es m³ ÷ ciclos, pero los dos números son de procesos DISTINTOS: el volumen
@@ -1021,17 +1110,25 @@ def aviso_colchon(av_dias, mes_key, m3_mes, hay_carga):
 
     El nivel lo declara el jefe en /t/avance; sin al menos dos días declarados no hay forma
     de saberlo, y eso también se dice — callarlo deja leer la Carga como si fuera medición.
+
+    Se mide DENTRO del tramo de predio en curso (ver tramos_predio). Un cambio de paño mueve el
+    colchón de golpe sin que el skidder haya hecho ni un viaje de más: medir el delta contra el
+    mes entero haría gritar "Carga sesgada" cada vez que la faena se muda. `m3_mes` tiene que
+    venir recortado al mismo tramo, o se compara un delta de días contra el volumen del mes.
     """
     if not hay_carga:
         return ""
     dias = sorted(d for d in (av_dias or {}) if str(d)[:7] == mes_key)
+    if tramos and len(tramos) > 1:
+        dias = [d for d in dias if d >= tramos[-1][1][0]]
     niveles = [(d, av_dias[d].get('cancha')) for d in dias]
     niveles = [(d, v) for d, v in niveles if v is not None]
     if len(niveles) < 2:
+        cual = ("en el predio nuevo" if tramos and len(tramos) > 1 else "este mes")
         return ("<div class=cob><b>Carga</b>: no se puede saber si está sesgada. Divide los m³ "
                 "que trozó el procesador por los ciclos del madereo, así que solo es la carga "
                 "real del skidder si la cancha no se movió — y el nivel de cancha no se declaró "
-                "lo suficiente este mes para comprobarlo.</div>")
+                f"lo suficiente {cual} para comprobarlo.</div>")
     delta = niveles[-1][1] - niveles[0][1]
     if not m3_mes or abs(delta) < m3_mes * COLCHON_SESGO:
         return ""
@@ -1111,6 +1208,14 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 
     # trozado real por día del mes (índice = día del mes)
     real_por_dia = {int(k[8:10]): float(v) for k, v in jul.groupby('dia').m3.sum().items()}
+
+    # TRAMOS POR PREDIO. El colchón es un saldo que vive en un paño: si la faena se mudó, la
+    # cuenta se re-ancla ahí en vez de arrastrar madera que se quedó en el predio anterior.
+    tramos = tramos_predio(jul, mes_key)
+    # m³ trozados DENTRO del tramo en curso: es contra esto que se mide si la Carga quedó
+    # sesgada. Contra el mes entero, un cambio de paño la haría gritar sesgo todos los meses.
+    m3_tramo = (float(jul[jul.dia >= tramos[-1][1][0]].m3.sum())
+                if len(tramos) > 1 else float(jul.m3.sum()))
 
     # ── Datos del CMMS de esta faena (jefe + preuso) ──
     fid = FAENA_ID.get(fa)
@@ -1776,8 +1881,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, rend_cell('CLASIFICADO'), nada)])
         + "</div>" + nota_ref(ref, tec, especie_cod) + nota_shoveleo(sh)
         + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp)
-        + aviso_colchon(av_dias, mes_key, float(jul.m3.sum()),
-                        bool(pp) and pp.get('real_carga') is not None))
+        + aviso_colchon(av_dias, mes_key, m3_tramo,
+                        bool(pp) and pp.get('real_carga') is not None, tramos))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
@@ -1785,6 +1890,9 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         objetivos = (f"Ritmo del procesador de esta faena: <b>{ritmo:.0f} m³/día</b>. "
                      f"Objetivos de buffer: volteo ≥ 3 días × ritmo = <b>{ritmo*3:,.0f} m³</b> · "
                      f"madereo ≥ 2 días × ritmo = <b>{ritmo*2:,.0f} m³</b>.")
+        # Va ANTES del colchón declarado: si abrió paño nuevo, el jefe tiene que leer primero
+        # que el buffer parte de cero otra vez y recién después los números.
+        objetivos += aviso_predio_nuevo(tramos, ritmo)
         # Colchón real reportado por el jefe (avance_faena del CMMS), si está disponible.
         av = (cmms or {}).get('avance', {}).get(FAENA_ID.get(fa))
         if av:
@@ -1806,7 +1914,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             objetivos += (f"<br><b>Reportado por el jefe</b> ({av['fecha']}): "
                           f"volteado adelantado {colchon(av['volteado'], 3)} · "
                           f"en cancha {colchon(av['cancha'], 2)}{extra}.")
-            objetivos += colchon_derivado(av_dias, real_por_dia, mes_key, ritmo)
+            objetivos += colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos)
             objetivos += cruce_clasificado(av, tp_faena, hp)
     else:
         objetivos = "Ritmo del procesador: sin capacidad cargada (sin dato de trozado del mes)."

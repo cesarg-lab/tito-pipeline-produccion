@@ -544,6 +544,9 @@ def generate():
 
     # ── FILAS DIARIAS ──
     dias_con_datos = set(daily['Dia'].unique().astype(int))
+    # Meta diaria por equipo = meta del mes ÷ días OPERABLES (DT ya descuenta los feriados
+    # irrenunciables). Es el patrón contra el que se pinta cada celda de la grilla.
+    meta_dia_eq = {t: (METAS.get(t, 0) / DT if DT else 0) for t in TEAMS}
     for di, dia in enumerate(dias):
         yc -= ROW_H
         ym = yc + ROW_H/2
@@ -551,6 +554,7 @@ def generate():
         dow_idx = dt_date(ANIO, MES, dia).weekday()
         dow = DIAS_SEMANA[dow_idx]
         tiene_datos = dia in dias_con_datos
+        es_feriado = f"{MES:02d}-{dia:02d}" in _FERIADOS_IRR
 
         if not tiene_datos:
             bg = '#F3F4F6' if di%2==0 else '#FAFAFA'
@@ -571,9 +575,20 @@ def generate():
             xl = col_x(i+1); cw = col_w(i+1)
             if not tiene_datos:
                 cb = bg
+            elif es_feriado:
+                cb = '#E5E7EB'      # feriado irrenunciable: no se le exige producción
             else:
-                # Heatmap suave para celular: rojo (sin prod), verde (alto), amarillo (medio), naranja (bajo)
-                cb = '#FECACA' if v==0 else '#BBF7D0' if v>=200 else '#FEF08A' if v>=100 else '#FDBA74'
+                # Heatmap RELATIVO A LA META DEL EQUIPO, no a un m³ absoluto. Los cortes fijos
+                # (verde ≥200, amarillo ≥100) pintaban igual a faenas cuyas metas se diferencian
+                # 3×: con M1.1 en 20.000 m³/mes (714 m³/día operable) un día de 250 m³ salía
+                # VERDE siendo el 35% de lo que le tocaba, y M11 (214 m³/día) salía verde justo.
+                # Cortes 90/60 = el mismo semáforo de producción del resto del tablero.
+                md = meta_dia_eq.get(team, 0)
+                if md > 0:
+                    p_dia = v / md * 100
+                    cb = '#BBF7D0' if p_dia >= 90 else '#FEF08A' if p_dia >= 60 else '#FECACA'
+                else:
+                    cb = '#FECACA' if v == 0 else '#BBF7D0' if v >= 200 else '#FEF08A' if v >= 100 else '#FDBA74'
             rect(xl, yc, cw, ROW_H, cb)
 
             cx = xl + cw - P
