@@ -1056,6 +1056,22 @@ def celda_km(dsp):
     return f"<td class=nf title='{n} día(s) con movimiento · {eqs}'>{km:.1f}</td>"
 
 
+def plan_arboles(meta_proceso, n_op, dias, vma):
+    """Árboles que exige la meta del proceso en `dias` días, al VMA del mes.
+
+    A nivel de módulo para poder probarla: es la única fila de la tabla que el jefe puede
+    verificar sin calcular nada (él cuenta árboles, no m³), así que la aritmética tiene que
+    estar cubierta.
+
+    `dias` son los días que el jefe DECLARÓ, no los del mes: el conteo real suma solo esos, y
+    un plan del mes entero contra un real de 7 días daría un cumplimiento inventado hacia
+    abajo. Sin meta, sin VMA o sin días declarados → None y la celda queda en "—".
+    """
+    if not meta_proceso or not vma or not dias:
+        return None
+    return (float(meta_proceso) / max(n_op, 1)) * dias / vma
+
+
 def nota_shoveleo(sh):
     """Nota de procedencia del shoveleo: con cuántos turnos se calculó. Deja el gate de
     adopción a la vista, igual que la cobertura del pre-uso."""
@@ -1064,9 +1080,17 @@ def nota_shoveleo(sh):
     eq = " · ".join(sh['equipos']) if sh['equipos'] else "la shovel"
     pct = (f" — <b>{sh['pct']:.0f}% del turno</b> ({sh['dias_pct']} día(s) con base de horas)"
            if sh['pct'] is not None else "")
+    # Por qué el Plan del shoveleo va en "—" y NO se inventa uno: (1) Arauco no publica
+    # referencia de shoveleo en ninguna de las 4 hojas de su libro, y (2) las horas de la
+    # shovel YA están dentro de la fila Horas del volteo, que se mide contra la jornada de
+    # 10,5 h — darle un plan propio a la sub-fila sería contar dos veces el mismo turno.
+    # Hasta hoy esto vivía solo en un comentario del código: en la hoja impresa la celda
+    # vacía se leía como un dato que falta.
     return (f"<div class=cob><b>Shoveleo</b>: {fmt(sh['horas'], 1)} h declaradas por {eq} en "
             f"{sh['dias']} día(s) del mes{pct}. Son horas <b>trabajadas</b>, no tiempo perdido: "
-            f"el shoveleo acomoda la madera para que el madereo pueda cargar.</div>")
+            f"el shoveleo acomoda la madera para que el madereo pueda cargar. Va <b>sin Plan</b> "
+            f"a propósito: Arauco no publica referencia de shoveleo, y estas horas ya están "
+            f"contadas en la fila <b>Horas</b> del volteo contra la jornada de {HDISP:g} h.</div>")
 
 
 def nota_ref(ref, tec, esp, metas_p=None, n_op=None):
@@ -1917,6 +1941,25 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     arb_vol_mes, dias_arb_vol = _cuenta('arb_vol_dia')
     arb_mad_mes, dias_arb_mad = _cuenta('arb_mad_dia')
     cic_jefe_mes, dias_cic = _cuenta('ciclos_dia')
+    pa_vol, pa_mad = plan_arb('VOLTEO', dias_arb_vol), plan_arb('MADEREO', dias_arb_mad)
+
+    # ── PLAN DE ÁRBOLES (2026-09-09) ──────────────────────────────────────────────────
+    # Es la casilla de conteo que Arauco pide y la única fila de la tabla que el jefe puede
+    # verificar SIN calcular nada: él cuenta árboles, no m³. La meta del proceso está en m³,
+    # así que se convierte con el VMA del mes (m³ del NOC ÷ árboles del NOC).
+    #
+    # Se compara sobre EL MISMO PERÍODO que el real: el conteo del jefe suma solo los días que
+    # declaró, así que el plan se reparte en esos mismos días. Un plan del mes entero contra un
+    # real de 7 días daría un cumplimiento inventado hacia abajo — el error caro de esta tabla,
+    # el mismo que ya se evita en el saldo y en el total de la columna.
+    plan_arb = lambda proc, dias: plan_arboles((metas_p or {}).get(proc), len(ops), dias, vma_mes)
+
+    def celda_plan_arb(v, dias):
+        if not v:
+            return vac
+        return (f"<td class=gu title='meta del proceso repartida en los {dias} día(s) que el "
+                f"jefe declaró, convertida a árboles con el VMA del mes "
+                f"({vma_mes:.3f} m³/árbol)'>{v:,.0f}</td>").replace(',', '.')
 
     def celda_conteo(total, dias):
         """Conteo del mes con los días que lo respaldan en el tooltip. Sin declarar → 'rep.'"""
@@ -1955,7 +1998,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             # hoja de Volteo y que ninguna fuente propia tenía: el feller no firma folio en el
             # NOC (solo aparecen SKIDDER, GRAPPLE, TORRE500 y FORWINCH), así que sin este
             # conteo la casilla se llenaba a mano o se dejaba en blanco.
-            ("Árboles volteados [n°]", vac, celda_conteo(arb_vol_mes, dias_arb_vol), nada),
+            ("Árboles volteados [n°]", celda_plan_arb(pa_vol, dias_arb_vol),
+             celda_conteo(arb_vol_mes, dias_arb_vol), cumpl(arb_vol_mes, pa_vol)),
             # Shoveleo: va en VOLTEO porque es donde lo lleva Arauco en su planilla, y porque
             # la shovel trabaja para el volteo. Plan queda en "—": Arauco NO publica una
             # referencia de shoveleo (lo verifiqué en las 4 hojas de su libro), y poner una
@@ -1983,7 +2027,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             # jefe. El % compara una contra otra: si se separan, alguien cuenta otra cosa.
             ("Viajes [n°]", celda_ciclos_noc(),
              celda_conteo(cic_jefe_mes, dias_cic), celda_brecha_ciclos()),
-            ("Árboles madereados [n°]", vac, celda_conteo(arb_mad_mes, dias_arb_mad), nada),
+            ("Árboles madereados [n°]", celda_plan_arb(pa_mad, dias_arb_mad),
+             celda_conteo(arb_mad_mes, dias_arb_mad), cumpl(arb_mad_mes, pa_mad)),
             ("Desplaz. skidder [km/día]", vac, celda_km(dsp_mad), nada)])
         + "</div><div class=two>"
         + bloque("PROCESADO", [

@@ -1,6 +1,7 @@
 """Pruebas de lo que se agregó el 2026-09-09: rend real de volteo + horas por día del pre-uso."""
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
-from generar_informe_faena import rend_declarado, horas_preuso, nota_ref, FAENA_ID
+from generar_informe_faena import (rend_declarado, horas_preuso, nota_ref,
+                                   plan_arboles, nota_shoveleo, FAENA_ID)
 
 MK = "2026-09"
 ok = fail = 0
@@ -62,6 +63,20 @@ print("\nplan_rend_meta (fórmula de la planilla de Arauco, M7 septiembre)")
 from generar_tablero_faena import HDISP
 for proc, meta, esp in (('VOLTEO', 8855, 30.1), ('PROCESADO', 8060, 27.4), ('CLASIFICADO', 8060, 27.4)):
     eq(f"{proc}", round(meta/28/HDISP, 1), esp)
+
+print("\nplan_arboles · M7 septiembre (meta volteo 8.855, VMA 0,342, 7 días declarados)")
+eq("plan de los 7 días declarados", round(plan_arboles(8855, 28, 7, 0.342)), 6473)
+eq("un día = plan diario ÷ VMA", round(plan_arboles(8855, 28, 1, 0.342)), 925)
+eq("sin meta cargada", plan_arboles(None, 28, 7, 0.342), None)
+eq("sin VMA no inventa", plan_arboles(8855, 28, 7, None), None)
+eq("sin días declarados", plan_arboles(8855, 28, 0, 0.342), None)
+# el período tiene que calzar: doble de días declarados, doble de plan
+eq("escala con los días", plan_arboles(8855, 28, 14, 0.342), plan_arboles(8855, 28, 7, 0.342)*2)
+
+print("\nnota_shoveleo · dice por qué no tiene Plan")
+n = nota_shoveleo({'horas': 23.5, 'dias': 5, 'equipos': ['HM-05'], 'pct': 53.0, 'dias_pct': 5})
+eq("declara que va sin plan", "sin Plan" in n, True)
+eq("dice que ya está en la fila Horas", "Horas" in n and "10.5 h" in n, True)
 
 print("\nbloque de productividad · 4 columnas como la planilla de Arauco")
 src = open(__import__("pathlib").Path(__file__).parent / "generar_informe_faena.py",
