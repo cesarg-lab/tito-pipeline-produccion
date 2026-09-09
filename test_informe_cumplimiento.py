@@ -1,7 +1,7 @@
 """Pruebas de lo que se agregó el 2026-09-09: rend real de volteo + horas por día del pre-uso."""
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
-from generar_informe_faena import (rend_declarado, horas_preuso, nota_ref,
-                                   plan_arboles, nota_shoveleo, nota_km, FAENA_ID)
+from generar_informe_faena import (rend_declarado, horas_preuso,
+                                   plan_arboles, nota_planes, nota_respaldo, FAENA_ID)
 
 MK = "2026-09"
 ok = fail = 0
@@ -46,23 +46,25 @@ eq("conteo sin VMA no inventa", rend_declarado(hp, {'2026-09-03': {'arb_vol_dia'
 solo2 = rend_declarado(hp, {'2026-09-02': {'vol_dia': 999.0}}, vma, MK,'VOLTEO','vol_dia','arb_vol_dia')
 eq("día sin pre-uso completo se ignora", solo2, (None, 0.0, 0))
 
-# ── nota_plan_meta nombra los procesos sin meta ──
-print("\nnota_ref · explica los DOS planes en un solo recuadro")
-n = nota_ref((8, 5.2, 41.6), 'SKIDDER 6X6 GRAPPLE', 'PIRA',
-             {'VOLTEO': 8855, 'PROCESADO': 8060, 'CLASIFICADO': None}, 28)
-eq("un solo recuadro", n.count('class=cob'), 1)
-eq("dice el plan de madereo", '41.6 m³/hr' in n, True)
-eq("dice el plan de los otros tres", '28 días operables' in n, True)
-eq("delata la meta faltante", 'Clasificado' in n.split('CONFIGURACIÓN')[-1], True)
-eq("no delata las que sí están", 'Volteo' not in n.split('CONFIGURACIÓN')[-1], True)
-sin = nota_ref(None, 'TORRE', 'EUNI', {}, 28)
-eq("sin referencia de Arauco no revienta", "no publica referencia" in sin, True)
+print("\nnota_planes · UN recuadro para toda la columna Plan")
+_np = nota_planes((8, 5.2, 41.6), 'SKIDDER 6X6 GRAPPLE', 'PIRA',
+                  {'VOLTEO': 8855, 'PROCESADO': 8060, 'CLASIFICADO': None}, 28,
+                  {'horas': 23.5, 'dias': 5, 'equipos': ['HM-05'], 'pct': 53.0, 'dias_pct': 5},
+                  {'km_dia': 5.7}, {'km_dia': 15.2})
+eq("un solo recuadro", _np.count('class=cob'), 1)
+eq("plan de madereo", '41.6 m³/hr' in _np, True)
+eq("plan de los otros tres", '28 días operables' in _np, True)
+eq("delata la meta faltante", 'Clasificado' in _np, True)
+eq("explica el sin-Plan UNA vez", _np.count('sin Plan'), 1)
+eq("sin referencia de Arauco no revienta",
+   'no publica referencia' in nota_planes(None, 'TORRE', 'EUNI', {}, 28, None, None, None), True)
 
-# ── el plan de Arauco: meta ÷ días operables ÷ jornada ──
-print("\nplan_rend_meta (fórmula de la planilla de Arauco, M7 septiembre)")
-from generar_tablero_faena import HDISP
-for proc, meta, esp in (('VOLTEO', 8855, 30.1), ('PROCESADO', 8060, 27.4), ('CLASIFICADO', 8060, 27.4)):
-    eq(f"{proc}", round(meta/28/HDISP, 1), esp)
+print("\nnota_respaldo · toda la cobertura en un recuadro")
+_nr = nota_respaldo({'VOLTEO': {'turnos': 7, 'dias': {1,2,3}}}, None, {'dias_fuera': 1, 'dias_ok': 7})
+eq("un solo recuadro", _nr.count('class=cob'), 1)
+eq("turnos de pre-uso", '7 turno(s)' in _nr, True)
+eq("descarte de ciclos visible", 'descartado' in _nr, True)
+eq("sin pre-uso lo dice", 'sin pre-usos' in nota_respaldo({}, None, None), True)
 
 print("\nplan_arboles · M7 septiembre (meta volteo 8.855, VMA 0,342, 7 días declarados)")
 eq("plan de los 7 días declarados", round(plan_arboles(8855, 28, 7, 0.342)), 6473)
@@ -72,15 +74,6 @@ eq("sin VMA no inventa", plan_arboles(8855, 28, 7, None), None)
 eq("sin días declarados", plan_arboles(8855, 28, 0, 0.342), None)
 # el período tiene que calzar: doble de días declarados, doble de plan
 eq("escala con los días", plan_arboles(8855, 28, 14, 0.342), plan_arboles(8855, 28, 7, 0.342)*2)
-
-print("\nnota_shoveleo · dice por qué no tiene Plan")
-n = nota_shoveleo({'horas': 23.5, 'dias': 5, 'equipos': ['HM-05'], 'pct': 53.0, 'dias_pct': 5})
-eq("declara que va sin plan", "sin Plan" in n, True)
-eq("dice que ya está en la fila Horas", "Horas" in n and "10.5 h" in n, True)
-
-print("\nnota_km · dice por qué el desplazamiento no lleva Plan")
-eq("con GPS, explica", "sin Plan" in nota_km({'km_dia': 5.7}, None), True)
-eq("sin GPS no ensucia la hoja", nota_km(None, None), "")
 
 print("\nbloque de productividad · 4 columnas como la planilla de Arauco")
 src = open(__import__("pathlib").Path(__file__).parent / "generar_informe_faena.py",

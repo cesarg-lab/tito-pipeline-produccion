@@ -831,20 +831,18 @@ def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos=None):
         tol = max(50.0, abs(decl) * 0.20)
         col = '#943126' if abs(dif) > tol else '#555'
         signo = '+' if dif > 0 else ''
-        return (f"<br>{nombre}: declarado <b>{decl:,.0f} m³</b> · calculado "
-                f"<b>{max(calc, 0):,.0f} m³</b> · <b style='color:{col}'>dif. {signo}{dif:,.0f}"
-                f" m³</b>")
+        # Los tres números en UNA línea por concepto, no tres renglones: es una comparación
+        # de dos cifras, no un párrafo.
+        return (f" · {nombre} <b>{decl:,.0f}</b> vs <b>{max(calc, 0):,.0f}</b> "
+                f"<b style='color:{col}'>({signo}{dif:,.0f})</b>")
 
-    cuerpo = linea('En cancha', cancha, ult.get('cancha')) + linea('Volteado', volteado, ult.get('volteado'))
+    cuerpo = linea('volteado', volteado, ult.get('volteado')) + linea('cancha', cancha, ult.get('cancha'))
     if not cuerpo:
         return ""
-    desde_txt = (f"desde el <b>{desde}</b>, cuando entró al predio {predio_act} (la cuenta del "
-                 f"paño anterior no se arrastra)" if hubo_cambio else "sobre el primer nivel del mes")
-    return (f"<div class=cob><b>Colchón declarado vs. calculado</b> "
-            f"(acumulando {usados} día(s) de flujo {desde_txt}; la cancha "
-            f"además descuenta el trozado del NOC).{cuerpo}<br>"
-            f"<i>Una diferencia grande no dice cuál está mal: dice que lo declarado y lo "
-            f"movido no cuadran, y eso hay que mirarlo en terreno.</i></div>")
+    desde_txt = (f"desde el {desde}, predio {predio_act} nuevo" if hubo_cambio
+                 else f"{usados} día(s) de flujo")
+    return (f"<div class=cob><b>Declarado vs. calculado</b> ({desde_txt}){cuerpo}. "
+            f"<i>No dice cuál fuente está mal: dice que hay que mirarlo en terreno.</i></div>")
 
 
 def cruce_clasificado(av, tp_faena, hp):
@@ -900,20 +898,68 @@ def cruce_clasificado(av, tp_faena, hp):
             "de la GM — las dos fuentes coinciden.")
 
 
-def cobertura_preuso(hp, ult_dia):
-    """Nota de procedencia bajo la tabla de Productividad: con cuántos turnos se midió el Uso/Rend
-    real. Deja a la vista el gate de adopción — la celda solo se llena si hay pre-uso diario."""
-    if not hp:
-        return ("<div class=cob>Uso y Rend <b>real</b> quedan <i>por reportar</i>: esta faena no "
-                "tiene pre-usos de días consecutivos este mes. Se llenan solos cuando el operador "
-                "hace el <b>pre-uso diario</b> (un turno = Δ horómetro entre dos pre-usos seguidos).</div>")
-    tot = sum(a['turnos'] for a in hp.values())
-    dias = sorted({d for a in hp.values() for d in a['dias']})
-    det = " · ".join(f"{p.title()} {a['turnos']}" for p, a in sorted(hp.items()))
-    ultimo = f" · último día medido: {max(dias):02d}" if dias else ""
-    return (f"<div class=cob>Uso y Rend <b>real</b>: horómetro del pre-uso — {tot} turno(s) en "
-            f"{len(dias)} día(s) ({det}){ultimo}.</div>")
+def nota_planes(ref, tec, esp, metas_p, n_op, sh, dsp_vol, dsp_mad):
+    """UN recuadro para todo lo que explica la columna Plan.
 
+    Antes eran TRES cajas azules seguidas (nota_ref + nota_shoveleo + nota_km) diciendo cada
+    una de dónde sale —o por qué falta— un plan. Eran ~6 líneas de prosa para explicar una
+    columna de 17 filas, en una hoja que ya se desborda. La información sigue entera; lo que
+    se fue es la repetición de "va sin Plan a propósito" tres veces.
+
+    La tecnología y la especie NO se repiten acá: ya están en Información General.
+    """
+    if ref:
+        ritmo, carga, rend = ref
+        t = (f"<b>Plan</b> — madereo: referencia de Arauco, <b>{ritmo:g} ciclo/hr × "
+             f"{carga:g} m³/ciclo = {rend:.1f} m³/hr</b>.")
+    else:
+        t = (f"<b>Plan</b> — madereo: Arauco no publica referencia para "
+             f"{TECN.get(tec, tec)} × {ESPN.get(esp, esp)}.")
+    if n_op:
+        t += (f" Volteo, procesado y clasificado: meta del proceso ÷ {n_op} días operables ÷ "
+              f"{HDISP:g} h.")
+        faltan = [x.title() for x in ('VOLTEO', 'PROCESADO', 'CLASIFICADO')
+                  if not (metas_p or {}).get(x)]
+        if faltan:
+            t += f" <b>Sin meta en CONFIGURACIÓN: {', '.join(faltan)}</b>."
+    # Por qué shoveleo y desplazamiento van en "—". Una celda vacía tiene que decir por qué lo
+    # está o se lee como que el sistema no supo calcular, que es la queja original del cliente.
+    sin = [n for n, v in (("shoveleo", sh), ("desplazamiento", dsp_vol or dsp_mad)) if v]
+    if sin:
+        t += (f" <b>{' y '.join(sin).capitalize()}</b>: sin Plan, Arauco no publica referencia "
+              f"y no se inventa una")
+        t += (" (el shoveleo ya está contado en la fila Horas del volteo)." if sh else ".")
+    return f"<div class=cob>{t}</div>"
+
+
+def nota_respaldo(hp, sh, pp):
+    """UN recuadro con TODA la cobertura: cuántos turnos, días y descartes hay detrás de los
+    números. Antes iba repartida en tres notas (cobertura_preuso + shoveleo + aviso_ciclos).
+
+    Es lo que NO se puede quitar: un promedio de 3 días y uno de 25 se ven idénticos en la
+    celda y no valen lo mismo. El descarte de Carga y Ritmo va acá a propósito — un día fuera
+    de rango es un día MAL DECLARADO al NOC, y verlo es lo que empuja a corregirlo.
+    """
+    partes = []
+    if hp:
+        tot = sum(a['turnos'] for a in hp.values())
+        dias = sorted({d for a in hp.values() for d in a['dias']})
+        det = " · ".join(f"{p.title()[:5]}. {a['turnos']}" for p, a in sorted(hp.items()))
+        ult = f", último día {max(dias):02d}" if dias else ""
+        partes.append(f"pre-uso <b>{tot} turno(s) en {len(dias)} día(s)</b> ({det}){ult}")
+    else:
+        partes.append("<b>sin pre-usos de días consecutivos</b> este mes: Uso y Rend real se "
+                      "llenan solos cuando el operador hace el pre-uso diario")
+    if sh:
+        pct = f", {sh['pct']:.0f}% del turno" if sh['pct'] is not None else ""
+        partes.append(f"shoveleo {fmt(sh['horas'], 1)} h en {sh['dias']} día(s){pct} "
+                      f"(horas <b>trabajadas</b>, no perdidas)")
+    n = (pp or {}).get('dias_fuera', 0)
+    if n:
+        partes.append(f"Carga y Ritmo con {pp.get('dias_ok', 0)} día(s): <b>{n} descartado(s)</b> "
+                      f"por ciclos fuera de rango físico (mal declarados al NOC; el volumen y el "
+                      f"rendimiento del mes usan todos los días)")
+    return f"<div class=cob><b>Respaldo</b>: {' · '.join(partes)}.</div>"
 
 
 def nota_meta_procesos(metas_p, dias_con_flujo=0):
@@ -1052,26 +1098,6 @@ def desplazamiento(wia, fa, maquina):
             'equipos': sorted({v['tipo'].title() for v in eq})}
 
 
-def nota_km(dsp_vol, dsp_mad):
-    """Por qué las dos filas de desplazamiento van SIN Plan.
-
-    Mismo criterio que el shoveleo: Arauco no publica referencia de distancia en ninguna de
-    las 4 hojas de su libro, y aquí tampoco se puede derivar una — los km que exige un turno
-    dependen de la distancia de arrastre del paño, que no la trae ninguna fuente (el GPS da
-    el recorrido, no cuán lejos está la madera). Inventar una vara sería peor que no tenerla:
-    la faena de arrastre largo saldría roja por trabajar donde le tocó.
-
-    Sin esta nota la celda vacía se lee como un dato que falta, que es justo lo que el cliente
-    viene reportando de las celdas en blanco.
-    """
-    if not (dsp_vol or dsp_mad):
-        return ""
-    return ("<div class=cob><b>Desplazamiento</b> (GPS Wialon): va <b>sin Plan</b> a propósito. "
-            "Arauco no publica referencia de distancia, y los km que exige un turno dependen de "
-            "la distancia de arrastre del paño, que no la trae ninguna fuente. Sirve para "
-            "comparar la faena <b>consigo misma</b> entre días y predios, no contra una meta.</div>")
-
-
 def celda_km(dsp):
     """Celda del desplazamiento. El tooltip lleva la cobertura: un promedio de 3 días y uno de
     25 se ven idénticos en la tabla y no valen lo mismo."""
@@ -1099,60 +1125,6 @@ def plan_arboles(meta_proceso, n_op, dias, vma):
     if not meta_proceso or not vma or not dias:
         return None
     return (float(meta_proceso) / max(n_op, 1)) * dias / vma
-
-
-def nota_shoveleo(sh):
-    """Nota de procedencia del shoveleo: con cuántos turnos se calculó. Deja el gate de
-    adopción a la vista, igual que la cobertura del pre-uso."""
-    if not sh:
-        return ""
-    eq = " · ".join(sh['equipos']) if sh['equipos'] else "la shovel"
-    pct = (f" — <b>{sh['pct']:.0f}% del turno</b> ({sh['dias_pct']} día(s) con base de horas)"
-           if sh['pct'] is not None else "")
-    # Por qué el Plan del shoveleo va en "—" y NO se inventa uno: (1) Arauco no publica
-    # referencia de shoveleo en ninguna de las 4 hojas de su libro, y (2) las horas de la
-    # shovel YA están dentro de la fila Horas del volteo, que se mide contra la jornada de
-    # 10,5 h — darle un plan propio a la sub-fila sería contar dos veces el mismo turno.
-    # Hasta hoy esto vivía solo en un comentario del código: en la hoja impresa la celda
-    # vacía se leía como un dato que falta.
-    return (f"<div class=cob><b>Shoveleo</b>: {fmt(sh['horas'], 1)} h declaradas por {eq} en "
-            f"{sh['dias']} día(s) del mes{pct}. Son horas <b>trabajadas</b>, no tiempo perdido: "
-            f"el shoveleo acomoda la madera para que el madereo pueda cargar. Va <b>sin Plan</b> "
-            f"a propósito: Arauco no publica referencia de shoveleo, y estas horas ya están "
-            f"contadas en la fila <b>Horas</b> del volteo contra la jornada de {HDISP:g} h.</div>")
-
-
-def nota_ref(ref, tec, esp, metas_p=None, n_op=None):
-    """Deja a la vista de dónde sale la columna Plan. Importa decirlo: hasta el 2026-07-30 el
-    plan era el p75 de la propia faena, así que una faena podía figurar 'sobre el plan' por el
-    solo hecho de repetir su promedio.
-
-    Son DOS planes distintos en la MISMA columna y hay que decirlo en el mismo recuadro: en
-    madereo el Plan es la referencia de tecnología de Arauco (ciclo/hr × m³/ciclo) y en los
-    otros tres procesos es la meta repartida en la jornada, que es como lo calcula la planilla
-    que Arauco entregó. Dos cajas separadas gastaban el doble de alto para explicar una sola
-    columna, y la hoja 1 ya va justa."""
-    if ref:
-        ritmo, carga, rend = ref
-        t = (f"<b>Plan</b> de madereo = referencia de Arauco para {TECN.get(tec, tec)} × "
-             f"{ESPN.get(esp, esp)}: <b>{ritmo:g} ciclo/hr × {carga:g} m³/ciclo = "
-             f"{rend:.1f} m³/hr</b>. ")
-    else:
-        t = (f"<b>Plan</b> de madereo: Arauco no publica referencia para {TECN.get(tec, tec)} × "
-             f"{ESPN.get(esp, esp)}, así que la columna queda en '—'. ")
-    if n_op:
-        # Volteo / procesado / clasificado: el plan es la meta del proceso repartida en la
-        # jornada. No pide ningún dato nuevo de terreno; sale de la hoja CONFIGURACIÓN.
-        t += (f"En <b>volteo, procesado y clasificado</b> el Plan = meta del proceso ÷ "
-              f"{n_op} días operables ÷ {HDISP:g} h de jornada, igual que la planilla de Arauco.")
-        # Una celda vacía tiene que decir POR QUÉ está vacía, o se lee como que el sistema
-        # no supo calcular — que es justo lo que el cliente viene reportando.
-        faltan = [x.title() for x in ('VOLTEO', 'PROCESADO', 'CLASIFICADO')
-                  if not (metas_p or {}).get(x)]
-        if faltan:
-            t += (f" Sin meta cargada en CONFIGURACIÓN: <b>{', '.join(faltan)}</b> — esas "
-                  f"columnas quedan en blanco hasta que gerencia cargue la meta.")
-    return f"<div class=cob>{t}</div>"
 
 
 def rend_declarado(hp, av_dias, vma_noc_dia, mes_key, proc, clave, arb_key):
@@ -2179,18 +2151,19 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             ("Horas [hrs]", hplan, uso_cell('CLASIFICADO'), cumpl_uso('CLASIFICADO')),
             ("Rendimiento [m³/hr]", plan_td(pl_cla),
              rend_cell('CLASIFICADO'), cumpl(rr_cla, pl_cla))])
-        + "</div>" + nota_ref(ref, tec, especie_cod, metas_p, len(ops)) + nota_shoveleo(sh)
-        + nota_km(dsp_vol, dsp_mad)
-        + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp)
+        + "</div>"
+        + nota_planes(ref, tec, especie_cod, metas_p, len(ops), sh, dsp_vol, dsp_mad)
+        + nota_respaldo(hp, sh, pp)
         + aviso_colchon(av_dias, mes_key, m3_tramo,
                         bool(pp) and pp.get('real_carga') is not None, tramos))
 
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
     if ritmo:
-        objetivos = (f"Ritmo del procesador de esta faena: <b>{ritmo:.0f} m³/día</b>. "
-                     f"Objetivos de buffer: volteo ≥ 3 días × ritmo = <b>{ritmo*3:,.0f} m³</b> · "
-                     f"madereo ≥ 2 días × ritmo = <b>{ritmo*2:,.0f} m³</b>.")
+        # Los OBJETIVOS ya no van en una línea propia: se repetían íntegros y después otra vez
+        # como "(obj. ≥ 3)" al lado de cada nivel. Ahora el objetivo viaja junto a su número,
+        # que es donde se lee. Dos líneas menos en una hoja que ya se desborda.
+        objetivos = f"Ritmo del procesador: <b>{ritmo:.0f} m³/día</b>."
         # Va ANTES del colchón declarado: si abrió paño nuevo, el jefe tiene que leer primero
         # que el buffer parte de cero otra vez y recién después los números.
         objetivos += aviso_predio_nuevo(tramos, ritmo)
@@ -2201,7 +2174,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 dias = m3 / ritmo if ritmo else 0
                 col = '#1E8449' if dias >= obj_dias else ('#B9770E' if dias >= obj_dias * .6 else '#943126')
                 return (f"<b style='color:{col}'>{m3:,.0f} m³ = {dias:.1f} días</b>"
-                        f" (obj. ≥ {obj_dias})")
+                        f" (obj. ≥{obj_dias} = {ritmo*obj_dias:,.0f})")
             # El pendiente de clasificado va al REVÉS: es deuda, no colchón (menos es
             # mejor). Mismos umbrales que el semáforo del CMMS: verde ≤ medio día de
             # producción acumulada, rojo pasado un día entero sin clasificar.
@@ -2212,9 +2185,9 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                         f" (obj. ≤ 0,5)")
             sc = av.get('sin_clasificar')
             extra = f" · <b>sin clasificar</b> {deuda(sc)}" if sc is not None else ""
-            objetivos += (f"<br><b>Reportado por el jefe</b> ({av['fecha']}): "
-                          f"volteado adelantado {colchon(av['volteado'], 3)} · "
-                          f"en cancha {colchon(av['cancha'], 2)}{extra}.")
+            objetivos += (f" <b>Colchón al {str(av['fecha'])[8:10]}-{str(av['fecha'])[5:7]}</b>: "
+                          f"volteado {colchon(av['volteado'], 3)} · "
+                          f"cancha {colchon(av['cancha'], 2)}{extra}.")
             objetivos += colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos)
             objetivos += cruce_clasificado(av, tp_faena, hp)
     else:
