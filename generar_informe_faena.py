@@ -91,6 +91,12 @@ table.pgen th{background:#1A5276;color:#fff;font-weight:600;padding:3px 5px;font
 table.pgen th.l{text-align:left}
 table.pgen td{border:1px solid #d8dee6;padding:3px 5px;text-align:right}
 table.pgen td.l{text-align:left;font-weight:600;color:#1b3a05;background:#f6f8fa}
+table.colch{width:100%;border-collapse:collapse;font-size:10px;margin:3px 0}
+table.colch th{background:#3d6b8a;color:#fff;font-weight:600;padding:2px 5px;font-size:8.5px;
+  text-align:right;line-height:1.1}
+table.colch th.l{text-align:left}
+table.colch td{border:1px solid #d8dee6;padding:2px 5px;text-align:right;background:#fff}
+table.colch td.l{text-align:left;font-weight:600;background:#f6f8fa}
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 td.sp{background:#eaf3e0;color:#2d5202;font-weight:700}    /* turno limpio CONFIRMADO */
 td.nd{color:#b7bec6;font-size:6.5px;letter-spacing:-.2px}  /* sin pre-uso: nadie declaró */
@@ -796,16 +802,12 @@ def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos=None):
         desde, hubo_cambio = dtr[0], True
         dias = [k for k in dias if k >= desde]
     if len(dias) < 2:
-        if hubo_cambio:
-            return (f"<div class=cob><b>Colchón declarado vs. calculado</b>: la cuenta se "
-                    f"reinició el <b>{desde}</b> al entrar al predio {predio_act}, y todavía no "
-                    f"hay dos días declarados en el paño nuevo para compararla.</div>")
-        return ""
+        return {'reinicio': desde, 'predio': predio_act} if hubo_cambio else None
     # Se parte del PRIMER nivel declarado del tramo y se acumulan los flujos desde ahí.
     prim = av_dias[dias[0]]
     base_c, base_v = prim.get('cancha'), prim.get('volteado')
     if base_c is None and base_v is None:
-        return ""
+        return None
     cancha, volteado, usados = base_c, base_v, 0
     for k in dias[1:]:
         v = av_dias[k]
@@ -819,30 +821,11 @@ def colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos=None):
         if volteado is not None and vol is not None and mad is not None:
             volteado = volteado + vol - mad
     if not usados:
-        return ""
+        return None
     ult = av_dias[dias[-1]]
 
-    def linea(nombre, calc, decl):
-        if calc is None or decl is None:
-            return ""
-        dif = decl - calc
-        # Tolerancia del 20% del nivel declarado (piso 50 m³): son conteos de terreno, no
-        # contabilidad. Se marca solo cuando la brecha ya no se explica por el redondeo.
-        tol = max(50.0, abs(decl) * 0.20)
-        col = '#943126' if abs(dif) > tol else '#555'
-        signo = '+' if dif > 0 else ''
-        # Los tres números en UNA línea por concepto, no tres renglones: es una comparación
-        # de dos cifras, no un párrafo.
-        return (f" · {nombre} <b>{decl:,.0f}</b> vs <b>{max(calc, 0):,.0f}</b> "
-                f"<b style='color:{col}'>({signo}{dif:,.0f})</b>")
-
-    cuerpo = linea('volteado', volteado, ult.get('volteado')) + linea('cancha', cancha, ult.get('cancha'))
-    if not cuerpo:
-        return ""
-    desde_txt = (f"desde el {desde}, predio {predio_act} nuevo" if hubo_cambio
-                 else f"{usados} día(s) de flujo")
-    return (f"<div class=cob><b>Declarado vs. calculado</b> ({desde_txt}){cuerpo}. "
-            f"<i>No dice cuál fuente está mal: dice que hay que mirarlo en terreno.</i></div>")
+    return {'volteado': volteado, 'cancha': cancha, 'usados': usados,
+            'desde': desde if hubo_cambio else None, 'predio': predio_act}
 
 
 def cruce_clasificado(av, tp_faena, hp):
@@ -1436,20 +1419,23 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         tp_rows += (f"<tr><td>{i}</td><td class=l>{t['proceso'].title()}</td>{cod_td}"
                     f"<td class=l>{desc}</td><td class=tp>{t['horas']:g}</td>"
                     f"<td>{t['fecha'][8:10]}/{t['fecha'][5:7]}</td></tr>")
-    tp = (tp_acum +
-          "<table><tr><th>Nº</th><th class=l>Proceso</th><th title='Código de tiempo perdido "
-          "del NOC de Arauco'>Cód.<br>NOC</th><th class=l>Descripción</th>"
-          "<th>Tiempo [hrs]</th><th>Fecha</th></tr>" + tp_rows + "</table>")
+    # HOJA 1 se queda con el ACUMULADO por proceso (eso es gestión: "el madereo perdió 80 h
+    # por falta de volteo"). El DETALLE con fecha y código se va a la HOJA 2, que es el
+    # registro: son 39,7 mm —medidos— y son la diferencia entre 2 y 3 páginas. La hoja 1
+    # decía "Hoja 1 de 2" y salía en dos.
+    tp = tp_acum
+    tp_detalle = ("<table><tr><th>Nº</th><th class=l>Proceso</th><th title='Código de tiempo "
+                  "perdido del NOC de Arauco'>Cód.<br>NOC</th><th class=l>Descripción</th>"
+                  "<th>Tiempo [hrs]</th><th>Fecha</th></tr>" + tp_rows + "</table>")
 
-    cumple = "Sí" if pg['cumple_plan'] else "No"
+    # "¿Se cumple avance plan del día? No (cumplimiento 95%)" y "Volumen proyectado mes" se
+    # RETIRARON: desde que Producción General es una ficha por proceso, el cumplimiento y la
+    # proyección están en su propia columna, tres bloques más arriba. Repetirlos costaba
+    # 3,2 mm en una hoja a la que le sobraban 52,8.
     cumpl_block = (
-        f"<div class=q>¿Se cumple avance plan del día? <b>{cumple}</b> "
-        f"(cumplimiento {pg['cumpl']:.0f}%)</div>"
         f"<div class=recu>Volumen a recuperar: <b>{fmt(pg['recuperar'])} m³/día</b> "
         f"(sobre {pg['dias_rest']} "
         f"{'día operable restante' if int(pg['dias_rest']) == 1 else 'días operables restantes'})"
-        f" &nbsp;·&nbsp; "
-        f"Volumen proyectado mes: <b>{fmt(pg['proy'])} m³</b>"
         f"</div>")
 
     # ── PRODUCCIÓN — tabla diaria por proceso ──
@@ -2158,36 +2144,72 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # ── GUÍA DE PRODUCTIVIDAD integrada ──
     ritmo = cap
     if ritmo:
-        # Los OBJETIVOS ya no van en una línea propia: se repetían íntegros y después otra vez
-        # como "(obj. ≥ 3)" al lado de cada nivel. Ahora el objetivo viaja junto a su número,
-        # que es donde se lee. Dos líneas menos en una hoja que ya se desborda.
-        objetivos = f"Ritmo del procesador: <b>{ritmo:.0f} m³/día</b>."
-        # Va ANTES del colchón declarado: si abrió paño nuevo, el jefe tiene que leer primero
-        # que el buffer parte de cero otra vez y recién después los números.
-        objetivos += aviso_predio_nuevo(tramos, ritmo)
-        # Colchón real reportado por el jefe (avance_faena del CMMS), si está disponible.
+        # ── COLCHÓN COMO TABLA (2026-09-09) ───────────────────────────────────────────
+        # Eran 7 líneas de prosa —31,9 mm medidos— para tres pares de números. Es una tabla:
+        # cada colchón tiene nivel declarado, días de cobertura, objetivo, nivel calculado y
+        # diferencia. En prosa había que leer la frase entera para encontrar un número; en
+        # tabla se escanea la columna. Y el objetivo viaja pegado a su fila, no repetido.
         av = (cmms or {}).get('avance', {}).get(FAENA_ID.get(fa))
+        der = colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos) if av else None
+        nota_pred = aviso_predio_nuevo(tramos, ritmo)
+
+        def _fila(nombre, m3, obj, calc, invertido=False):
+            """Una fila de colchón. `invertido` es el pendiente de clasificado: es DEUDA, no
+            colchón — menos es mejor, así que el semáforo va al revés."""
+            if m3 is None:
+                return ""
+            d = m3 / ritmo if ritmo else 0
+            if invertido:
+                col = '#1E8449' if d <= obj else ('#B9770E' if d <= obj * 2 else '#943126')
+                obj_td = f"≤ {obj:g} días"
+            else:
+                col = '#1E8449' if d >= obj else ('#B9770E' if d >= obj * .6 else '#943126')
+                obj_td = f"≥ {obj:g} días = {ritmo*obj:,.0f}"
+            if calc is None:
+                cal_td, dif_td = "<td class=bl></td>", "<td class=bl></td>"
+            else:
+                dif = m3 - calc
+                # Tolerancia 20% del nivel declarado (piso 50 m³): son conteos de terreno, no
+                # contabilidad. Se marca solo cuando la brecha ya no la explica el redondeo.
+                cd = '#943126' if abs(dif) > max(50.0, abs(m3) * 0.20) else '#555'
+                cal_td = f"<td>{max(calc, 0):,.0f}</td>"
+                dif_td = (f"<td style='color:{cd};font-weight:700'>"
+                          f"{'+' if dif > 0 else ''}{dif:,.0f}</td>")
+            return (f"<tr><td class=l>{nombre}</td>"
+                    f"<td class=nf>{m3:,.0f}</td>"
+                    f"<td style='color:{col};font-weight:700'>{d:.1f}</td>"
+                    f"<td class=gu>{obj_td}</td>{cal_td}{dif_td}</tr>")
+
+        filas_col = ""
         if av:
-            def colchon(m3, obj_dias):
-                dias = m3 / ritmo if ritmo else 0
-                col = '#1E8449' if dias >= obj_dias else ('#B9770E' if dias >= obj_dias * .6 else '#943126')
-                return (f"<b style='color:{col}'>{m3:,.0f} m³ = {dias:.1f} días</b>"
-                        f" (obj. ≥{obj_dias} = {ritmo*obj_dias:,.0f})")
-            # El pendiente de clasificado va al REVÉS: es deuda, no colchón (menos es
-            # mejor). Mismos umbrales que el semáforo del CMMS: verde ≤ medio día de
-            # producción acumulada, rojo pasado un día entero sin clasificar.
-            def deuda(m3):
-                dias = m3 / ritmo if ritmo else 0
-                col = '#1E8449' if dias <= .5 else ('#B9770E' if dias <= 1 else '#943126')
-                return (f"<b style='color:{col}'>{m3:,.0f} m³ = {dias:.1f} días</b>"
-                        f" (obj. ≤ 0,5)")
-            sc = av.get('sin_clasificar')
-            extra = f" · <b>sin clasificar</b> {deuda(sc)}" if sc is not None else ""
-            objetivos += (f" <b>Colchón al {str(av['fecha'])[8:10]}-{str(av['fecha'])[5:7]}</b>: "
-                          f"volteado {colchon(av['volteado'], 3)} · "
-                          f"cancha {colchon(av['cancha'], 2)}{extra}.")
-            objetivos += colchon_derivado(av_dias, real_por_dia, mes_key, ritmo, tramos)
-            objetivos += cruce_clasificado(av, tp_faena, hp)
+            filas_col = (_fila('Volteado', av.get('volteado'), 3, (der or {}).get('volteado'))
+                         + _fila('En cancha', av.get('cancha'), 2, (der or {}).get('cancha'))
+                         + _fila('Sin clasificar', av.get('sin_clasificar'), 0.5, None, True))
+        if filas_col:
+            pie = []
+            if der and der.get('usados'):
+                pie.append(f"calculado = {der['usados']} día(s) de flujo"
+                           + (f" desde el {der['desde']} (predio {der['predio']} nuevo)"
+                              if der.get('desde') else "")
+                           + "; la cancha descuenta el trozado del NOC")
+            if der and der.get('reinicio'):
+                pie.append(f"la cuenta se reinició el {der['reinicio']} al entrar al predio "
+                           f"{der['predio']}: aún no hay dos días declarados para comparar")
+            pie.append("una diferencia grande no dice cuál fuente está mal, dice que hay que "
+                       "mirarlo en terreno")
+            objetivos = (
+                f"Ritmo del procesador: <b>{ritmo:.0f} m³/día</b> · colchón al "
+                f"{str(av['fecha'])[8:10]}-{str(av['fecha'])[5:7]}.{nota_pred}"
+                "<table class=colch><tr><th class=l>Colchón</th><th>Declarado<br>[m³]</th>"
+                "<th>Días</th><th>Objetivo</th><th>Calculado<br>[m³]</th><th>Dif.</th></tr>"
+                + filas_col + "</table>"
+                f"<div class=q>{' · '.join(pie).capitalize()}.</div>"
+                + cruce_clasificado(av, tp_faena, hp))
+        else:
+            objetivos = (f"Ritmo del procesador: <b>{ritmo:.0f} m³/día</b>. Objetivos: volteo "
+                         f"≥ 3 días = <b>{ritmo*3:,.0f} m³</b> · madereo ≥ 2 días = "
+                         f"<b>{ritmo*2:,.0f} m³</b>. El jefe aún no declara el colchón."
+                         + nota_pred)
     else:
         objetivos = "Ritmo del procesador: sin capacidad cargada (sin dato de trozado del mes)."
     guia = guia_tabla(tec, especie_cod, cell, teo, vma_mes)
@@ -2223,6 +2245,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · hoja 2 de 2</div>
 </div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
+<h2>Detalle de tiempos perdidos</h2>{tp_detalle}
 <div class=foot>Verde claro = hay dato · <b>verde fuerte con barra</b> = ese día alcanzó su meta día (95%, regla de Arauco) · <b>rojo</b> = no la alcanzó · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
