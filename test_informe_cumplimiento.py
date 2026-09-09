@@ -63,5 +63,13 @@ from generar_tablero_faena import HDISP
 for proc, meta, esp in (('VOLTEO', 8855, 30.1), ('PROCESADO', 8060, 27.4), ('CLASIFICADO', 8060, 27.4)):
     eq(f"{proc}", round(meta/28/HDISP, 1), esp)
 
+print("\nbloque de productividad · 4 columnas como la planilla de Arauco")
+src = open(__import__("pathlib").Path(__file__).parent / "generar_informe_faena.py",
+           encoding="utf-8").read()
+eq("cabecera sin Habitual", "Habitual</th>" in src, False)
+eq("colspan del título", "colspan=4>{titulo}" in src, True)
+eq("filas de 4 celdas", "for lab, plan, real, cum in filas" in src, True)
+eq("el pie ya no la nombra", "<b>Habitual</b>" in src, False)
+
 print(f"\n{ok} ok · {fail} fallidas")
 sys.exit(1 if fail else 0)

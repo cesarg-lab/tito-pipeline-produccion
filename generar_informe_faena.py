@@ -143,7 +143,8 @@ MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto',
 # Decisión de gerencia 2026-07-30: ESTA es la columna "Plan". Antes el plan salía del p75 de
 # nuestro propio historial, o sea la faena se comparaba consigo misma y una faena mediocre
 # aparecía "sobre el plan" por el solo hecho de repetir su promedio. Ese p75 sigue a la vista
-# como "Habitual" — sirve para saber qué se logra hoy, no para fijar la meta.
+# como "Habitual" hasta el 2026-09-09, cuando se retiró de la hoja 1 por vacía y por
+# confundirse con el Plan. La referencia de flota vive ahora solo en la Guía VMA (hoja 2).
 #
 # OJO: ritmo × carga da el mismo rendimiento en las dos especies del skidder (8×5,2 = 13×3,2 =
 # 41,6 m³/hr): Arauco reparte distinto entre viajes y carga según el árbol, pero espera la misma
@@ -1086,12 +1087,10 @@ def nota_ref(ref, tec, esp, metas_p=None, n_op=None):
     else:
         t = (f"<b>Plan</b> de madereo: Arauco no publica referencia para {TECN.get(tec, tec)} × "
              f"{ESPN.get(esp, esp)}, así que la columna queda en '—'. ")
-    t += ("<b>Habitual</b> es el p75 del historial de esta faena — sirve para saber qué se "
-          "logra hoy, no para fijar la meta.")
     if n_op:
         # Volteo / procesado / clasificado: el plan es la meta del proceso repartida en la
         # jornada. No pide ningún dato nuevo de terreno; sale de la hoja CONFIGURACIÓN.
-        t += (f" En <b>volteo, procesado y clasificado</b> el Plan = meta del proceso ÷ "
+        t += (f"En <b>volteo, procesado y clasificado</b> el Plan = meta del proceso ÷ "
               f"{n_op} días operables ÷ {HDISP:g} h de jornada, igual que la planilla de Arauco.")
         # Una celda vacía tiene que decir POR QUÉ está vacía, o se lee como que el sistema
         # no supo calcular — que es justo lo que el cliente viene reportando.
@@ -1808,13 +1807,19 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # factores que le aplican, en vez de una matriz con guiones. Carga y Ritmo existen únicamente
     # en madereo — el NOC solo entrega ciclos del equipo que reporta el folio —, así que en la
     # pizarra esas filas no están en los otros procesos y acá tampoco.
+    # COLUMNA "HABITUAL" RETIRADA (2026-09-09). Estaba llena en 24 de 136 celdas (18%) y
+    # SOLO en madereo: volteo, procesado y clasificado la tenían 100% vacía en las 8 faenas.
+    # Además era el p75 de LA FLOTA en el cruce tecnología × especie × tramo de VMA —no de esta
+    # faena, como decía el pie—, y sentada justo al lado del Plan se leía como una segunda meta:
+    # exactamente la confusión que gerencia mandó arreglar el 2026-07-30 cuando ese p75 ERA el
+    # plan. Sin ella la tabla queda con las MISMAS 4 columnas de la planilla de Arauco
+    # (Factores · Plan · Real · % cumplimiento), que es el formato que el cliente lee.
+    # La referencia de flota no se pierde: sigue en la Guía VMA de la hoja 2, por tramo y llena.
     def bloque(titulo, filas):
-        fs = "".join(f"<tr><td class=l>{lab}</td>{hab}{plan}{real}{cum}</tr>"
-                     for lab, hab, plan, real, cum in filas)
-        return (f"<div><table class=prod><tr><th class=proc colspan=5>{titulo}</th></tr>"
+        fs = "".join(f"<tr><td class=l>{lab}</td>{plan}{real}{cum}</tr>"
+                     for lab, plan, real, cum in filas)
+        return (f"<div><table class=prod><tr><th class=proc colspan=4>{titulo}</th></tr>"
                 f"<tr><th class=l>Factores</th>"
-                f"<th title='Lo que esta faena logra habitualmente (p75 de su propio historial)'>"
-                f"Habitual</th>"
                 f"<th title='Referencia de Arauco para esta tecnología y especie'>Plan</th>"
                 f"<th>Real</th><th>Cumpl.</th></tr>{fs}</table></div>")
 
@@ -1943,51 +1948,51 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     prodv = (
         "<div class=two>"
         + bloque("VOLTEO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('VOLTEO'), cumpl_uso('VOLTEO')),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", plan_td(pl_vol), td_rend_vol,
+            ("Horas [hrs]", hplan, uso_cell('VOLTEO'), cumpl_uso('VOLTEO')),
+            ("Rendimiento [m³/hr]", plan_td(pl_vol), td_rend_vol,
              cumpl(r_vol, pl_vol)),
             # Árboles volteados del mes, contados por el jefe. Es el dato que Arauco pide en su
             # hoja de Volteo y que ninguna fuente propia tenía: el feller no firma folio en el
             # NOC (solo aparecen SKIDDER, GRAPPLE, TORRE500 y FORWINCH), así que sin este
             # conteo la casilla se llenaba a mano o se dejaba en blanco.
-            ("Árboles volteados [n°]", vac, vac, celda_conteo(arb_vol_mes, dias_arb_vol), nada),
+            ("Árboles volteados [n°]", vac, celda_conteo(arb_vol_mes, dias_arb_vol), nada),
             # Shoveleo: va en VOLTEO porque es donde lo lleva Arauco en su planilla, y porque
             # la shovel trabaja para el volteo. Plan queda en "—": Arauco NO publica una
             # referencia de shoveleo (lo verifiqué en las 4 hojas de su libro), y poner una
             # inventada sería peor que no tenerla.
-            ("Shoveleo [hrs/día]", vac, vac,
+            ("Shoveleo [hrs/día]", vac,
              (f"<td class=nf title='{sh['horas']:g} h en {sh['dias']} día(s) declarados'>"
               f"{sh['h_dia']:.1f}</td>") if sh else "<td class=pr>rep.</td>", nada),
-            ("Shoveleo [% turno]", vac, vac,
+            ("Shoveleo [% turno]", vac,
              (f"<td class=nf>{sh['pct']:.0f}%</td>" if (sh and sh['pct'] is not None)
               else "<td class=pr>rep.</td>"), nada),
             # Desplazamiento del GPS. Plan en "—": Arauco no publica referencia de distancia
             # en ninguna de las 4 hojas de su libro, y una inventada sería peor que ninguna.
-            ("Desplaz. shovel [km/día]", vac, vac, celda_km(dsp_vol), nada)])
+            ("Desplaz. shovel [km/día]", vac, celda_km(dsp_vol), nada)])
         + bloque("MADEREO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('MADEREO'), cumpl_uso('MADEREO')),
-            ("Rendimiento [m³/hr]", f"<td>{pp['plan_rend']}</td>", ra(r_rend, 1),
+            ("Horas [hrs]", hplan, uso_cell('MADEREO'), cumpl_uso('MADEREO')),
+            ("Rendimiento [m³/hr]", ra(r_rend, 1),
              f"<td class=nf>{pp['real_rend']:.1f}</td>", cumpl(pp['real_rend'], r_rend)),
-            ("Carga [m³/ciclo]", f"<td>{pp['plan_carga']}</td>", ra(r_carga),
+            ("Carga [m³/ciclo]", ra(r_carga),
              f"<td class=nf>{pp['real_carga']:.2f}</td>", cumpl(pp['real_carga'], r_carga)),
-            ("Ritmo [ciclo/hr]", f"<td>{pp['plan_ritmo']}</td>", ra(r_ritmo),
+            ("Ritmo [ciclo/hr]", ra(r_ritmo),
              f"<td class=nf>{pp['real_ritmo']:.2f}</td>", cumpl(pp['real_ritmo'], r_ritmo)),
             # Los VIAJES, con las DOS fuentes lado a lado: la columna de referencia trae los
             # del NOC (los declara Millalemu y vienen mal — M1.4 tiene diferencia sistemática
             # por turno y M7 tuvo un día en 381 ciclos/hr) y la de real trae los que contó el
             # jefe. El % compara una contra otra: si se separan, alguien cuenta otra cosa.
-            ("Viajes [n°]", vac, celda_ciclos_noc(),
+            ("Viajes [n°]", celda_ciclos_noc(),
              celda_conteo(cic_jefe_mes, dias_cic), celda_brecha_ciclos()),
-            ("Árboles madereados [n°]", vac, vac, celda_conteo(arb_mad_mes, dias_arb_mad), nada),
-            ("Desplaz. skidder [km/día]", vac, vac, celda_km(dsp_mad), nada)])
+            ("Árboles madereados [n°]", vac, celda_conteo(arb_mad_mes, dias_arb_mad), nada),
+            ("Desplaz. skidder [km/día]", vac, celda_km(dsp_mad), nada)])
         + "</div><div class=two>"
         + bloque("PROCESADO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('PROCESADO'), cumpl_uso('PROCESADO')),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", plan_td(pl_pro),
+            ("Horas [hrs]", hplan, uso_cell('PROCESADO'), cumpl_uso('PROCESADO')),
+            ("Rendimiento [m³/hr]", plan_td(pl_pro),
              rend_cell('PROCESADO'), cumpl(rr_pro, pl_pro))])
         + bloque("CLASIFICADO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('CLASIFICADO'), cumpl_uso('CLASIFICADO')),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", plan_td(pl_cla),
+            ("Horas [hrs]", hplan, uso_cell('CLASIFICADO'), cumpl_uso('CLASIFICADO')),
+            ("Rendimiento [m³/hr]", plan_td(pl_cla),
              rend_cell('CLASIFICADO'), cumpl(rr_cla, pl_cla))])
         + "</div>" + nota_ref(ref, tec, especie_cod, metas_p, len(ops)) + nota_shoveleo(sh)
         + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp)
