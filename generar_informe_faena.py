@@ -1910,12 +1910,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         + f"<div class=q><b>Meta día para llegar</b> (procesado): {fmt(pg['meta_dia_req'])} m³ "
           f"· <b>Real diario</b>: {fmt(pg['real_diario'])} m³ · quedan "
           f"<b>{pg['dias_rest']}</b> días operables.</div>"
-        + ("<div class=cob>Volteo y madereo NO los mide el NOC: su Real son los días que "
-           f"declaró el jefe ({dias_vol_mes} de volteo · {dias_mad_mes} de madereo, sobre "
-           f"{op_hasta} días operables transcurridos). El <b>Cumplimiento</b> se mide contra el "
-           "plan de ESOS días, así que vale igual; la <b>Proyección</b> se calla bajo "
-           f"{COB_MIN*100:.0f}% de cobertura, porque extrapolar el mes con la mitad de los días "
-           "es inventar.</div>" if (dias_vol_mes or dias_mad_mes) else ""))
+        + (f"<div class=cob><b>Volteo y madereo</b>: el NOC no los mide, su Real son los días "
+           f"que declaró el jefe ({dias_vol_mes} y {dias_mad_mes} de {op_hasta}). El "
+           f"<b>Cumplimiento</b> va contra el plan de ESOS días; la <b>Proyección</b> se calla "
+           f"bajo {COB_MIN*100:.0f}% de cobertura.</div>" if (dias_vol_mes or dias_mad_mes) else ""))
 
     diaria = (f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>" + ley_turnos
               + nota_meta_procesos(metas_p, dias_con_flujo))
