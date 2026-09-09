@@ -1,6 +1,6 @@
 """Pruebas de lo que se agregó el 2026-09-09: rend real de volteo + horas por día del pre-uso."""
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
-from generar_informe_faena import rend_declarado, horas_preuso, nota_plan_meta, FAENA_ID
+from generar_informe_faena import rend_declarado, horas_preuso, nota_ref, FAENA_ID
 
 MK = "2026-09"
 ok = fail = 0
@@ -46,10 +46,16 @@ solo2 = rend_declarado(hp, {'2026-09-02': {'vol_dia': 999.0}}, vma, MK,'VOLTEO',
 eq("día sin pre-uso completo se ignora", solo2, (None, 0.0, 0))
 
 # ── nota_plan_meta nombra los procesos sin meta ──
-print("\nnota_plan_meta")
-n = nota_plan_meta({'VOLTEO': 8855, 'PROCESADO': 8060, 'CLASIFICADO': None}, 28)
-eq("delata la meta faltante", 'Clasificado' in n and 'Volteo' not in n.split('CONFIGURACIÓN')[-1], True)
-eq("dice los días operables", '28 días operables' in n, True)
+print("\nnota_ref · explica los DOS planes en un solo recuadro")
+n = nota_ref((8, 5.2, 41.6), 'SKIDDER 6X6 GRAPPLE', 'PIRA',
+             {'VOLTEO': 8855, 'PROCESADO': 8060, 'CLASIFICADO': None}, 28)
+eq("un solo recuadro", n.count('class=cob'), 1)
+eq("dice el plan de madereo", '41.6 m³/hr' in n, True)
+eq("dice el plan de los otros tres", '28 días operables' in n, True)
+eq("delata la meta faltante", 'Clasificado' in n.split('CONFIGURACIÓN')[-1], True)
+eq("no delata las que sí están", 'Volteo' not in n.split('CONFIGURACIÓN')[-1], True)
+sin = nota_ref(None, 'TORRE', 'EUNI', {}, 28)
+eq("sin referencia de Arauco no revienta", "no publica referencia" in sin, True)
 
 # ── el plan de Arauco: meta ÷ días operables ÷ jornada ──
 print("\nplan_rend_meta (fórmula de la planilla de Arauco, M7 septiembre)")

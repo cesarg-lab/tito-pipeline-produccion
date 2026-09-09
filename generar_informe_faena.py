@@ -1068,19 +1068,39 @@ def nota_shoveleo(sh):
             f"el shoveleo acomoda la madera para que el madereo pueda cargar.</div>")
 
 
-def nota_ref(ref, tec, esp):
+def nota_ref(ref, tec, esp, metas_p=None, n_op=None):
     """Deja a la vista de dónde sale la columna Plan. Importa decirlo: hasta el 2026-07-30 el
     plan era el p75 de la propia faena, así que una faena podía figurar 'sobre el plan' por el
-    solo hecho de repetir su promedio."""
-    if not ref:
-        return ("<div class=cob><b>Plan</b>: Arauco no publica referencia para "
-                f"{TECN.get(tec, tec)} × {ESPN.get(esp, esp)}, así que la columna queda en "
-                "'—'. <b>Habitual</b> es el p75 del historial de esta faena.</div>")
-    ritmo, carga, rend = ref
-    return (f"<div class=cob><b>Plan</b> = referencia de Arauco para {TECN.get(tec, tec)} × "
-            f"{ESPN.get(esp, esp)}: <b>{ritmo:g} ciclo/hr × {carga:g} m³/ciclo = "
-            f"{rend:.1f} m³/hr</b>. <b>Habitual</b> es el p75 del historial de esta faena — "
-            "sirve para saber qué se logra hoy, no para fijar la meta.</div>")
+    solo hecho de repetir su promedio.
+
+    Son DOS planes distintos en la MISMA columna y hay que decirlo en el mismo recuadro: en
+    madereo el Plan es la referencia de tecnología de Arauco (ciclo/hr × m³/ciclo) y en los
+    otros tres procesos es la meta repartida en la jornada, que es como lo calcula la planilla
+    que Arauco entregó. Dos cajas separadas gastaban el doble de alto para explicar una sola
+    columna, y la hoja 1 ya va justa."""
+    if ref:
+        ritmo, carga, rend = ref
+        t = (f"<b>Plan</b> de madereo = referencia de Arauco para {TECN.get(tec, tec)} × "
+             f"{ESPN.get(esp, esp)}: <b>{ritmo:g} ciclo/hr × {carga:g} m³/ciclo = "
+             f"{rend:.1f} m³/hr</b>. ")
+    else:
+        t = (f"<b>Plan</b> de madereo: Arauco no publica referencia para {TECN.get(tec, tec)} × "
+             f"{ESPN.get(esp, esp)}, así que la columna queda en '—'. ")
+    t += ("<b>Habitual</b> es el p75 del historial de esta faena — sirve para saber qué se "
+          "logra hoy, no para fijar la meta.")
+    if n_op:
+        # Volteo / procesado / clasificado: el plan es la meta del proceso repartida en la
+        # jornada. No pide ningún dato nuevo de terreno; sale de la hoja CONFIGURACIÓN.
+        t += (f" En <b>volteo, procesado y clasificado</b> el Plan = meta del proceso ÷ "
+              f"{n_op} días operables ÷ {HDISP:g} h de jornada, igual que la planilla de Arauco.")
+        # Una celda vacía tiene que decir POR QUÉ está vacía, o se lee como que el sistema
+        # no supo calcular — que es justo lo que el cliente viene reportando.
+        faltan = [x.title() for x in ('VOLTEO', 'PROCESADO', 'CLASIFICADO')
+                  if not (metas_p or {}).get(x)]
+        if faltan:
+            t += (f" Sin meta cargada en CONFIGURACIÓN: <b>{', '.join(faltan)}</b> — esas "
+                  f"columnas quedan en blanco hasta que gerencia cargue la meta.")
+    return f"<div class=cob>{t}</div>"
 
 
 def rend_declarado(hp, av_dias, vma_noc_dia, mes_key, proc, clave, arb_key):
@@ -1120,29 +1140,6 @@ def rend_declarado(hp, av_dias, vma_noc_dia, mes_key, proc, clave, arb_key):
         hrs += float(h)
         nd += 1
     return ((m3 / hrs) if hrs else None), hrs, nd
-
-
-def nota_plan_meta(metas_p, n_op):
-    """Deja a la vista de dónde sale el Plan de rendimiento de volteo/procesado/clasificado.
-
-    Son DOS planes distintos en la misma hoja y hay que decirlo: en madereo el Plan es la
-    referencia de tecnología de Arauco (ciclo/hr × m³/ciclo), y en los otros tres es la meta
-    del proceso repartida en la jornada — que es exactamente como lo calcula la planilla que
-    Arauco entregó. Sin este pie, dos celdas que se llaman igual se leerían como lo mismo.
-
-    Nombra también los procesos SIN meta cargada: la celda vacía tiene que decir por qué está
-    vacía, o se lee como que el sistema no supo calcular.
-    """
-    m = metas_p or {}
-    faltan = [p.title() for p in ('VOLTEO', 'PROCESADO', 'CLASIFICADO') if not m.get(p)]
-    txt = (f"<div class=cob><b>Plan de rendimiento</b> de volteo, procesado y clasificado = "
-           f"meta del proceso ÷ {n_op} días operables ÷ {HDISP:g} h de jornada (misma fórmula "
-           f"de la planilla de Arauco). En <b>madereo</b> el Plan es la referencia de "
-           f"tecnología, no la meta.")
-    if faltan:
-        txt += (f" Sin meta cargada en la hoja CONFIGURACIÓN: <b>{', '.join(faltan)}</b> — esas "
-                f"columnas quedan en blanco hasta que gerencia cargue la meta.")
-    return txt + "</div>"
 
 
 def aviso_ciclos(pp):
@@ -1873,7 +1870,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     #
     # MADEREO conserva su Plan actual (la referencia de tecnología de Arauco, 8 ciclo/hr ×
     # 5,2 m³/ciclo). Es una referencia más específica que la meta y ya estaba acordada; si
-    # se quiere unificar el criterio con los otros tres, se cambia acá y en nota_plan_meta.
+    # se quiere unificar el criterio con los otros tres, se cambia acá y en nota_ref.
     def plan_rend_meta(proc):
         m = (metas_p or {}).get(proc)
         return (float(m) / max(len(ops), 1) / HDISP) if m else None
@@ -1992,8 +1989,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             ("Horas [hrs]", vac, hplan, uso_cell('CLASIFICADO'), cumpl_uso('CLASIFICADO')),
             ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", plan_td(pl_cla),
              rend_cell('CLASIFICADO'), cumpl(rr_cla, pl_cla))])
-        + "</div>" + nota_ref(ref, tec, especie_cod)
-        + nota_plan_meta(metas_p, len(ops)) + nota_shoveleo(sh)
+        + "</div>" + nota_ref(ref, tec, especie_cod, metas_p, len(ops)) + nota_shoveleo(sh)
         + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp)
         + aviso_colchon(av_dias, mes_key, m3_tramo,
                         bool(pp) and pp.get('real_carga') is not None, tramos))
