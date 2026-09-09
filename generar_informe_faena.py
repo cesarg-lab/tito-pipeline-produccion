@@ -52,6 +52,7 @@ ZONAS = {
 # entregó por escrito para el tablero (sobre 95% verde, bajo eso rojo, sin ámbar). Va a nivel
 # de módulo porque lo usa la tabla diaria, que se arma antes del bloque de cumplimiento.
 CUMPL_OK_DIA = 95
+CUMPL_OK = 95      # umbral binario de Arauco, compartido por todo el informe
 
 CSS_INFORME = """
 button.noprint{position:fixed;top:12px;right:14px;z-index:99;background:#417505;color:#fff;
@@ -75,13 +76,21 @@ td.nf{background:#eaf3e0;font-weight:700;color:#2d5202} /* pre-llenado del NOC *
 /* Real del día contra su Meta día. El verde NO puede ser decorativo: si pinta igual el
    día que cumplió y el que no, deja de significar algo y se aprende a ignorar. Regla de
    Arauco, la misma del resto del informe: 95% binario, sin ámbar. */
-td.ok{background:#eaf3e0;font-weight:700;color:#2d5202}
+td.ok{background:#bfdc9c;font-weight:700;color:#1e3a01;box-shadow:inset 3px 0 0 #2d5202} /* alcanzó su meta día. VERDE FUERTE Y CON BARRA: era idéntico a .nf byte por byte,    así que el semáforo diario no existía en el papel — el % vivía solo en el tooltip,    que impreso no es nada. .nf (verde claro) significa 'hay dato', no 'va bien'. */
 /* Conteos declarados (árboles, ciclos, carga, shoveleo): son DATO, no desempeño. Van
    neutros a propósito — si el verde también los pinta a ellos deja de querer decir
    "cumplió la meta" y vuelve a ser decoración. */
 td.dato{font-weight:600;color:#333}
 td.bajo{background:#fbeaea;font-weight:700;color:#943126}
 td.gu{background:#f4f7fb;color:#1A5276;font-weight:600} /* guía / teórico */
+/* Ficha por proceso (Producción General). Reemplaza la tira de 7 celdas que hablaba solo
+   del procesado: es el bloque que Arauco lleva arriba de cada una de sus 4 hojas. */
+table.pgen{width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:2px}
+table.pgen th{background:#1A5276;color:#fff;font-weight:600;padding:3px 5px;font-size:9px;
+  text-align:right;line-height:1.15}
+table.pgen th.l{text-align:left}
+table.pgen td{border:1px solid #d8dee6;padding:3px 5px;text-align:right}
+table.pgen td.l{text-align:left;font-weight:600;color:#1b3a05;background:#f6f8fa}
 td.tp,.tp{background:#fdecea;color:#a01b0b;font-weight:600} /* tiempo perdido (preuso) */
 td.sp{background:#eaf3e0;color:#2d5202;font-weight:700}    /* turno limpio CONFIRMADO */
 td.nd{color:#b7bec6;font-size:6.5px;letter-spacing:-.2px}  /* sin pre-uso: nadie declaró */
@@ -1411,15 +1420,6 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
              f"<span>VMA</span><b>{vma_mes:.3f} m³/árbol</b></div>" if vma_mes else
              "<div><span>VMA</span><b class=fill>sin dato</b></div>") + "</div>")
 
-    # ── Producción General ──
-    pgen = (f"<div class=kpi>"
-            f"<div><span>Meta mes</span><b>{fmt(pg['meta_mes'])}</b></div>"
-            f"<div><span>Avance plan</span><b>{fmt(pg['avance_plan'])}</b></div>"
-            f"<div><span>Avance real</span><b>{fmt(pg['avance_real'])}</b></div>"
-            f"<div><span>Cumplimiento</span><b>{pg['cumpl']:.0f}%</b></div>"
-            f"<div><span>Proyección mes</span><b>{fmt(pg['proy'])}</b></div>"
-            f"<div><span>Meta día p/ llegar</span><b>{fmt(pg['meta_dia_req'])}</b></div>"
-            f"<div><span>Real diario</span><b>{fmt(pg['real_diario'])}</b></div></div>")
 
     # ── Tiempo perdido ACUMULADO del mes por proceso (del preuso) ──
     acum_proc = {}   # proceso -> {horas, causas:{texto:horas}}
@@ -1535,6 +1535,38 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         _a = float(g.arb.sum())
         if _a > 0:
             vma_noc_dia[int(str(k)[8:10])] = float(g.m3.sum()) / _a
+
+    # ── TOTALES DEL MES DE LO QUE DECLARA EL JEFE (2026-09-09) ────────────────────────
+    # Volteo y madereo no los mide el NOC (solo trozado), así que su acumulado del mes salía
+    # de ninguna parte: la fila TOTAL de la tabla diaria solo cerraba el procesado y Óscar
+    # sumaba las columnas a mano en su Excel.
+    #
+    # Los días SIN declarar no suman 0 — misma regla que el saldo y que el conteo de árboles.
+    # Se devuelve también CUÁNTOS días lo respaldan: un total de 7 días y uno de 30 se ven
+    # igual en la celda y no valen lo mismo, y de esa cobertura depende que la proyección
+    # signifique algo.
+    def total_flujo(clave, arb_key=None):
+        tot, n = 0.0, 0
+        for k, v in av_dias.items():
+            if str(k)[:7] != mes_key:
+                continue
+            val = v.get(clave)
+            if val is None and arb_key:
+                # Red de seguridad: el jefe contó árboles antes de que hubiera VMA publicado.
+                _a = v.get(arb_key)
+                _vm = vma_noc_dia.get(int(str(k)[8:10]))
+                val = _a * _vm if (_a is not None and _vm) else None
+            if val is not None:
+                tot += float(val)
+                n += 1
+        return (tot, n) if n else (None, 0)
+
+    sh = shoveleo_mes(cmms, fid, mes_key)   # lo usa la fila TOTAL y el bloque de productividad
+    m3_vol_mes, dias_vol_mes = total_flujo('vol_dia', 'arb_vol_dia')
+    m3_mad_mes, dias_mad_mes = total_flujo('mad_dia', 'arb_mad_dia')
+    arb_vol_t, dias_arb_vol = total_flujo('arb_vol_dia')
+    arb_mad_t, dias_arb_mad = total_flujo('arb_mad_dia')
+    cic_jefe_mes, dias_cic = total_flujo('ciclos_dia')
 
     def celdas_vma(dd):
         n = vma_noc_dia.get(dd)
@@ -1800,12 +1832,38 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         filas += (f"<tr{cl_hoy}><td class='{cl_dia}'{ttl}>{d:02d}</td>"
                   f"{celdas_vma(d)}{vol}{mad}{pro}{cla}</tr>")
     # Fila de TOTALES del mes al pie (lo que el tablero de Arauco cierra abajo).
-    v5 = "<td class=bl></td>" * 6   # VOLTEO
-    v6 = "<td class=bl></td>" * 7   # MADEREO
+    # Hasta el 2026-09-09 cerraba SOLO el procesado y dejaba 13 celdas en blanco: el acumulado
+    # de volteo y madereo no aparecía en ninguna parte del informe y había que sumar la columna
+    # a mano. La fila y las columnas ya existían — llenarlas no cuesta un milímetro de ancho.
+    def _tot(v, dias, dec=0):
+        """Celda de total con los días que la respaldan. Sin dato → en blanco, no cero."""
+        if v is None:
+            return "<td class=bl></td>"
+        return (f"<td class=nf title='{dias} día(s) declarado(s) por el jefe'>"
+                f"{v:,.{dec}f}</td>").replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    def _tp_proc(proc):
+        h = sum(v for (_d, _p), v in tp_dia_proc.items() if _p == proc)
+        return f"<td class=tp>{h:g}</td>" if h else "<td class=bl></td>"
+
+    # Carga del mes = m³ ÷ ciclos (razón de totales, no promedio de razones — misma regla que
+    # el resto del informe).
+    _carga_t = (m3_mad_mes / cic_jefe_mes) if (m3_mad_mes and cic_jefe_mes) else None
+    _shov_td = f"<td class=nf>{sh['horas']:g}</td>" if sh else "<td class=bl></td>"
     tot_row = (f"<tr class=tot><td class=l><b>TOTAL</b></td>"
-               f"<td class=bl></td><td class=bl></td>{v5}{v6}"
-               f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td><td class=tp>{tot_tp:g}</td>"
-               f"<td></td></tr>")
+               f"<td class=bl></td><td class=bl></td>"
+               # VOLTEO: Saldo, Meta día, Real, Árb, Shov, T.P
+               f"<td class=bl></td><td class=bl></td>{_tot(m3_vol_mes, dias_vol_mes)}"
+               f"{_tot(arb_vol_t, dias_arb_vol)}"
+               f"{_shov_td}"
+               f"{_tp_proc('VOLTEO')}"
+               # MADEREO: Saldo, Meta día, Real, Árb, Viajes, Carga, T.P
+               f"<td class=bl></td><td class=bl></td>{_tot(m3_mad_mes, dias_mad_mes)}"
+               f"{_tot(arb_mad_t, dias_arb_mad)}{_tot(cic_jefe_mes, dias_cic)}"
+               f"{_tot(_carga_t, dias_mad_mes, 2)}{_tp_proc('MADEREO')}"
+               # PROCESADO: Saldo, Meta día, Real, T.P  ·  CLASIFICADO: T.P
+               f"<td></td><td></td><td class=nf>{fmt(tot_real)}</td>{_tp_proc('PROCESADO')}"
+               f"{_tp_proc('CLASIFICADO')}</tr>")
     # Leyenda de los dos turnos. Con los NOMBRES: un color sin nombre obliga a adivinar, y el
     # sentido de esto es poder decir "este bloque es de fulano".
     jefes = []
@@ -1817,6 +1875,76 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                          f"border-left:3px solid {'#4a7ba7' if lado=='A' else '#b9863e'}'></i>{nom}")
     ley_turnos = (f"<div class=leyj>Turnos 7×7 en la columna del día:{''.join(jefes)}</div>"
                   if len(jefes) == 2 else "")
+    # ── PRODUCCIÓN GENERAL: UNA FILA POR PROCESO (2026-09-09) ─────────────────────────
+    # Era una tira de 7 celdas que hablaba SOLO del procesado. Es el bloque que Óscar tiene
+    # arriba de cada una de sus 4 hojas, así que para volteo, madereo y clasificado lo rehacía
+    # a mano en Excel. Se GENERALIZA el bloque que ya estaba en vez de agregar uno nuevo: la
+    # hoja 1 ya se desborda y un bloque más la empujaría otra página.
+    #
+    # ⚠ El procesado conserva su avance y su proyección de kpis.json (pg), NO se recalculan:
+    # es lo que hace que el informe CALCE con la pestaña KPIs. El clasificado sigue al
+    # procesado (si la GM no está en pana clasifica todo lo que trozó el PM).
+    #
+    # REJA DE COBERTURA. Volteo y madereo se apoyan en lo que declara el jefe, y hoy 5 de 8
+    # faenas declaran pocos días o ninguno:
+    #   · el CUMPLIMIENTO se mide contra el plan DE LOS DÍAS DECLARADOS, así que es correcto
+    #     con cualquier cobertura: dice "en los días que sabemos, cumplió X%".
+    #   · la PROYECCIÓN extrapola ese ritmo al mes entero, y con 2 días declarados de 9 es
+    #     basura. Bajo COB_MIN se calla y en su lugar va la cobertura.
+    # Un porcentaje incompleto en un tablero que lee el cliente se lee como desempeño, y ese
+    # es el error caro: el mismo motivo por el que un día sin declarar no descuenta del saldo.
+    COB_MIN = 0.70
+    op_hasta = max(int(pg['op_hasta']), 1)
+    n_op_mes = max(len(ops), 1)
+
+    def fila_pg(nombre, meta, real, dias, proy=None, cumpl_pg=None, plan_pg=None):
+        if not meta:
+            return (f"<tr><td class=l>{nombre}</td><td class=gu colspan=5>"
+                    f"sin meta cargada en CONFIGURACIÓN</td></tr>")
+        if real is None:
+            return (f"<tr><td class=l>{nombre}</td><td>{fmt(meta)}</td>"
+                    f"<td class=pr colspan=4>el jefe no ha declarado producción este mes</td></tr>")
+        plan = plan_pg if plan_pg is not None else (meta / n_op_mes * dias)
+        c = (real / plan * 100) if plan else None
+        c = cumpl_pg if cumpl_pg is not None else c
+        col = '#1E8449' if (c is not None and c >= CUMPL_OK) else '#943126'
+        cob = dias / op_hasta
+        if proy is not None:
+            pr = f"<td class=nf>{fmt(proy)}</td>"
+        elif cob >= COB_MIN:
+            pr = f"<td class=nf>{fmt(real / dias * n_op_mes)}</td>"
+        else:
+            pr = (f"<td class=pr title='Se necesitan {COB_MIN*100:.0f}% de los días declarados "
+                  f"para proyectar'>{dias} de {op_hasta} días</td>")
+        return (f"<tr><td class=l>{nombre}</td><td>{fmt(meta)}</td><td>{fmt(plan)}</td>"
+                f"<td class=nf>{fmt(real)}</td>"
+                f"<td style='color:{col};font-weight:700'>{c:.0f}%</td>{pr}</tr>")
+
+    mp = metas_p or {}
+    pgen = (
+        "<table class=pgen><tr><th class=l>Proceso</th><th>Meta mes<br>[m³]</th>"
+        "<th title='La meta repartida en los días que respaldan la columna Real'>"
+        "Plan a la fecha<br>[m³]</th><th>Real<br>[m³]</th><th>Cumpl.</th>"
+        "<th>Proyección<br>mes [m³]</th></tr>"
+        + fila_pg("Volteo", mp.get('VOLTEO'), m3_vol_mes, dias_vol_mes)
+        + fila_pg("Madereo", mp.get('MADEREO'), m3_mad_mes, dias_mad_mes)
+        + fila_pg("Procesado", pg['meta_mes'], pg['avance_real'], op_hasta,
+                  proy=pg['proy'], cumpl_pg=pg['cumpl'], plan_pg=pg['avance_plan'])
+        + fila_pg("Clasificado", mp.get('CLASIFICADO'), pg['avance_real'], op_hasta,
+                  plan_pg=(mp.get('CLASIFICADO') or 0) / n_op_mes * op_hasta,
+                  proy=(pg['proy'] if mp.get('CLASIFICADO') else None))
+        + "</table>"
+        # Las dos cifras del procesado que el jefe usa a diario y que no son por proceso.
+        + f"<div class=q><b>Meta día para llegar</b> (procesado): {fmt(pg['meta_dia_req'])} m³ "
+          f"· <b>Real diario</b>: {fmt(pg['real_diario'])} m³ · quedan "
+          f"<b>{pg['dias_rest']}</b> días operables.</div>"
+        + ("<div class=cob>Volteo y madereo NO los mide el NOC: su Real son los días que "
+           f"declaró el jefe ({dias_vol_mes} de volteo · {dias_mad_mes} de madereo, sobre "
+           f"{op_hasta} días operables transcurridos). El <b>Cumplimiento</b> se mide contra el "
+           "plan de ESOS días, así que vale igual; la <b>Proyección</b> se calla bajo "
+           f"{COB_MIN*100:.0f}% de cobertura, porque extrapolar el mes con la mitad de los días "
+           "es inventar.</div>" if (dias_vol_mes or dias_mad_mes) else ""))
+
     diaria = (f"<table class=diaria>{head1}{head2}{filas}{tot_row}</table>" + ley_turnos
               + nota_meta_procesos(metas_p, dias_con_flujo))
 
@@ -1881,7 +2009,6 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # — otra métrica y otra decisión de gerencia, que NO se toca. Con 90 una faena al 92%
     # le salía verde a nuestro jefe y roja al cliente: le decíamos "vas bien" justo donde
     # Arauco pide gestionar.
-    CUMPL_OK = 95
 
     def cumpl(real, plan):
         """Columna '% cumplimiento' del tablero de Arauco (Real ÷ Plan). Sin plan o sin real
@@ -1898,7 +2025,6 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # Referencia de Arauco para ESTA faena. Solo aplica a MADEREO: el NOC únicamente entrega
     # ciclos del equipo que reporta el folio, así que carga y ritmo no están medidos en los
     # otros procesos — y en la pizarra de Arauco tampoco aparecen ahí.
-    sh = shoveleo_mes(cmms, fid, mes_key)
     dsp_vol = desplazamiento(wia, fa, 'HM')   # shovel
     dsp_mad = desplazamiento(wia, fa, 'SG')   # skidder
     ref = ref_arauco(tec, especie_cod)
@@ -1953,14 +2079,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # Desde 2026-08-05 el jefe declara CONTEOS en /t/avance en vez de estimar m³. Se suman los
     # días declarados del mes; los días sin declarar NO se cuentan como 0 (mentiría el total
     # hacia abajo, que es el error caro — misma regla que el saldo).
-    def _cuenta(campo):
-        vals = [v.get(campo) for k, v in av_dias.items()
-                if str(k)[:7] == mes_key and v.get(campo) is not None]
-        return (sum(vals), len(vals)) if vals else (None, 0)
-
-    arb_vol_mes, dias_arb_vol = _cuenta('arb_vol_dia')
-    arb_mad_mes, dias_arb_mad = _cuenta('arb_mad_dia')
-    cic_jefe_mes, dias_cic = _cuenta('ciclos_dia')
+    arb_vol_mes, arb_mad_mes = arb_vol_t, arb_mad_t
 
     # ── PLAN DE ÁRBOLES (2026-09-09) ──────────────────────────────────────────────────
     # Es la casilla de conteo que Arauco pide y la única fila de la tabla que el jefe puede
@@ -2133,7 +2252,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · hoja 2 de 2</div>
 </div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<div class=foot>Verde = del NOC · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
+<div class=foot>Verde claro = hay dato · <b>verde fuerte con barra</b> = ese día alcanzó su meta día (95%, regla de Arauco) · <b>rojo</b> = no la alcanzó · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
 

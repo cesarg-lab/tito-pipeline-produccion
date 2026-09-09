@@ -113,5 +113,70 @@ try:
 except FileNotFoundError:
     print("  ⚠️  pyflakes no instalado (pip install pyflakes) — barrera omitida")
 
+# ── HUMO: correr sheet() DE VERDAD ───────────────────────────────────────────────────
+# La barrera de pyflakes tiene un punto ciego: dentro de un closure, un nombre usado antes
+# de asignarse le parece una referencia legítima al scope de arriba. Comprobado — con
+# CUMPL_OK definido después de fila_pg() que lo usa, pyflakes da CERO hallazgos y sheet()
+# revienta con NameError en las 8 faenas. Solo ejecutarla lo detecta.
+#
+# Los 5 escenarios son los que de verdad se dan en producción: hoy 5 de 8 faenas no declaran
+# nada y las metas por proceso pueden venir vacías, así que el camino "sin datos" se recorre
+# más que el completo.
+print("\nhumo · sheet() se ejecuta de punta a punta")
+import pandas as pd
+from generar_informe_faena import sheet, tabla_p75, teorico
+
+def _g(mes="2026-09", faena="M7", dias=8):
+    g = pd.DataFrame([dict(faena=faena, dia=f"{mes}-{d:02d}", predio="11076", especie="PIRA",
+                           tec="SKIDDER 6X6 GRAPPLE", m3=250.0 + d, arb=800.0, hrs=10.0,
+                           ciclos=40.0) for d in range(1, dias + 1)])
+    g['VMA'] = (g.m3 / g.arb).round(3);   g['rend']  = (g.m3 / g.hrs).round(1)
+    g['carga'] = (g.m3 / g.ciclos).round(2); g['ritmo'] = (g.ciclos / g.hrs).round(2)
+    return g
+
+_gg = _g(); _d, _cell = tabla_p75(_gg); _teo = teorico(_d)
+_fid = FAENA_ID['M7']
+_dias_dec = {f"2026-09-0{i}": {'vol_dia': 200.0, 'mad_dia': 190.0, 'arb_vol_dia': 700,
+                               'arb_mad_dia': 650, 'ciclos_dia': 35} for i in range(1, 8)}
+_cmms = {'horas': {_fid: {(f"2026-09-0{i}", pr): {'horas': 9.0, 'equipos': 1, 'dotacion': 1}
+                          for i in range(1, 9)
+                          for pr in ('VOLTEO', 'MADEREO', 'PROCESADO', 'CLASIFICADO')}},
+         'avance_dias': {_fid: _dias_dec},
+         'avance': {_fid: {'fecha': '2026-09-08', 'volteado': 100.0, 'cancha': 50.0,
+                           'sin_clasificar': 0.0}},
+         'shoveleo': {_fid: {}},
+         'tp': {_fid: [{'fecha': '2026-09-03', 'dia': 3, 'proceso': 'MADEREO', 'horas': 9.5,
+                        'causa': 'Volteo sin asistencia', 'nota': '', 'codigo': None,
+                        'proceso_causante': None, 'tipo': 'perdida'}]}}
+_mp = {'PROCESADO': 8060, 'VOLTEO': 8855, 'MADEREO': 8590, 'CLASIFICADO': 8060}
+_1dia = {**_cmms, 'avance_dias': {_fid: {"2026-09-01": {'vol_dia': 200.0, 'arb_vol_dia': 700}}}}
+
+_htmls = {}
+for _nom, _c, _m in [("normal", _cmms, _mp), ("sin CMMS", {}, _mp),
+                     ("sin metas por proceso", _cmms, {'PROCESADO': 8060}),
+                     ("metas vacías", _cmms, {}), ("cobertura baja", _1dia, _mp)]:
+    try:
+        _h = sheet('M7', _gg, _cell, _teo, 8060, 468, _c, None, None, _m, None)
+        _htmls[_nom] = _h
+        eq(f"sheet() corre · {_nom}", bool(_h) and 'pgen' in _h, True)
+    except Exception as _e:
+        eq(f"sheet() corre · {_nom}", f"{type(_e).__name__}: {_e}", "sin excepción")
+
+print("\nficha por proceso · reja de cobertura")
+if 'normal' in _htmls:
+    eq("las 4 filas están", all(x in _htmls['normal'] for x in
+                                ('>Volteo<', '>Madereo<', '>Procesado<', '>Clasificado<')), True)
+if 'cobertura baja' in _htmls:
+    # 1 día declarado de 8 operables = 12% -> la proyección se calla y muestra la cobertura
+    eq("con 1 de 8 días no proyecta", 'de 8 días' in _htmls['cobertura baja'], True)
+if 'normal' in _htmls:
+    eq("con 7 de 8 días sí proyecta", 'de 8 días' not in _htmls['normal'], True)
+if 'metas vacías' in _htmls:
+    eq("sin meta lo dice, no inventa",
+       'sin meta cargada en CONFIGURACIÓN' in _htmls['metas vacías'], True)
+if 'sin CMMS' in _htmls:
+    eq("sin declaración lo dice",
+       'no ha declarado producción' in _htmls['sin CMMS'], True)
+
 print(f"\n{ok} ok · {fail} fallidas")
 sys.exit(1 if fail else 0)
