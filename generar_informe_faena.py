@@ -1941,7 +1941,6 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     arb_vol_mes, dias_arb_vol = _cuenta('arb_vol_dia')
     arb_mad_mes, dias_arb_mad = _cuenta('arb_mad_dia')
     cic_jefe_mes, dias_cic = _cuenta('ciclos_dia')
-    pa_vol, pa_mad = plan_arb('VOLTEO', dias_arb_vol), plan_arb('MADEREO', dias_arb_mad)
 
     # ── PLAN DE ÁRBOLES (2026-09-09) ──────────────────────────────────────────────────
     # Es la casilla de conteo que Arauco pide y la única fila de la tabla que el jefe puede
@@ -1960,6 +1959,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         return (f"<td class=gu title='meta del proceso repartida en los {dias} día(s) que el "
                 f"jefe declaró, convertida a árboles con el VMA del mes "
                 f"({vma_mes:.3f} m³/árbol)'>{v:,.0f}</td>").replace(',', '.')
+
+    pa_vol, pa_mad = plan_arb('VOLTEO', dias_arb_vol), plan_arb('MADEREO', dias_arb_mad)
 
     def celda_conteo(total, dias):
         """Conteo del mes con los días que lo respaldan en el tooltip. Sin declarar → 'rep.'"""

@@ -86,5 +86,28 @@ eq("colspan del título", "colspan=4>{titulo}" in src, True)
 eq("filas de 4 celdas", "for lab, plan, real, cum in filas" in src, True)
 eq("el pie ya no la nombra", "<b>Habitual</b>" in src, False)
 
+# ── BARRERA: nombres usados antes de existir ─────────────────────────────────────────
+# Por qué está: el 2026-09-09 se usó `plan_arb` UNA LÍNEA antes de definirlo. `ast.parse`
+# no lo ve (es sintaxis válida) y las pruebas de arriba tampoco (no ejecutan sheet()), así
+# que llegó a producción. El run salió VERDE —el paso del informe es "no crítico": reintenta,
+# avisa por Telegram y NO pisa el HTML publicado— y dejó el informe del día anterior en el
+# hosting, que parece al día. Es exactamente el modo de falla que ya había mordido el 31-07.
+#
+# Se filtra a las DOS clases que revientan en runtime; el resto de pyflakes (imports sin usar,
+# variables muertas) es ruido preexistente y una barrera que grita siempre no la mira nadie.
+# Probada contra un caso bueno y uno malo antes de dejarla acá.
+print("\nnombres usados antes de existir (pyflakes)")
+import subprocess, pathlib
+MORTALES = ('undefined name', 'referenced before assignment', 'local variable defined in enclosing scope')
+_here = pathlib.Path(__file__).parent
+try:
+    for f in ('generar_informe_faena.py', 'generar_tablero_faena.py'):
+        r = subprocess.run([sys.executable, '-m', 'pyflakes', str(_here / f)],
+                           capture_output=True, text=True)
+        graves = [l for l in r.stdout.splitlines() if any(m in l for m in MORTALES)]
+        eq(f"{f} sin nombres indefinidos", graves, [])
+except FileNotFoundError:
+    print("  ⚠️  pyflakes no instalado (pip install pyflakes) — barrera omitida")
+
 print(f"\n{ok} ok · {fail} fallidas")
 sys.exit(1 if fail else 0)
