@@ -2223,7 +2223,9 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 "<table class=colch><tr><th class=l>Colchón</th><th>Declarado<br>[m³]</th>"
                 "<th>Días</th><th>Objetivo</th><th>Calculado<br>[m³]</th><th>Dif.</th></tr>"
                 + filas_col + "</table>"
-                f"<div class=q>{' · '.join(pie).capitalize()}.</div>"
+                # .capitalize() NO: baja las mayúsculas del RESTO de la frase y dejaba
+                # "el trozado del noc". Solo se sube la primera letra.
+                f"<div class=q>{(lambda t: t[:1].upper() + t[1:])(' · '.join(pie))}.</div>"
                 + cruce_clasificado(av, tp_faena, hp))
         else:
             objetivos = (f"Ritmo del procesador: <b>{ritmo:.0f} m³/día</b>. Objetivos: volteo "
