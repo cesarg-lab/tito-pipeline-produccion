@@ -1043,6 +1043,26 @@ def desplazamiento(wia, fa, maquina):
             'equipos': sorted({v['tipo'].title() for v in eq})}
 
 
+def nota_km(dsp_vol, dsp_mad):
+    """Por qué las dos filas de desplazamiento van SIN Plan.
+
+    Mismo criterio que el shoveleo: Arauco no publica referencia de distancia en ninguna de
+    las 4 hojas de su libro, y aquí tampoco se puede derivar una — los km que exige un turno
+    dependen de la distancia de arrastre del paño, que no la trae ninguna fuente (el GPS da
+    el recorrido, no cuán lejos está la madera). Inventar una vara sería peor que no tenerla:
+    la faena de arrastre largo saldría roja por trabajar donde le tocó.
+
+    Sin esta nota la celda vacía se lee como un dato que falta, que es justo lo que el cliente
+    viene reportando de las celdas en blanco.
+    """
+    if not (dsp_vol or dsp_mad):
+        return ""
+    return ("<div class=cob><b>Desplazamiento</b> (GPS Wialon): va <b>sin Plan</b> a propósito. "
+            "Arauco no publica referencia de distancia, y los km que exige un turno dependen de "
+            "la distancia de arrastre del paño, que no la trae ninguna fuente. Sirve para "
+            "comparar la faena <b>consigo misma</b> entre días y predios, no contra una meta.</div>")
+
+
 def celda_km(dsp):
     """Celda del desplazamiento. El tooltip lleva la cobertura: un promedio de 3 días y uno de
     25 se ven idénticos en la tabla y no valen lo mismo."""
@@ -2041,6 +2061,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             ("Rendimiento [m³/hr]", plan_td(pl_cla),
              rend_cell('CLASIFICADO'), cumpl(rr_cla, pl_cla))])
         + "</div>" + nota_ref(ref, tec, especie_cod, metas_p, len(ops)) + nota_shoveleo(sh)
+        + nota_km(dsp_vol, dsp_mad)
         + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp)
         + aviso_colchon(av_dias, mes_key, m3_tramo,
                         bool(pp) and pp.get('real_carga') is not None, tramos))

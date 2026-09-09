@@ -1,7 +1,7 @@
 """Pruebas de lo que se agregó el 2026-09-09: rend real de volteo + horas por día del pre-uso."""
 import sys; sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
 from generar_informe_faena import (rend_declarado, horas_preuso, nota_ref,
-                                   plan_arboles, nota_shoveleo, FAENA_ID)
+                                   plan_arboles, nota_shoveleo, nota_km, FAENA_ID)
 
 MK = "2026-09"
 ok = fail = 0
@@ -77,6 +77,10 @@ print("\nnota_shoveleo · dice por qué no tiene Plan")
 n = nota_shoveleo({'horas': 23.5, 'dias': 5, 'equipos': ['HM-05'], 'pct': 53.0, 'dias_pct': 5})
 eq("declara que va sin plan", "sin Plan" in n, True)
 eq("dice que ya está en la fila Horas", "Horas" in n and "10.5 h" in n, True)
+
+print("\nnota_km · dice por qué el desplazamiento no lleva Plan")
+eq("con GPS, explica", "sin Plan" in nota_km({'km_dia': 5.7}, None), True)
+eq("sin GPS no ensucia la hoja", nota_km(None, None), "")
 
 print("\nbloque de productividad · 4 columnas como la planilla de Arauco")
 src = open(__import__("pathlib").Path(__file__).parent / "generar_informe_faena.py",
