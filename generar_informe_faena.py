@@ -301,7 +301,8 @@ def horas_preuso(fa, cmms, real_por_dia, mes_key):
             continue
         dia = int(str(fecha)[8:10])
         a = out.setdefault(proc, {'horas': 0.0, 'eq_dia': 0, 'turnos': 0,
-                                  'dias': set(), 'dias_full': set(), 'horas_full': 0.0})
+                                  'dias': set(), 'dias_full': set(), 'horas_full': 0.0,
+                                  'hfull_dia': {}})
         a['horas'] += v['horas']
         a['eq_dia'] += v['equipos']
         a['turnos'] += v['equipos']
@@ -309,6 +310,9 @@ def horas_preuso(fa, cmms, real_por_dia, mes_key):
         if v['equipos'] >= v['dotacion']:          # proceso medido completo ese día
             a['dias_full'].add(dia)
             a['horas_full'] += v['horas']
+            # Horas de ESE día, para poder cruzarlas con los días que el jefe declaró. Sin el
+            # detalle por día, el rendimiento de volteo dividiría m³ de 5 días por horas de 7.
+            a['hfull_dia'][dia] = a['hfull_dia'].get(dia, 0.0) + v['horas']
     for proc, a in out.items():
         a['uso'] = (a['horas'] / (HDISP * a['eq_dia']) * 100) if a['eq_dia'] else None
         # El m³ del NOC es TROZADO. Tiene sentido dividirlo por las horas del PROCESADO (el PM
@@ -1079,6 +1083,68 @@ def nota_ref(ref, tec, esp):
             "sirve para saber qué se logra hoy, no para fijar la meta.</div>")
 
 
+def rend_declarado(hp, av_dias, vma_noc_dia, mes_key, proc, clave, arb_key):
+    """Rend real [m³/hr] de un proceso cuyo m³ lo declara el JEFE (hoy solo volteo).
+
+    El m³ del NOC es TROZADO: dividirlo por las horas del feller no significa nada (dio
+    106 m³/h en M7), y por eso esta celda decía "rep." desde siempre. Con el flujo que el
+    jefe declara en /t/avance el volteo ya tiene numerador propio.
+
+    Se cuentan SOLO los días que tienen las DOS cosas: declaración del jefe y proceso medido
+    completo en el pre-uso (equipos ≥ dotación). Sumar horas de días sin declarar hunde el
+    rendimiento; sumar m³ de días sin pre-uso lo infla. Es el mismo criterio con que ya se
+    calculan procesado y clasificado en horas_preuso().
+
+    Devuelve (rend, horas usadas, días usados). Sin días en común → (None, 0, 0) y la celda
+    se queda en "rep.": no se reconstruye nada.
+    """
+    a = (hp or {}).get(proc)
+    if not a:
+        return None, 0.0, 0
+    m3 = hrs = 0.0
+    nd = 0
+    for d in sorted(a.get('dias_full') or ()):
+        h = (a.get('hfull_dia') or {}).get(d)
+        if not h:
+            continue
+        v = (av_dias or {}).get(f"{mes_key}-{d:02d}") or {}
+        prod = v.get(clave)
+        if prod is None:
+            # Misma red de seguridad que la tabla diaria: el jefe contó árboles antes de que
+            # el pipeline publicara el VMA del día, así que el m³ del CMMS viene nulo.
+            _arb, _vma = v.get(arb_key), (vma_noc_dia or {}).get(d)
+            prod = _arb * _vma if (_arb is not None and _vma) else None
+        if prod is None:
+            continue
+        m3 += float(prod)
+        hrs += float(h)
+        nd += 1
+    return ((m3 / hrs) if hrs else None), hrs, nd
+
+
+def nota_plan_meta(metas_p, n_op):
+    """Deja a la vista de dónde sale el Plan de rendimiento de volteo/procesado/clasificado.
+
+    Son DOS planes distintos en la misma hoja y hay que decirlo: en madereo el Plan es la
+    referencia de tecnología de Arauco (ciclo/hr × m³/ciclo), y en los otros tres es la meta
+    del proceso repartida en la jornada — que es exactamente como lo calcula la planilla que
+    Arauco entregó. Sin este pie, dos celdas que se llaman igual se leerían como lo mismo.
+
+    Nombra también los procesos SIN meta cargada: la celda vacía tiene que decir por qué está
+    vacía, o se lee como que el sistema no supo calcular.
+    """
+    m = metas_p or {}
+    faltan = [p.title() for p in ('VOLTEO', 'PROCESADO', 'CLASIFICADO') if not m.get(p)]
+    txt = (f"<div class=cob><b>Plan de rendimiento</b> de volteo, procesado y clasificado = "
+           f"meta del proceso ÷ {n_op} días operables ÷ {HDISP:g} h de jornada (misma fórmula "
+           f"de la planilla de Arauco). En <b>madereo</b> el Plan es la referencia de "
+           f"tecnología, no la meta.")
+    if faltan:
+        txt += (f" Sin meta cargada en la hoja CONFIGURACIÓN: <b>{', '.join(faltan)}</b> — esas "
+                f"columnas quedan en blanco hasta que gerencia cargue la meta.")
+    return txt + "</div>"
+
+
 def aviso_ciclos(pp):
     """Avisa si se dejaron días fuera del cálculo de Carga y Ritmo. Es visible a propósito:
     un día descartado es un día MAL DECLARADO al NOC, y el aviso es lo que empuja a corregirlo."""
@@ -1793,6 +1859,50 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     r_ritmo, r_carga, r_rend = ref if ref else (None, None, None)
     ra = lambda v, d=2: gu(f"{v:.{d}f}") if v else vac
 
+    # ── PLAN DE RENDIMIENTO POR PROCESO (2026-09-09) ──────────────────────────────────
+    # Hasta hoy la columna Cumpl. solo se llenaba en MADEREO. El "Plan" salía de la tabla
+    # referencial de Arauco, que únicamente publica ritmo y carga para las tecnologías de
+    # madereo (torre / skidder / forwarder / clambunk); volteo, procesado y clasificado
+    # quedaban con Plan "—" y por lo tanto SIN cumplimiento. Ese es el "no calcula" que
+    # reporta el cliente, que termina rehaciendo la celda a mano en su propia planilla.
+    #
+    # El plan que usa la planilla de Arauco es la META del proceso repartida en la jornada:
+    # meta mensual ÷ días operables ÷ 10,5 h. No pide ningún dato nuevo de terreno — las
+    # cuatro metas ya están cargadas en la hoja CONFIGURACIÓN (E + I/J/K). Sin meta cargada
+    # la celda se queda vacía: no se inventa el denominador.
+    #
+    # MADEREO conserva su Plan actual (la referencia de tecnología de Arauco, 8 ciclo/hr ×
+    # 5,2 m³/ciclo). Es una referencia más específica que la meta y ya estaba acordada; si
+    # se quiere unificar el criterio con los otros tres, se cambia acá y en nota_plan_meta.
+    def plan_rend_meta(proc):
+        m = (metas_p or {}).get(proc)
+        return (float(m) / max(len(ops), 1) / HDISP) if m else None
+
+    plan_td = lambda v: gu(f"{v:.1f}") if v else vac
+
+    def cumpl_uso(proc):
+        """Columna Cumpl. de la fila HORAS = el Factor Uso de Arauco (horas reales ÷ jornada).
+        Va contra SU propio objetivo —el 90% de la jornada— y no contra el 95% binario del
+        volumen: son dos exigencias distintas de Arauco, y medir una con el umbral de la otra
+        pinta de rojo un uso que el cliente da por bueno. Hasta hoy este % existía solo en el
+        tooltip, o sea no existía en la hoja impresa, que es donde se llena la pizarra."""
+        a = hp.get(proc)
+        if not a or a.get('uso') is None:
+            return nada
+        u = a['uso']
+        col = '#1E8449' if u >= USO * 100 else '#943126'
+        return f"<td style='color:{col};font-weight:600'>{u:.0f}%</td>"
+
+    pl_vol, pl_pro, pl_cla = (plan_rend_meta('VOLTEO'), plan_rend_meta('PROCESADO'),
+                              plan_rend_meta('CLASIFICADO'))
+    r_vol, h_vol, nd_vol = rend_declarado(hp, av_dias, vma_noc_dia, mes_key,
+                                          'VOLTEO', 'vol_dia', 'arb_vol_dia')
+    td_rend_vol = (f"<td class=nf title='m³ volteados declarados por el jefe ÷ {h_vol:g} h de "
+                   f"pre-uso · {nd_vol} día(s) con volteo declarado y medido completo'>"
+                   f"{r_vol:.1f}</td>") if r_vol else "<td class=pr>rep.</td>"
+    rr_pro = (hp.get('PROCESADO') or {}).get('rend')
+    rr_cla = (hp.get('CLASIFICADO') or {}).get('rend')
+
     # ── Lo que el JEFE contó este mes (árboles y viajes) ──
     # Desde 2026-08-05 el jefe declara CONTEOS en /t/avance en vez de estimar m³. Se suman los
     # días declarados del mes; los días sin declarar NO se cuentan como 0 (mentiría el total
@@ -1836,8 +1946,9 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     prodv = (
         "<div class=two>"
         + bloque("VOLTEO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('VOLTEO'), nada),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, "<td class=pr>rep.</td>", nada),
+            ("Horas [hrs]", vac, hplan, uso_cell('VOLTEO'), cumpl_uso('VOLTEO')),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", plan_td(pl_vol), td_rend_vol,
+             cumpl(r_vol, pl_vol)),
             # Árboles volteados del mes, contados por el jefe. Es el dato que Arauco pide en su
             # hoja de Volteo y que ninguna fuente propia tenía: el feller no firma folio en el
             # NOC (solo aparecen SKIDDER, GRAPPLE, TORRE500 y FORWINCH), así que sin este
@@ -1857,7 +1968,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             # en ninguna de las 4 hojas de su libro, y una inventada sería peor que ninguna.
             ("Desplaz. shovel [km/día]", vac, vac, celda_km(dsp_vol), nada)])
         + bloque("MADEREO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('MADEREO'), nada),
+            ("Horas [hrs]", vac, hplan, uso_cell('MADEREO'), cumpl_uso('MADEREO')),
             ("Rendimiento [m³/hr]", f"<td>{pp['plan_rend']}</td>", ra(r_rend, 1),
              f"<td class=nf>{pp['real_rend']:.1f}</td>", cumpl(pp['real_rend'], r_rend)),
             ("Carga [m³/ciclo]", f"<td>{pp['plan_carga']}</td>", ra(r_carga),
@@ -1874,12 +1985,15 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             ("Desplaz. skidder [km/día]", vac, vac, celda_km(dsp_mad), nada)])
         + "</div><div class=two>"
         + bloque("PROCESADO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('PROCESADO'), nada),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, rend_cell('PROCESADO'), nada)])
+            ("Horas [hrs]", vac, hplan, uso_cell('PROCESADO'), cumpl_uso('PROCESADO')),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", plan_td(pl_pro),
+             rend_cell('PROCESADO'), cumpl(rr_pro, pl_pro))])
         + bloque("CLASIFICADO", [
-            ("Horas [hrs]", vac, hplan, uso_cell('CLASIFICADO'), nada),
-            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", vac, rend_cell('CLASIFICADO'), nada)])
-        + "</div>" + nota_ref(ref, tec, especie_cod) + nota_shoveleo(sh)
+            ("Horas [hrs]", vac, hplan, uso_cell('CLASIFICADO'), cumpl_uso('CLASIFICADO')),
+            ("Rendimiento [m³/hr]", "<td class=pr>guía</td>", plan_td(pl_cla),
+             rend_cell('CLASIFICADO'), cumpl(rr_cla, pl_cla))])
+        + "</div>" + nota_ref(ref, tec, especie_cod)
+        + nota_plan_meta(metas_p, len(ops)) + nota_shoveleo(sh)
         + cobertura_preuso(hp, ult_dia) + aviso_ciclos(pp)
         + aviso_colchon(av_dias, mes_key, m3_tramo,
                         bool(pp) and pp.get('real_carga') is not None, tramos))
