@@ -877,8 +877,10 @@ def cruce_clasificado(av, tp_faena, hp):
         return (f"<br><b>Cruce del clasificado:</b> el jefe informó <b>{declarado:,.0f} m³</b> "
                 f"sin clasificar, pero <b style='color:#B9770E'>nadie declaró tiempo perdido "
                 f"de la GM</b> ese día en el pre-uso.")
-    return ("<br><b>Cruce del clasificado:</b> sin madera pendiente y sin tiempo perdido "
-            "de la GM — las dos fuentes coinciden.")
+    # Coinciden: NO se dice nada. Ocupaba 6,6 mm de la hoja para informar que no pasó nada,
+    # y un aviso que suena todos los días se deja de leer justo cuando importa. Este bloque
+    # existe para gritar la incongruencia; el silencio ya significa "cuadran".
+    return ""
 
 
 def nota_planes(ref, tec, esp, metas_p, n_op, sh, dsp_vol, dsp_mad):
@@ -1400,6 +1402,11 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             causa_top = max(a['causas'], key=a['causas'].get)
             filas_ac += (f"<tr><td class=l>{proc.title()}</td><td class=tp>{a['horas']:g}</td>"
                          f"<td class=l>{causa_top}</td></tr>")
+        # Esta tabla tiene LAS MISMAS 4 FILAS que la ficha por proceso, cinco bloques más
+        # arriba: se leía el cumplimiento del madereo en una y la causa de su pérdida en la
+        # otra. El NÚMERO de horas se muda a una columna de la ficha —ahí el "madereo cumple
+        # 48%" queda al lado del "madereo perdió 80,75 h", que es la relación causal— y el
+        # TEXTO de las causas se va a la hoja 2 con el detalle, que es donde vive el registro.
         tp_acum = ("<div class=tpaclab>Acumulado del mes por proceso (del preuso):</div>"
                    "<table class=tpac><tr><th class=l>Proceso</th>"
                    "<th>Perdió [hrs]</th><th class=l>Causa principal</th></tr>"
@@ -1423,7 +1430,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # por falta de volteo"). El DETALLE con fecha y código se va a la HOJA 2, que es el
     # registro: son 39,7 mm —medidos— y son la diferencia entre 2 y 3 páginas. La hoja 1
     # decía "Hoja 1 de 2" y salía en dos.
-    tp = tp_acum
+    tp = ""     # la hoja 1 ya no lleva bloque de T.P: el número está en la ficha
     tp_detalle = ("<table><tr><th>Nº</th><th class=l>Proceso</th><th title='Código de tiempo "
                   "perdido del NOC de Arauco'>Cód.<br>NOC</th><th class=l>Descripción</th>"
                   "<th>Tiempo [hrs]</th><th>Fecha</th></tr>" + tp_rows + "</table>")
@@ -1855,13 +1862,22 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     op_hasta = max(int(pg['op_hasta']), 1)
     n_op_mes = max(len(ops), 1)
 
+    tp_proc_h = {}
+    for _t in tp_faena:
+        tp_proc_h[_t['proceso']] = tp_proc_h.get(_t['proceso'], 0) + _t['horas']
+
+    def _tp_td(proc):
+        h = tp_proc_h.get(proc)
+        return f"<td class=tp>{h:g}</td>" if h else "<td class=bl></td>"
+
     def fila_pg(nombre, meta, real, dias, proy=None, cumpl_pg=None, plan_pg=None):
         if not meta:
             return (f"<tr><td class=l>{nombre}</td><td class=gu colspan=5>"
-                    f"sin meta cargada en CONFIGURACIÓN</td></tr>")
+                    f"sin meta cargada en CONFIGURACIÓN</td>{_tp_td(nombre.upper())}</tr>")
         if real is None:
             return (f"<tr><td class=l>{nombre}</td><td>{fmt(meta)}</td>"
-                    f"<td class=pr colspan=4>el jefe no ha declarado producción este mes</td></tr>")
+                    f"<td class=pr colspan=4>el jefe no ha declarado producción este mes</td>"
+                    f"{_tp_td(nombre.upper())}</tr>")
         plan = plan_pg if plan_pg is not None else (meta / n_op_mes * dias)
         c = (real / plan * 100) if plan else None
         c = cumpl_pg if cumpl_pg is not None else c
@@ -1876,14 +1892,16 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                   f"para proyectar'>{dias} de {op_hasta} días</td>")
         return (f"<tr><td class=l>{nombre}</td><td>{fmt(meta)}</td><td>{fmt(plan)}</td>"
                 f"<td class=nf>{fmt(real)}</td>"
-                f"<td style='color:{col};font-weight:700'>{c:.0f}%</td>{pr}</tr>")
+                f"<td style='color:{col};font-weight:700'>{c:.0f}%</td>{pr}"
+                f"{_tp_td(nombre.upper())}</tr>")
 
     mp = metas_p or {}
     pgen = (
         "<table class=pgen><tr><th class=l>Proceso</th><th>Meta mes<br>[m³]</th>"
         "<th title='La meta repartida en los días que respaldan la columna Real'>"
         "Plan a la fecha<br>[m³]</th><th>Real<br>[m³]</th><th>Cumpl.</th>"
-        "<th>Proyección<br>mes [m³]</th></tr>"
+        "<th>Proyección<br>mes [m³]</th>"
+        "<th title='Tiempo perdido del mes declarado en el pre-uso'>T.P<br>[hrs]</th></tr>"
         + fila_pg("Volteo", mp.get('VOLTEO'), m3_vol_mes, dias_vol_mes)
         + fila_pg("Madereo", mp.get('MADEREO'), m3_mad_mes, dias_mad_mes)
         + fila_pg("Procesado", pg['meta_mes'], pg['avance_real'], op_hasta,
@@ -2195,8 +2213,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             if der and der.get('reinicio'):
                 pie.append(f"la cuenta se reinició el {der['reinicio']} al entrar al predio "
                            f"{der['predio']}: aún no hay dos días declarados para comparar")
-            pie.append("una diferencia grande no dice cuál fuente está mal, dice que hay que "
-                       "mirarlo en terreno")
+            # El "una diferencia grande no dice cuál fuente está mal, hay que mirarlo en
+            # terreno" se retiró de la hoja: es el razonamiento de por qué existe la columna
+            # Dif., y eso se lee una vez. La columna ya viene en rojo cuando se pasa de la
+            # tolerancia, que es la señal accionable.
             objetivos = (
                 f"Ritmo del procesador: <b>{ritmo:.0f} m³/día</b> · colchón al "
                 f"{str(av['fecha'])[8:10]}-{str(av['fecha'])[5:7]}.{nota_pred}"
@@ -2236,7 +2256,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <h2>Información General</h2>{ig}
 <h2>Producción General</h2>{pgen}
 <h2>Productividad según el VMA del bosque</h2>{guia_block}{prodv}
-<h2>Principales Tiempos Perdidos</h2>{tp}{cumpl_block}
+{cumpl_block}
 <div class=foot>Hoja 1 de 2 · GESTIÓN. El registro del mes día por día va en la hoja siguiente.</div>
 </div>
 <div class="sheet faena registro" data-faena="{fa}">
@@ -2245,7 +2265,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 <div class=sub>{MESES[mes]} {anio} · Predio {predio} · {especie} · hoja 2 de 2</div>
 </div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
-<h2>Detalle de tiempos perdidos</h2>{tp_detalle}
+<h2>Tiempos perdidos del mes</h2>{tp_acum}{tp_detalle}
 <div class=foot>Verde claro = hay dato · <b>verde fuerte con barra</b> = ese día alcanzó su meta día (95%, regla de Arauco) · <b>rojo</b> = no la alcanzó · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
