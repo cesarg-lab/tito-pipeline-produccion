@@ -35,9 +35,9 @@ TEAM_MAP = {
 }
 ORDEN = ['Millalemu 1.1','Millalemu 1.2','Millalemu 1.3','Millalemu 1.4',
          'Millalemu 5','Millalemu 7','Millalemu 9','Millalemu 11']
-METAS_DEFAULT = {'Millalemu 1.1':20000,'Millalemu 1.2':7000,'Millalemu 1.3':7000,
-                 'Millalemu 1.4':7000,'Millalemu 5':7000,'Millalemu 7':7000,
-                 'Millalemu 9':10000,'Millalemu 11':6000}
+METAS_DEFAULT = {'Millalemu 1.1':8000,'Millalemu 1.2':8000,'Millalemu 1.3':8000,
+                 'Millalemu 1.4':8000,'Millalemu 5':7000,'Millalemu 7':8060,
+                 'Millalemu 9':8000,'Millalemu 11':6000}
 MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
          "Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 TM_HIST_CSV = BASE_DIR / "historico_tm_mensual.csv"
