@@ -190,7 +190,7 @@ def ref_arauco(tec, esp):
 
 # Feriados IRRENUNCIABLES (los únicos días que la faena no puede trabajar por ley).
 # ESPEJO de `_FERIADOS_IRR` en compute_kpis.py.
-FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+FERIADOS_IRR = {'01-01', '05-01', '12-25'}
 
 
 def dias_operables(anio, mes):

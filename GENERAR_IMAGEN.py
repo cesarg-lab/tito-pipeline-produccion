@@ -167,7 +167,7 @@ def generate():
 
     DM = calendar.monthrange(ANIO, MES)[1]
     # Días hábiles (regla: faltar no premia; solo descuentan feriados irrenunciables)
-    _FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+    _FERIADOS_IRR = {'01-01', '05-01', '12-25'}
     _ULT = int(prod['Dia'].max())
     DT = sum(1 for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
     DD = sum(1 for d in range(1, _ULT + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)

@@ -162,7 +162,7 @@ def generate():
     prod_mes = prod_mes[prod_mes['Team'].isin(TEAMS)]
     tm_mes = tm_mes[tm_mes['Team'].isin(TEAMS)]
     # Días hábiles (regla: faltar no premia; solo descuentan feriados irrenunciables)
-    _FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+    _FERIADOS_IRR = {'01-01', '05-01', '12-25'}
     _ULT = int(prod_mes['Dia'].max())
     DT = sum(1 for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)
     DD = sum(1 for d in range(1, _ULT + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR)

@@ -62,6 +62,17 @@ FTP_HOST = os.environ.get('FTP_HOST') or "186.64.119.70"
 FTP_USER = os.environ.get('FTP_USER') or "produccion@millalemu.com"
 FTP_PASS = os.environ.get('FTP_PASS') or "Produccion2026x"
 
+def metas_del_mes(mes, anio):
+    """Metas con que SE CERRÓ ese mes, del histórico (meta_mensual por equipo). METAS es
+    solo el respaldo: un dict fijo hacía que sept-2026 (M1.1 = 20.000) se regenerara con 8.000."""
+    m = dict(METAS)
+    h = BASE_DIR / "historico_cierres_mensuales.csv"
+    if h.exists():
+        for r in csv.DictReader(open(h, encoding='utf-8-sig'), delimiter=';'):
+            if int(r['mes']) == mes and int(r['anio']) == anio and r['equipo'] in m:
+                m[r['equipo']] = float(r['meta_mensual'])
+    return m
+
 def log(m): print(f"[snapshots] {m}", flush=True)
 
 def descargar(mes, anio):
@@ -128,7 +139,7 @@ def construir_snapshot(mes, anio, pg, tp):
     # ── meta.json ──
     meta = {'mes': mes, 'anio': anio, 'mes_nombre': MESES[mes],
             'dias_mes': calendar.monthrange(anio, mes)[1], 'dias_no_trab': 0,
-            'dias_trabajados': calendar.monthrange(anio, mes)[1], 'metas': METAS,
+            'dias_trabajados': calendar.monthrange(anio, mes)[1], 'metas': metas_del_mes(mes, anio),
             'fuente': 'Re-descarga Arauco', 'archivado_en': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     with open(snap_dir / "meta.json", 'w', encoding='utf-8') as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)

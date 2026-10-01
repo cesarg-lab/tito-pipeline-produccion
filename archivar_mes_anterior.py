@@ -116,7 +116,7 @@ def cierre(prod, mes, anio, metas):
     fuente = f"Auto-archivado nube {datetime.now().strftime('%Y-%m-%d')}"
     # Días hábiles del mes cerrado: días corridos menos feriados irrenunciables
     # (regla: faltar/parar no premia; un día de falla cuenta como día trabajado).
-    _FER = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+    _FER = {'01-01', '05-01', '12-25'}
     _dm = calendar.monthrange(anio, mes)[1]
     dias_hab = sum(1 for d in range(1, _dm + 1) if f"{mes:02d}-{d:02d}" not in _FER)
     filas = []

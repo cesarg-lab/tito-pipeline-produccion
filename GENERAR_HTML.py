@@ -330,7 +330,7 @@ tm = tm[tm['Fecha_dt'].dt.month == MES]
 ANIO = int(prod['Fecha_dt'].dt.year.mode()[0])
 DM = calendar.monthrange(ANIO, MES)[1]
 # Feriados irrenunciables (fechas fijas): no se trabaja, no cuentan como día trabajado.
-FERIADOS_IRR = {'01-01', '05-01', '09-18', '09-19', '12-25'}
+FERIADOS_IRR = {'01-01', '05-01', '12-25'}
 def _habil(_mes, _dia):
     return f"{_mes:02d}-{_dia:02d}" not in FERIADOS_IRR
 if vol_oficial_diario is not None:

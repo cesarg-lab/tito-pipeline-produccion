@@ -56,7 +56,7 @@ CLASIF = {1:'Mantención',2:'Mantención',3:'Mantención',4:'Mantención',5:'Man
     16:'Proceso',17:'Proceso',18:'Proceso',25:'Proceso',26:'Proceso',61:'Proceso',65:'Proceso',66:'Proceso',68:'Proceso',42:'Programado',43:'Programado'}
 PAUSA_DIA = 1.5
 MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-_FERIADOS_IRR = {'01-01','05-01','09-18','09-19','12-25'}
+_FERIADOS_IRR = {'01-01','05-01','12-25'}
 
 # Preferir Manual.csv/Base2NOC no aplica aquí: usamos el PG (única fuente con árboles).
 CSV_PROD = BASE / "ProductividadGenerico.csv"
