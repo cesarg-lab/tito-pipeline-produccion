@@ -1299,8 +1299,19 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # hay datos de un mes — se rompería el 1 de agosto.
     tp_faena = [t for t in ((cmms or {}).get('tp', {}).get(fid, []))
                 if str(t.get('fecha', ''))[:7] == mes_key]
-    tp_dia_proc = {}                                             # (día, proceso) -> horas
-    for t in tp_faena:
+    # T.P POR PROCESO, NO POR MÁQUINA (César, 2026-10-07). El pre-uso declara horas de CADA
+    # equipo; con dos harvester en volteo, M11 sumaba 16 h el 02-10 (9,5 + 6,5) en una columna
+    # que se lee contra la jornada de 10,5 h. Se divide por la dotación productiva del proceso
+    # (la misma de informe_horas_faena: sin winches ni skidder de apoyo en faena de torre), así
+    # que el número es "horas de proceso completo perdidas" y nunca pasa la jornada. El detalle
+    # por causa (Principales Tiempos Perdidos) sigue en horas de cada máquina.
+    _dot = {}
+    for (_f, _p), _v in ((cmms or {}).get('horas', {}).get(fid, {}) or {}).items():
+        _dot[_p] = max(_dot.get(_p, 1), int(_v.get('dotacion') or 1))
+    tp_proc_list = [dict(t, horas=round(t['horas'] / _dot.get(t['proceso'], 1), 2))
+                    for t in tp_faena]
+    tp_dia_proc = {}                                             # (día, proceso) -> horas de proceso
+    for t in tp_proc_list:
         tp_dia_proc[(t['dia'], t['proceso'])] = tp_dia_proc.get((t['dia'], t['proceso']), 0) + t['horas']
 
     hp = horas_preuso(fa, cmms, real_por_dia, mes_key)
@@ -1380,8 +1391,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 
 
     # ── Tiempo perdido ACUMULADO del mes por proceso (del preuso) ──
-    acum_proc = {}   # proceso -> {horas, causas:{texto:horas}}
-    for t in tp_faena:
+    acum_proc = {}   # proceso -> {horas, causas:{texto:horas}}  (horas de proceso, ver _dot)
+    for t in tp_proc_list:
         a = acum_proc.setdefault(t['proceso'], {'horas': 0.0, 'causas': {}})
         a['horas'] += t['horas']
         k = texto_tp(t)          # con "Otro" agrupa por la nota, no por la etiqueta vacía
@@ -1879,7 +1890,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     n_op_mes = max(len(ops), 1)
 
     tp_proc_h = {}
-    for _t in tp_faena:
+    for _t in tp_proc_list:
         tp_proc_h[_t['proceso']] = tp_proc_h.get(_t['proceso'], 0) + _t['horas']
 
     def _tp_td(proc):
@@ -2287,7 +2298,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 </div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
 <h2>Tiempos perdidos del mes</h2>{tp_acum}{tp_detalle}
-<div class=foot>Verde claro = hay dato · <b>verde fuerte con barra</b> = ese día alcanzó su meta día (95%, regla de Arauco) · <b>rojo</b> = no la alcanzó · <i>rep.</i> = lo declara el jefe en el CMMS · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
+<div class=foot>Verde claro = hay dato · <b>verde fuerte con barra</b> = ese día alcanzó su meta día (95%, regla de Arauco) · <b>rojo</b> = no la alcanzó · <i>rep.</i> = lo declara el jefe en el CMMS · <b>T.P</b> = horas del proceso completo (horas de las máquinas ÷ n° de máquinas del proceso; tope = jornada) · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
 {otros}
 </div>"""
 
