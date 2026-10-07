@@ -1243,7 +1243,8 @@ def guia_tabla(tec, esp, cell, teo, vma=None):
             continue
         marca = " style='background:#fff3cf;font-weight:700' title='Tramo de esta faena'" if tr == mio else ""
         flecha = " ←" if tr == mio else ""
-        filas += (f"<tr{marca}><td class=l>{tr}{flecha}</td><td>{hab}</td><td class=nf>{meta}</td>"
+        # '<0,15' sin escapar el navegador lo toma como etiqueta y la celda sale vacía.
+        filas += (f"<tr{marca}><td class=l>{tr.replace('<', '&lt;')}{flecha}</td><td>{hab}</td><td class=nf>{meta}</td>"
                   f"<td class=gu>{teov}</td></tr>")
     if not filas:
         return "<div class=pr>Sin muestra suficiente de VMA para esta tecnología/especie.</div>"
@@ -2190,7 +2191,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 # Tolerancia 20% del nivel declarado (piso 50 m³): son conteos de terreno, no
                 # contabilidad. Se marca solo cuando la brecha ya no la explica el redondeo.
                 cd = '#943126' if abs(dif) > max(50.0, abs(m3) * 0.20) else '#555'
-                cal_td = f"<td>{max(calc, 0):,.0f}</td>"
+                # Calculado NEGATIVO se muestra tal cual: es la señal de que el NOC trozó más de
+                # lo que el jefe declaró madereado. Recortarlo a 0 dejaba "0 · 0 · +59", una
+                # resta que no cuadra a la vista.
+                cal_td = f"<td>{calc:,.0f}</td>"
                 dif_td = (f"<td style='color:{cd};font-weight:700'>"
                           f"{'+' if dif > 0 else ''}{dif:,.0f}</td>")
             return (f"<tr><td class=l>{nombre}</td>"
