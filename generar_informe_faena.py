@@ -1394,10 +1394,24 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     # El dato sigue disponible (`proceso_causante` de informe_tp_faena): reponer la columna
     # cuando los operadores usen la causa del catálogo. Es más probable ahora que se llama
     # "Sin madera en cancha" / "Sin madera trozada" en vez del viejo "Sin frente / sin madera".
+    # FAENA DE TORRE (César, 2026-10-07; migración CMMS 20261007_informe_madereo_manda_torre).
+    # El ajuste lo hace informe_tp_faena; esta nota lo cuenta en la hoja para que nadie sume a
+    # mano las horas del skidder y crea que el informe se las comió.
+    es_torre = str(tec).upper() == 'TORRE'
+    nota_torre = (
+        "<div class=q><b>Madereo con torre:</b> manda la torre. Su tiempo perdido cuenta solo si "
+        "ese día el skidder de apoyo no la cubrió (se descuentan las horas que trabajó). Las "
+        "pérdidas propias del skidder no suman. El T-Winch no maderea: suma al volteo solo "
+        "cuando falla él mismo. La producción del madereo sí es torre + skidder.</div>"
+        if es_torre else "")
     if acum_proc:
         filas_ac = ""
         for proc in ['VOLTEO', 'MADEREO', 'PROCESADO', 'CLASIFICADO']:
             a = acum_proc.get(proc)
+            if not a and proc == 'MADEREO' and es_torre:
+                # En faena de torre un madereo sin pérdida es un dato, no un hueco: se muestra 0.
+                filas_ac += "<tr><td class=l>Madereo</td><td class=tp>0</td><td class=l>—</td></tr>"
+                continue
             if not a:
                 continue
             causa_top = max(a['causas'], key=a['causas'].get)
@@ -1411,9 +1425,10 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
         tp_acum = ("<div class=tpaclab>Acumulado del mes por proceso (del preuso):</div>"
                    "<table class=tpac><tr><th class=l>Proceso</th>"
                    "<th>Perdió [hrs]</th><th class=l>Causa principal</th></tr>"
-                   + filas_ac + "</table>")
+                   + filas_ac + "</table>"
+                   + nota_torre)
     else:
-        tp_acum = ""
+        tp_acum = nota_torre
 
     # ── Principales Tiempos Perdidos: pre-llenado del preuso (turno_perdida), resto en blanco ──
     tp_ord = sorted(tp_faena, key=lambda t: -t['horas'])[:6]     # las de mayor pérdida primero
@@ -2144,7 +2159,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
              celda_conteo(cic_jefe_mes, dias_cic), celda_brecha_ciclos()),
             ("Árboles madereados [n°]", celda_plan_arb(pa_mad, dias_arb_mad),
              celda_conteo(arb_mad_mes, dias_arb_mad), cumpl(arb_mad_mes, pa_mad)),
-            ("Desplaz. skidder [km/día]", vac, celda_km(dsp_mad), nada)])
+            ("Desplaz. skidder apoyo [km/día]" if str(tec).upper() == 'TORRE' else "Desplaz. skidder [km/día]", vac, celda_km(dsp_mad), nada)])
         + "</div><div class=two>"
         + bloque("PROCESADO", [
             ("Horas [hrs]", hplan, uso_cell('PROCESADO'), cumpl_uso('PROCESADO')),
