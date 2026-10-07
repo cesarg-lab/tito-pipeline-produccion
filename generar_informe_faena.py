@@ -2317,9 +2317,32 @@ def datos_cmms():
     if not url or not key:
         return out
 
+    # PostgREST corta CADA respuesta en 1.000 filas, sin avisar. informe_preuso_dias ya pasaba
+    # de 1.400 (octubre 2026) y se perdían ✓ al azar —M11 mostraba "s/p" el 01 y el 03 con la
+    # torre declarada—. Se pagina con un orden estable para no repetir ni saltar filas.
+    ORDEN_RPC = {'informe_preuso_dias': 'faena_id,fecha,proceso',
+                 'informe_tp_faena': 'faena_id,fecha,proceso,causa,horas,detalle',
+                 'informe_horas_faena': 'faena_id,fecha,proceso',
+                 'informe_avance_dias': 'faena_id,fecha.desc'}
+    PAGINA = 1000
+
     def rpc(nombre):
+        filas, offset = [], 0
+        while True:
+            q = f"?limit={PAGINA}&offset={offset}"
+            if nombre in ORDEN_RPC:
+                q += f"&order={ORDEN_RPC[nombre]}"
+            pag = _rpc_pagina(nombre, q)
+            if not isinstance(pag, list):          # RPC escalar/objeto: se devuelve tal cual
+                return pag
+            filas += pag
+            if len(pag) < PAGINA:
+                return filas
+            offset += PAGINA
+
+    def _rpc_pagina(nombre, q):
         req = urllib.request.Request(
-            url.rstrip('/') + '/rest/v1/rpc/' + nombre, data=b'{}', method='POST',
+            url.rstrip('/') + '/rest/v1/rpc/' + nombre + q, data=b'{}', method='POST',
             headers={'apikey': key, 'Authorization': 'Bearer ' + key,
                      'Content-Type': 'application/json'})
         try:
