@@ -124,6 +124,12 @@ python3 EXTRAER_JSON.py 2>&1 | tee -a "$LOG_PIPELINE"
 echo ""
 echo "▶️  [5/9] Subiendo a produccion.millalemu.com..."
 python3 SUBIR_FTP.py 2>&1 | tee -a "$LOG_PIPELINE"
+# Sin esto la falla se perdía en el `tee` y el run quedaba VERDE sin haber publicado nada
+# (2026-10-07: el hosting pasó a exigir TLS). Sin subir no hay informe: se corta y avisa.
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+  echo "❌ La subida FTP falló: lo publicado en produccion.millalemu.com NO está al día."
+  exit 1
+fi
 
 # ── 5.5 Generar snapshots de meses cerrados (idempotente; solo los que faltan) ──
 echo ""

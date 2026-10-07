@@ -20,6 +20,7 @@ Uso:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 import os, sys, csv, json, calendar, ftplib, subprocess, importlib.util
+from ftp_conexion import conectar
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
@@ -147,14 +148,14 @@ def construir_snapshot(mes, anio, pg, tp):
 
 def existe_en_ftp(nombre):
     try:
-        ftp = ftplib.FTP(FTP_HOST, timeout=30); ftp.login(FTP_USER, FTP_PASS)
+        ftp = conectar(FTP_HOST, FTP_USER, FTP_PASS, timeout=30)
         existe = nombre in ftp.nlst()
         ftp.quit(); return existe
     except Exception as e:
         log(f"aviso: no pude listar FTP ({e})"); return False
 
 def subir_ftp(local_path, nombre):
-    ftp = ftplib.FTP(FTP_HOST, timeout=60); ftp.login(FTP_USER, FTP_PASS)
+    ftp = conectar(FTP_HOST, FTP_USER, FTP_PASS, timeout=60)
     with open(local_path, 'rb') as f:
         ftp.storbinary(f"STOR {nombre}", f)
     ftp.quit()

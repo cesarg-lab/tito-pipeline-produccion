@@ -14,6 +14,7 @@ Uso (dev local):
 """
 
 import ftplib
+from ftp_conexion import conectar
 import io
 import os
 import sys
@@ -45,8 +46,7 @@ def subir_dashboard():
 
     print(f"📤 Conectando a {FTP_HOST}...")
     try:
-        ftp = ftplib.FTP(FTP_HOST, timeout=30)
-        ftp.login(FTP_USER, FTP_PASS)
+        ftp = conectar(FTP_HOST, FTP_USER, FTP_PASS, timeout=30)
         print(f"✅ Conectado como {FTP_USER}")
 
         # Verificar/crear directorio remoto
