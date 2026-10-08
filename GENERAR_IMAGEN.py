@@ -271,7 +271,7 @@ def generate():
         dif_plan = acum - avance_plan
         # Ritmo que falta por día. Con el mes cerrado no queda día donde ponerlo: antes el
         # max(DR,1) escupía la brecha entera como si fuera exigible mañana. Va '—'.
-        ritmo = (meta - acum) / DR if DR > 0 else float('nan')
+        ritmo = max((meta - acum) / DR, plan_dia) if DR > 0 else float('nan')   # piso en el plan
         rendimiento = acum / hrs if hrs > 0 else 0
         # Disponibilidad = (1 - TM_Mantención / Turno) × 100
         # tm_mant en minutos, turno_seg en segundos → ambos a minutos
@@ -295,7 +295,7 @@ def generate():
     plan_dia_total = meta_total / DT
     avance_plan_total = plan_dia_total * DD
     dif_total = total_acum - avance_plan_total
-    ritmo_total = (meta_total - total_acum) / DR if DR > 0 else float('nan')
+    ritmo_total = max((meta_total - total_acum) / DR, plan_dia_total) if DR > 0 else float('nan')
     rend_total = total_acum / total_hrs if total_hrs > 0 else 0
     turno_min_total = total_turno_seg / 60
     disp_total = (1 - total_tm_mant / turno_min_total) * 100 if turno_min_total > 0 else 100
@@ -544,9 +544,20 @@ def generate():
 
     # ── FILAS DIARIAS ──
     dias_con_datos = set(daily['Dia'].unique().astype(int))
-    # Meta diaria por equipo = meta del mes ÷ días OPERABLES (DT ya descuenta los feriados
-    # irrenunciables). Es el patrón contra el que se pinta cada celda de la grilla.
-    meta_dia_eq = {t: (METAS.get(t, 0) / DT if DT else 0) for t in TEAMS}
+    # META DEL DÍA = lo que falta ÷ días operables que quedan desde ese día, con PISO en el plan
+    # (meta ÷ DT). Misma regla que el dashboard (metaDiaPiso) y el informe de faena (César,
+    # 2026-10-08). Semáforo diario binario al 95% (regla de Arauco): un 90% todos los días
+    # termina el mes sin llegar.
+    meta_dia_eq = {t: (METAS.get(t, 0) / DT if DT else 0) for t in TEAMS}   # plan (piso)
+    _ops = [d for d in range(1, DM + 1) if f"{MES:02d}-{d:02d}" not in _FERIADOS_IRR]
+    meta_dia_d = {}
+    for _t in TEAMS:
+        _ac = 0.0
+        for _d in range(1, DM + 1):
+            _dr = len([x for x in _ops if x >= _d])
+            _m = METAS.get(_t, 0)
+            meta_dia_d[(_t, _d)] = max((_m - _ac) / _dr, meta_dia_eq[_t]) if (_dr and _m) else 0
+            _ac += grid.get(_d, {}).get(_t, 0)
     for di, dia in enumerate(dias):
         yc -= ROW_H
         ym = yc + ROW_H/2
@@ -583,10 +594,10 @@ def generate():
                 # 3×: con M1.1 en 20.000 m³/mes (714 m³/día operable) un día de 250 m³ salía
                 # VERDE siendo el 35% de lo que le tocaba, y M11 (214 m³/día) salía verde justo.
                 # Cortes 90/60 = el mismo semáforo de producción del resto del tablero.
-                md = meta_dia_eq.get(team, 0)
+                md = meta_dia_d.get((team, dia), 0)
                 if md > 0:
                     p_dia = v / md * 100
-                    cb = '#BBF7D0' if p_dia >= 90 else '#FEF08A' if p_dia >= 60 else '#FECACA'
+                    cb = '#BBF7D0' if p_dia >= 95 else '#FECACA'
                 else:
                     cb = '#FECACA' if v == 0 else '#BBF7D0' if v >= 200 else '#FEF08A' if v >= 100 else '#FDBA74'
             rect(xl, yc, cw, ROW_H, cb)

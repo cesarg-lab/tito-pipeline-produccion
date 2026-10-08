@@ -235,7 +235,10 @@ def prod_general(jul, meta_mes, anio, mes, ult_dia, kpi=None, dr_kpi=None):
     recuperar = max(0.0, (avance_plan - acum)) / dias_rest
     # Meta día DINÁMICA: lo que la meta exige por día de HOY a fin de mes, según lo YA procesado.
     # Cambia cada día con el real acumulado (si vas atrasado sube, si vas adelantado baja).
-    meta_dia_req = max(0.0, (meta_mes - acum)) / dias_rest
+    # PISO EN EL PLAN (César, 2026-10-08): si vas adelantado la meta móvil BAJA y pedía trozar
+    # menos que el plan — invita a aflojar. La meta del día es la MAYOR entre lo que falta ÷ los
+    # días que quedan y el plan lineal. Misma regla en el dashboard y en el PNG de Telegram.
+    meta_dia_req = max(max(0.0, (meta_mes - acum)) / dias_rest, plan_diario)
     return dict(meta_mes=meta_mes, avance_plan=avance_plan, avance_real=acum, cumpl=cumpl,
                 proy=proy, plan_diario=plan_diario, real_diario=real_dia,
                 recuperar=recuperar, meta_dia_req=meta_dia_req, dias_rest=dias_rest,
@@ -1725,7 +1728,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             elif dias_con_flujo and d == hoy_dia:
                 # Mismo criterio que procesado y clasificado en el día de hoy: días restantes
                 # del kpis.json, para que las cuatro columnas cuenten la misma historia.
-                mdia = fmt(max(0.0, saldos_p.get(proc, m)) / max(int(pg['dias_rest']), 1))
+                mdia = fmt(max(max(0.0, saldos_p.get(proc, m)) / max(int(pg['dias_rest']), 1),
+                               m / max(len(ops), 1)))      # piso en el plan
             elif not dias_con_flujo:
                 # SIN NINGUNA declaración en el mes, la meta dinámica se dispara sola: el saldo
                 # nunca baja, los días restantes sí, y para fin de mes pide un número absurdo
@@ -1737,7 +1741,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 # Misma meta día dinámica que el procesado: lo que falta, repartido en los días
                 # que quedan desde hoy.
                 dias_desde_d = len([x for x in ops if x >= d]) or 1
-                mdia = fmt(max(0.0, prev_p.get(proc, m)) / dias_desde_d)
+                mdia = fmt(max(max(0.0, prev_p.get(proc, m)) / dias_desde_d,
+                               m / max(len(ops), 1)))      # piso en el plan
             # El semáforo compara contra la meta día que se acaba de calcular. `mdia` viene
             # formateado con separador de miles, así que se rehace el número para comparar.
             if real is None:
@@ -1788,7 +1793,8 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
             # Días pasados: lo que ESE día había que trozar, con lo que se llevaba hasta el
             # anterior repartido en los días que quedaban desde ahí.
             dias_desde_d = len([x for x in ops if x >= d]) or 1
-            pm_di = fmt(max(0.0, saldo_previo) / dias_desde_d)
+            pm_di = fmt(max(max(0.0, saldo_previo) / dias_desde_d,
+                            meta_mes / max(len(ops), 1)))  # piso en el plan
         rr = f"<td class=nf>{fmt(real)}</td>" if real is not None else "<td class=bl></td>"
         pro = f"<td>{pm_ac}</td><td>{pm_di}</td>{rr}{tp_cell(d,'PROCESADO')}"
         # CLASIFICADO: lo hace la GM (excavadora) sobre lo que trozó el PM. Si NO está en pana
@@ -1809,10 +1815,12 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
                 # clasificado 1.112) — el procesado contaba los días desde HOY y el clasificado
                 # desde la fila. Dos "meta del día" en la misma hoja es el error que este
                 # informe viene corrigiendo desde el principio.
-                c_di = fmt(max(0.0, saldo_cla) / max(int(pg['dias_rest']), 1))
+                c_di = fmt(max(max(0.0, saldo_cla) / max(int(pg['dias_rest']), 1),
+                               meta_cla / max(len(ops), 1)))  # piso en el plan
             else:
                 dias_desde_d = len([x for x in ops if x >= d]) or 1
-                c_di = fmt(max(0.0, saldo_cla_previo) / dias_desde_d)
+                c_di = fmt(max(max(0.0, saldo_cla_previo) / dias_desde_d,
+                               meta_cla / max(len(ops), 1)))  # piso en el plan
         else:
             c_ac, c_di = pm_ac, pm_di
         cla = tp_cell(d, 'CLASIFICADO')
@@ -2298,7 +2306,7 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
 </div></header>
 <h2>Producción — tabla diaria por proceso</h2>{diaria}
 <h2>Tiempos perdidos del mes</h2>{tp_acum}{tp_detalle}
-<div class=foot>Verde claro = hay dato · <b>verde fuerte con barra</b> = ese día alcanzó su meta día (95%, regla de Arauco) · <b>rojo</b> = no la alcanzó · <i>rep.</i> = lo declara el jefe en el CMMS · <b>T.P</b> = horas del proceso completo (horas de las máquinas ÷ n° de máquinas del proceso; tope = jornada) · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día de hoy</b> = lo que exige por día para llegar.</div>
+<div class=foot>Verde claro = hay dato · <b>verde fuerte con barra</b> = ese día alcanzó su meta día (95%, regla de Arauco) · <b>rojo</b> = no la alcanzó · <i>rep.</i> = lo declara el jefe en el CMMS · <b>T.P</b> = horas del proceso completo (horas de las máquinas ÷ n° de máquinas del proceso; tope = jornada) · <b>✓</b> en T.P = hubo pre-uso y NO se declaró tiempo perdido (turno limpio); <b>s/p</b> = sin pre-uso, no se sabe · <b>*</b> = colchón declarado por el jefe, no producción del día · <b>fila amarilla = HOY</b>. <b>Saldo</b> = lo que falta para la meta. <b>Meta día</b> = lo que falta ÷ los días que quedan, nunca menos que el plan (meta del mes ÷ días operables).</div>
 {otros}
 </div>"""
 

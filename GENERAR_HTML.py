@@ -1638,6 +1638,19 @@ function diasOperablesDesde(d) {{
   return n;
 }}
 
+// META DEL DÍA — UNA SOLA REGLA EN DASHBOARD, PNG DE TELEGRAM E INFORME PDF (César, 2026-10-08):
+// lo que falta ÷ los días operables que quedan desde ese día, con PISO en el plan lineal
+// (meta ÷ días operables). Si vas atrasado sube; si vas adelantado no baja del plan.
+// Semáforo DIARIO binario al 95% (regla escrita de Arauco): un 90% todos los días termina el
+// mes en 90%, sin llegar. El 90/60 sigue rigiendo la proyección y el cumplimiento del mes.
+function metaDiaPiso(meta, acumPrev, d) {{
+  if (FERIADOS_MES.has(d)) return 0;
+  const dr = diasOperablesDesde(d);
+  if (dr <= 0 || !meta) return 0;
+  return Math.max((meta - acumPrev) / dr, meta / (cfg.dt || cfg.dm));
+}}
+const DIA_OK = 0.95;
+
 // Team Cards with double-click expand
 const cardsEl = document.getElementById('teamCards');
 const detailEl = document.getElementById('teamDetail');
@@ -1648,8 +1661,8 @@ function showTeamDetail(teamName) {{
   const i = D.kpis.indexOf(k);
   const color = COLORS[i % COLORS.length];
   // "m³/día requerido" = ritmo necesario para cerrar la meta del mes
-  const planDia = Math.round((k.m - k.a) / Math.max(cfg.dr, 1));  // ritmo real necesario
   const planTeorico = Math.round(k.m / cfg.dt * 10) / 10;         // referencia teórica
+  const planDia = Math.round(Math.max((k.m - k.a) / Math.max(cfg.dr, 1), planTeorico));  // con piso
   const avancePlan = Math.round(planTeorico * cfg.dd);
   const difPlan = Math.round(k.a - avancePlan);
   const days = Object.keys(D.grid).map(Number).sort((a,b) => a-b);
@@ -1681,9 +1694,7 @@ function showTeamDetail(teamName) {{
   days.forEach((d, ri) => {{
     const acumPrev = acumR;  // acumulado al inicio del día (antes de este día)
     const esFer = FERIADOS_MES.has(d);   // feriado irrenunciable: no se exige producción
-    const diasRest = diasOperablesDesde(d);
-    const metaRest = k.m - acumPrev;
-    const planDiaDinamico = (esFer || diasRest <= 0) ? 0 : Math.round(metaRest / diasRest);
+    const planDiaDinamico = Math.round(metaDiaPiso(k.m, acumPrev, d));
     const v = D.grid[d] ? (D.grid[d][teamName] || 0) : 0;
     acumR += v;
     const dif = v - planDiaDinamico;
@@ -1696,7 +1707,7 @@ function showTeamDetail(teamName) {{
     const pctDia = planDiaDinamico > 0 ? v / planDiaDinamico * 100 : null;
     const cellTxt = esFer ? '#8a949f'
                   : pctDia === null ? NEUTRAL
-                  : pctDia >= 90 ? '#2e9b3f' : pctDia >= 60 ? '#CA8A04' : '#d8392b';
+                  : pctDia >= DIA_OK * 100 ? '#2e9b3f' : '#d8392b';
     gridRows += `<tr style="background:${{bg}}">
       <td style="padding:5px 10px;font-weight:700;color:#417505;border-right:1px solid #e2e6ea">${{d}}</td>
       <td style="padding:5px 10px;text-align:right;font-weight:700;font-size:13px;color:${{cellTxt}};border-right:1px solid #e2e6ea">${{v>0?fmt(v):'—'}}</td>
@@ -1803,9 +1814,7 @@ function showTeamDetail(teamName) {{
   // Línea DINÁMICA del m³/día requerido: se recalcula cada día en base a lo que faltaba ese día
   let _acum = 0;
   const reqLine = days.map(d => {{
-    const diasRest = diasOperablesDesde(d);
-    const metaRest = k.m - _acum;
-    const req = diasRest > 0 ? Math.max(0, Math.round(metaRest / diasRest)) : 0;
+    const req = Math.round(metaDiaPiso(k.m, _acum, d));
     _acum += (D.grid[d]?.[teamName] || 0);
     return req;
   }});
@@ -1946,13 +1955,11 @@ const trendCtx = document.getElementById('chartTrend').getContext('2d');
 const metaDiariaMovil = [];
 let acumHastaAyer = 0;
 D.trend.forEach((t, i) => {{
-  const diasRestantes = diasOperablesDesde(t.d);
-  const metaRestante = cfg.tm - acumHastaAyer;
-  metaDiariaMovil.push(Math.round(Math.max(metaRestante / diasRestantes, 0)));
+  metaDiariaMovil.push(Math.round(metaDiaPiso(cfg.tm, acumHastaAyer, t.d)));
   acumHastaAyer += t.v;
 }});
 // Color de barras: verde si supera meta móvil, rojo si no
-const barColors = D.trend.map((t, i) => t.v >= metaDiariaMovil[i] ? '#27AE60CC' : '#E74C3CCC');
+const barColors = D.trend.map((t, i) => t.v >= metaDiariaMovil[i] * DIA_OK ? '#27AE60CC' : '#E74C3CCC');
 new Chart(trendCtx, {{
   type: 'bar',
   data: {{
@@ -2366,10 +2373,15 @@ const dspEl = document.getElementById('diasSinProdTable');
     if (FERIADOS_MES.has(dia)) return {{bg:'#d5d9e0', label:'fer'}};  // feriado irrenunciable
     if (vol <= 0) return {{bg:'#8a949f', label:'sinReg'}};   // plomo — sin registro
     const r = meta > 0 ? vol / meta : 1;
-    if (r >= 0.90) return {{bg:'#2e9b3f', label:'ok'}};       // verde — ≥90% meta
-    if (r >= 0.60) return {{bg:'#e8a200', label:'med'}};      // amarillo — 60-90% meta
-    return {{bg:'#d8392b', label:'bajo'}};                    // rojo — <60% meta
+    if (r >= DIA_OK) return {{bg:'#2e9b3f', label:'ok'}};     // verde — ≥95% de su meta del día
+    return {{bg:'#d8392b', label:'bajo'}};                    // rojo — bajo 95%
   }};
+  // Meta del día de CADA faena y CADA día (metaDiaPiso), con lo que llevaba hasta el día anterior.
+  const metaDiaFaena = {{}};
+  TEAMS.forEach(t => {{
+    let ac = 0; metaDiaFaena[t] = {{}};
+    days.forEach(d => {{ metaDiaFaena[t][d] = metaDiaPiso(metaMensual[t], ac, d); ac += (D.grid[d]?.[t] || 0); }});
+  }});
 
   // Alertas: huecos, rachas, bajos
   const huecos = [], bajos = [];
@@ -2409,9 +2421,9 @@ const dspEl = document.getElementById('diasSinProdTable');
   // ——— HEATMAP + TABLA CUMPLIMIENTO ———
   html += '<div style="min-width:0">';
   html += `<div style="margin-bottom:10px;display:flex;gap:14px;font-size:11px;color:#55606c;flex-wrap:wrap;align-items:center">
-    <span><span style="display:inline-block;width:12px;height:12px;background:#2e9b3f;border-radius:2px;vertical-align:middle;margin-right:4px"></span>≥90% meta día</span>
-    <span><span style="display:inline-block;width:12px;height:12px;background:#e8a200;border-radius:2px;vertical-align:middle;margin-right:4px"></span>60-90% meta día</span>
-    <span><span style="display:inline-block;width:12px;height:12px;background:#d8392b;border-radius:2px;vertical-align:middle;margin-right:4px"></span>&lt;60% meta día</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#2e9b3f;border-radius:2px;vertical-align:middle;margin-right:4px"></span>≥95% meta día</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#d8392b;border-radius:2px;vertical-align:middle;margin-right:4px"></span>&lt;95% meta día</span>
+    <span style="color:#8a949f">Meta día = lo que falta ÷ días que quedan, nunca menos que el plan</span>
     <span><span style="display:inline-block;width:12px;height:12px;background:#8a949f;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Sin registro</span>
     <span><span style="display:inline-block;width:12px;height:12px;background:#d5d9e0;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Feriado</span>
   </div>`;
@@ -2437,11 +2449,12 @@ const dspEl = document.getElementById('diasSinProdTable');
       <td style="padding:4px 8px;font-weight:600;color:#417505;white-space:nowrap;position:sticky;left:0;background:white">${{t.replace('Millalemu ','M')}}</td>`;
     days.forEach(d => {{
       const v = D.grid[d]?.[t] || 0;
-      const c = cellColor(v, metaDiaria[t], d);
+      const md = metaDiaFaena[t][d];
+      const c = cellColor(v, md, d);
       const tip = FERIADOS_MES.has(d)
         ? `${{t}} · Día ${{d}}: FERIADO IRRENUNCIABLE — no se exige producción`
         : v > 0
-        ? `${{t}} · Día ${{d}}: ${{fmt(v)}} m³ (meta diaria ${{fmt(metaDiaria[t])}}, ${{Math.round(v/metaDiaria[t]*100)}}%)`
+        ? `${{t}} · Día ${{d}}: ${{fmt(v)}} m³ (meta del día ${{fmt(md)}}, ${{md > 0 ? Math.round(v/md*100) : 0}}%)`
         : `${{t}} · Día ${{d}}: SIN REGISTRO`;
       html += `<td style="width:24px;height:24px;background:${{c.bg}};border-radius:3px;cursor:help" title="${{tip}}"></td>`;
     }});
