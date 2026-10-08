@@ -57,3 +57,4 @@ grafico_desplazamiento.png
 # PÚBLICO y la extracción vuelca miles de .md/.json derivados del código. La bóveda de
 # Obsidian vive fuera, en ~/vaults/ (ver memoria obsidian-graphify-vaults).
 graphify-out/
+alertas_lineas.txt

@@ -16,6 +16,7 @@ Uso:  python3 generar_informe_faena.py [pg_historico.json]
 Salida: Informe_Faena.html
 """
 import sys, calendar
+import html as _html
 from pathlib import Path
 import pandas as pd, numpy as np
 
@@ -1218,6 +1219,55 @@ def aviso_colchon(av_dias, mes_key, m3_mes, hay_carga, tramos=None):
             f"ve afectado: es del madereo de punta a punta.</div>")
 
 
+# ── LÍNEAS DE LA TORRE (César, 2026-10-08) ───────────────────────────────────────────────
+# En faenas con torre la operación exige, contando la que se maderea: EUCALIPTO 4 líneas
+# (volteo · seguridad 1 · seguridad 2 · madereo) y PINO 3 (volteo · seguridad · madereo). Las de
+# seguridad separan por distancia el volteo de la torre. Es un DATO junto al colchón en m³ (que
+# sigue mandando); lo que sí se alerta es que falte seguridad. Las alertas además se escriben a
+# `alertas_lineas.txt`, que GENERAR_RESUMEN agrega al resumen de Telegram.
+ALERTAS_LINEAS = []
+
+
+def seguridad_exigida(especie_cod):
+    return 2 if str(especie_cod).upper().startswith('EU') else 1
+
+
+def lineas_torre(fa, cmms, especie_cod, hoy_iso):
+    """(html, alerta | None) con las últimas líneas declaradas hasta hoy."""
+    regs = [r for r in ((cmms or {}).get('lineas', {}).get(FAENA_ID.get(fa), []))
+            if r['fecha'] <= hoy_iso]
+    exig = seguridad_exigida(especie_cod)
+    esp_txt = 'eucalipto' if exig == 2 else 'pino'
+    if not regs:
+        return ("<div class=q><b>Líneas de la torre:</b> <span class=pr>sin dato</span> — el jefe aún "
+                f"no las declara en el CMMS ({esp_txt}: volteo + {exig} de seguridad + madereo).</div>",
+                None)
+    u = regs[-1]
+    segs = [x for x in (u['seg1'], u['seg2'] if exig == 2 else None) if x]
+    usadas = [x for x in (u['volteo'], u['seg1'], u['seg2'], u['madereo']) if x]
+    problemas = []
+    if len(segs) < exig:
+        problemas.append(f"{len(segs)} de {exig} línea{'s' if exig > 1 else ''} de seguridad")
+    if not u['volteo'] or not u['madereo']:
+        problemas.append("falta la línea en " + ("volteo" if not u['volteo'] else "madereo"))
+    if len(set(usadas)) < len(usadas):
+        problemas.append("una línea repetida en dos posiciones")
+    fecha_txt = f"{u['fecha'][8:10]}-{u['fecha'][5:7]}"
+    def L(x):
+        return f"<b>{_html.escape(x)}</b>" if x else "<span class=pr>—</span>"
+    seg_html = " · ".join(L(x) for x in ((u['seg1'], u['seg2']) if exig == 2 else (u['seg1'],)))
+    viejo = "" if u['fecha'] == hoy_iso else f" (última declaración: {fecha_txt})"
+    base = (f"<b>Líneas de la torre</b>{viejo}: volteo {L(u['volteo'])} · seguridad {seg_html} · "
+            f"madereo {L(u['madereo'])}")
+    if problemas:
+        txt = "; ".join(problemas)
+        return (f"<div class=q style='border-left-color:#943126;background:#fbe6e4'>⚠ {base}. "
+                f"<b style='color:#943126'>Alerta de seguridad: {txt}</b> — {esp_txt} exige "
+                f"volteo + {exig} de seguridad + madereo.</div>",
+                f"⚠️ {fa}: {txt} (torre en {esp_txt}, declarado {fecha_txt})")
+    return (f"<div class=q>{base} — completo para {esp_txt}.</div>", None)
+
+
 def tramo_de(vma):
     """En qué tramo de la Guía VMA cae un árbol de ese tamaño. None si no hay VMA."""
     if vma is None or vma != vma:
@@ -2273,6 +2323,11 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     else:
         objetivos = "Ritmo del procesador: sin capacidad cargada (sin dato de trozado del mes)."
     guia = guia_tabla(tec, especie_cod, cell, teo, vma_mes)
+    if str(tec).upper() == 'TORRE':
+        _l_html, _l_alerta = lineas_torre(fa, cmms, especie_cod, _hoy.strftime('%Y-%m-%d'))
+        objetivos += _l_html
+        if _l_alerta:
+            ALERTAS_LINEAS.append(_l_alerta)
     guia_block = f"<div class=guia>{objetivos}</div>"
 
     # ── Stock en Bosque + Cumplimiento Acta (ambos del BN del NOC, ver cargar_bn) ──
@@ -2331,7 +2386,7 @@ def datos_cmms():
     # horas: faena -> {(día_int, proceso) -> {horas, equipos, dotacion}}
     # _auth: RPCs que rechazaron la credencial → main() aborta con EXIT_CMMS_AUTH.
     out = {'avance': {}, 'avance_dias': {}, 'tp': {}, 'horas': {}, 'preuso_dias': {},
-           'shoveleo': {}, '_auth': []}
+           'shoveleo': {}, 'lineas': {}, '_auth': []}
     url = os.environ.get('SUPABASE_URL'); key = os.environ.get('SUPABASE_KEY')
     if not url or not key:
         return out
@@ -2342,7 +2397,8 @@ def datos_cmms():
     ORDEN_RPC = {'informe_preuso_dias': 'faena_id,fecha,proceso',
                  'informe_tp_faena': 'faena_id,fecha,proceso,causa,horas,detalle',
                  'informe_horas_faena': 'faena_id,fecha,proceso',
-                 'informe_avance_dias': 'faena_id,fecha.desc'}
+                 'informe_avance_dias': 'faena_id,fecha.desc',
+                 'informe_lineas_torre': 'faena_id,fecha'}
     PAGINA = 1000
 
     def rpc(nombre):
@@ -2443,6 +2499,15 @@ def datos_cmms():
                  'horas_turno': None if r.get('horas_turno') is None else float(r['horas_turno'])})
     except Exception as e:
         print(f"  ⚠️  CMMS shoveleo no disponible ({e}); la fila de shoveleo queda 'por reportar'")
+    # Líneas de la torre que declara el jefe (migración CMMS 20261008_avance_lineas_torre).
+    try:
+        for r in rpc('informe_lineas_torre'):
+            out['lineas'].setdefault(r['faena_id'], []).append(
+                {'fecha': str(r['fecha'])[:10], 'volteo': r.get('linea_volteo'),
+                 'seg1': r.get('linea_seguridad_1'), 'seg2': r.get('linea_seguridad_2'),
+                 'madereo': r.get('linea_madereo')})
+    except Exception as e:
+        print(f"  ⚠️  CMMS líneas de la torre no disponibles ({e}); el informe las muestra 'sin dato'")
     return out
 
 def datos_tm():
@@ -2583,6 +2648,9 @@ def main():
     # curso y, al cambiar de mes, la del mes cerrado queda congelada sola — sin lógica de cierre
     # ni tarea aparte. Mismo patrón que los snapshots del dashboard (Dashboard_Cosecha_AAAA-MM).
     (BASE / f"Informe_Faena_{mes_key}.html").write_text(html, encoding="utf-8")
+    # Alertas de líneas de la torre para el resumen de Telegram (GENERAR_RESUMEN las agrega).
+    # Se escribe SIEMPRE, vacío si no hay: un archivo de ayer no puede quedar alertando hoy.
+    (BASE / "alertas_lineas.txt").write_text("\n".join(ALERTAS_LINEAS), encoding="utf-8")
     print(f"✅ Informe_Faena.html — {len(faenas)} faenas, mes {mes_key}, {len(html):,} bytes")
     print(f"   + registro histórico: Informe_Faena_{mes_key}.html")
     print(f"   + {len(ZONAS)} HTML por zona (Informe_Zona_<zona>.html) para los PDF de Telegram")

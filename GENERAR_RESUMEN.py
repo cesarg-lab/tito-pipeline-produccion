@@ -473,6 +473,16 @@ def generate():
             L.append(a)
         L.append("")
 
+    # ── ALERTAS DE SEGURIDAD: líneas de la torre (las escribe generar_informe_faena) ──
+    try:
+        _al = (BASE_DIR / "alertas_lineas.txt").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        _al = []
+    _al = [x for x in _al if x.strip() and any(x.startswith(f"⚠️ {t}:") for t in GRUPOS[GRUPO]["teams"])]
+    if _al:
+        L.append("━━━━━━━━━━━━━━━━━━━━━")
+        L.append("🚧 *LÍNEAS DE LA TORRE*")
+        L.extend(_al)
     # ── FOOTER ──
     L.append(f"━━━━━━━━━━━━━━━━━━━━━")
     L.append(f"🔗 produccion.millalemu.com")
