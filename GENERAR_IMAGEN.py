@@ -70,9 +70,9 @@ CLASIF = {
 }
 
 METAS_DEFAULT = {
-    'Millalemu 1.1': 8000, 'Millalemu 1.2': 8000, 'Millalemu 1.3': 8000,
-    'Millalemu 1.4': 8000, 'Millalemu 5': 7000, 'Millalemu 7': 8060,
-    'Millalemu 9': 8000, 'Millalemu 11': 6000
+    'Millalemu 1.1': 8000, 'Millalemu 1.2': 6200, 'Millalemu 1.3': 6200,
+    'Millalemu 1.4': 6000, 'Millalemu 5': 6000, 'Millalemu 7': 8000,
+    'Millalemu 9': 3800, 'Millalemu 11': 6000
 }
 METAS = dict(METAS_DEFAULT)
 

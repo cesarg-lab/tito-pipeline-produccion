@@ -94,9 +94,9 @@ CLASIF = {
 # Leer metas desde Excel si existe, sino usar defaults
 EXCEL = os.path.join(BASE_DIR, "Dashboard_CosechaForestal.xlsx")
 METAS_DEFAULT = {
-    'Millalemu 1.1': 8000.0, 'Millalemu 1.2': 8000.0, 'Millalemu 1.3': 8000.0,
-    'Millalemu 1.4': 8000.0, 'Millalemu 5': 7000.0, 'Millalemu 7': 8060.0,
-    'Millalemu 9': 8000.0, 'Millalemu 11': 6000.0
+    'Millalemu 1.1': 8000.0, 'Millalemu 1.2': 6200.0, 'Millalemu 1.3': 6200.0,
+    'Millalemu 1.4': 6000.0, 'Millalemu 5': 6000.0, 'Millalemu 7': 8000.0,
+    'Millalemu 9': 3800.0, 'Millalemu 11': 6000.0
 }
 METAS = dict(METAS_DEFAULT)
 if os.path.exists(EXCEL):
