@@ -16,7 +16,7 @@ TRES TRAMPAS DEL DATO (ver noc_tiempo_perdido en el CMMS):
     los lotes NUNCA parten un folio en dos (el segundo lote borraría al primero).
 
 USO
-  python3 publicar_tp.py                          # mes anterior + mes en curso (cada noche)
+  python3 publicar_tp.py                          # año en curso, mes a mes (cada noche)
   python3 publicar_tp.py --desde 2026-10-01 --hasta 2026-10-31   # recarga de un período
   python3 publicar_tp.py --dry-run                # arma y resume, no publica
 
@@ -103,7 +103,24 @@ def lotes_por_folio(filas, tam=LOTE):
         yield lote
 
 
+def _meses(desde, hasta):
+    """[(ini, fin)] por mes calendario dentro de [desde, hasta] (fechas 'YYYY-MM-DD')."""
+    from datetime import date, timedelta
+    d = date.fromisoformat(desde)
+    h = date.fromisoformat(hasta)
+    tramos = []
+    while d <= h:
+        sig = (d.replace(year=d.year + 1, month=1, day=1) if d.month == 12
+               else d.replace(month=d.month + 1, day=1))
+        tramos.append((d.isoformat(), min(h, sig - timedelta(days=1)).isoformat()))
+        d = sig
+    return tramos
+
+
 def descargar(desde, hasta):
+    """Baja TP y PG MES POR MES (pedirle un año entero de una vez al NOC es buscarse un
+    timeout) y los junta ANTES de cruzar: un TP emitido el día 1 puede ser de un folio
+    trabajado el último día del mes anterior, y su día sale del PG de ese otro mes."""
     import requests
     import descargar_noc_api as noc
     s = requests.Session()
@@ -114,8 +131,13 @@ def descargar(desde, hasta):
         noc.establecer_sesion(s, tok)
     except Exception:
         pass
-    tp = noc.descargar_reporte(s, tok, 'TP', desde, hasta) or []
-    pg = noc.descargar_reporte(s, tok, 'PG', desde, hasta) or []
+    tp, pg = [], []
+    for ini, fin in _meses(desde, hasta):
+        t = noc.descargar_reporte(s, tok, 'TP', ini, fin) or []
+        p = noc.descargar_reporte(s, tok, 'PG', ini, fin) or []
+        print(f"   · {ini[:7]}: {len(t)} TP · {len(p)} folios PG")
+        tp.extend(t)
+        pg.extend(p)
     return tp, pg
 
 
@@ -144,12 +166,15 @@ def publicar(filas):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     hoy = datetime.now()
-    # Por defecto, el mes en curso Y EL ANTERIOR: el mes anterior queda completo aunque el
-    # NOC haya estado caído en sus últimos días, y entran las correcciones tardías de Arauco.
+    # Por defecto, TODO EL AÑO en curso (y como mínimo desde el mes anterior, para que en
+    # enero no quede diciembre a medias). Cuesta ~2 consultas cortas por mes y, como el CMMS
+    # reemplaza por folio, recargar no duplica: así entra cualquier corrección tardía de
+    # Arauco y un mes que se perdió por una caída del NOC se completa solo la noche siguiente.
     primero = hoy.replace(day=1)
     mes_ant = (primero.replace(year=primero.year - 1, month=12) if primero.month == 1
                else primero.replace(month=primero.month - 1))
-    ap.add_argument('--desde', default=mes_ant.strftime('%Y-%m-%d'))
+    desde = min(mes_ant, hoy.replace(month=1, day=1))
+    ap.add_argument('--desde', default=desde.strftime('%Y-%m-%d'))
     ap.add_argument('--hasta', default=hoy.strftime('%Y-%m-%d'))
     ap.add_argument('--dry-run', action='store_true')
     a = ap.parse_args(argv)
