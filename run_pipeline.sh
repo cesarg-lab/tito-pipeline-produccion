@@ -66,6 +66,14 @@ echo ""
 echo "▶️  [2.72/9] Publicando el VMA diario por faena al CMMS..."
 python3 publicar_vma.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  VMA no publicado (no crítico, se reintenta en la próxima corrida)"
 
+# ── 2.73 Tiempos perdidos del NOC al CMMS — alimentan el tablero de disponibilidad ──
+# El CMMS solo sabía del tiempo perdido por el pre-uso del operador; un día sin pre-uso no tenía
+# causa. El NOC sí la tiene. Reemplaza por folio (Arauco corrige), así que correrlo de nuevo no
+# duplica. NO crítico, igual que el VMA.
+echo ""
+echo "▶️  [2.73/9] Publicando los tiempos perdidos del NOC al CMMS..."
+python3 publicar_tp.py 2>&1 | tee -a "$LOG_PIPELINE" || echo "  ⚠️  Tiempos perdidos no publicados (no crítico, se reintenta en la próxima corrida)"
+
 # ── 2.75 Desplazamiento del GPS (Wialon) — alimenta las filas de km/día del informe ──
 # Va ANTES del informe porque el informe lee wialon_km.json. Es incremental: refresca los
 # últimos días y acumula sobre el archivo versionado (bajar el mes entero son ~20 min).
