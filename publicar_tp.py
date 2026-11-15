@@ -16,7 +16,7 @@ TRES TRAMPAS DEL DATO (ver noc_tiempo_perdido en el CMMS):
     los lotes NUNCA parten un folio en dos (el segundo lote borraría al primero).
 
 USO
-  python3 publicar_tp.py                          # mes en curso (lo que corre cada noche)
+  python3 publicar_tp.py                          # mes anterior + mes en curso (cada noche)
   python3 publicar_tp.py --desde 2026-10-01 --hasta 2026-10-31   # recarga de un período
   python3 publicar_tp.py --dry-run                # arma y resume, no publica
 
@@ -144,7 +144,12 @@ def publicar(filas):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     hoy = datetime.now()
-    ap.add_argument('--desde', default=hoy.replace(day=1).strftime('%Y-%m-%d'))
+    # Por defecto, el mes en curso Y EL ANTERIOR: el mes anterior queda completo aunque el
+    # NOC haya estado caído en sus últimos días, y entran las correcciones tardías de Arauco.
+    primero = hoy.replace(day=1)
+    mes_ant = (primero.replace(year=primero.year - 1, month=12) if primero.month == 1
+               else primero.replace(month=primero.month - 1))
+    ap.add_argument('--desde', default=mes_ant.strftime('%Y-%m-%d'))
     ap.add_argument('--hasta', default=hoy.strftime('%Y-%m-%d'))
     ap.add_argument('--dry-run', action='store_true')
     a = ap.parse_args(argv)
