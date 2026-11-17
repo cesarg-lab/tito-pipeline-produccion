@@ -1361,11 +1361,33 @@ def sheet(fa, g, cell, teo, meta_mes, cap, cmms=None, kpis=None, bn=None, metas_
     _dot = {}
     for (_f, _p), _v in ((cmms or {}).get('horas', {}).get(fid, {}) or {}).items():
         _dot[_p] = max(_dot.get(_p, 1), int(_v.get('dotacion') or 1))
-    tp_proc_list = [dict(t, horas=round(t['horas'] / _dot.get(t['proceso'], 1), 2))
-                    for t in tp_faena]
-    tp_dia_proc = {}                                             # (día, proceso) -> horas de proceso
-    for t in tp_proc_list:
-        tp_dia_proc[(t['dia'], t['proceso'])] = tp_dia_proc.get((t['dia'], t['proceso']), 0) + t['horas']
+    # EQUIPO DE APOYO (T-Winch, `apoyo` de informe_tp_faena; César, 2026-11-17). No está en la
+    # dotación —no produce— pero su falla propia suma al proceso que ancla. Antes se SUMABA a la
+    # máquina principal sobre dotación 1: M11 mostraba 13, 15 y 17 h de volteo en una jornada de
+    # 10,5 (04-11: shovel 8,5 + winche 4,5). Se detienen JUNTOS, así que sus horas se traslapan:
+    # la celda del día es la MAYOR entre (principal ÷ dotación) y (apoyo), topada en la jornada.
+    # Cada fila se escala para que el detalle por causa siga sumando lo mismo que la celda.
+    JORNADA_H = 10.5
+    _crudo = {}                                                  # (día, proceso) -> [principal, apoyo]
+    for t in tp_faena:
+        c = _crudo.setdefault((t['dia'], t['proceso']), [0.0, 0.0])
+        if t.get('apoyo'):
+            c[1] = max(c[1], t['horas'])
+        else:
+            c[0] += t['horas'] / _dot.get(t['proceso'], 1)
+    tp_dia_proc = {k: round(min(max(p, a), JORNADA_H), 2)        # (día, proceso) -> horas de proceso
+                   for k, (p, a) in _crudo.items()}
+    _suma = {}                                                   # aporte sin traslapar, para escalar
+    for t in tp_faena:
+        k = (t['dia'], t['proceso'])
+        _suma[k] = _suma.get(k, 0) + (t['horas'] if t.get('apoyo')
+                                      else t['horas'] / _dot.get(t['proceso'], 1))
+    tp_proc_list = []
+    for t in tp_faena:
+        k = (t['dia'], t['proceso'])
+        base = t['horas'] if t.get('apoyo') else t['horas'] / _dot.get(t['proceso'], 1)
+        f = tp_dia_proc[k] / _suma[k] if _suma.get(k) else 0
+        tp_proc_list.append(dict(t, horas=round(base * f, 2)))
 
     hp = horas_preuso(fa, cmms, real_por_dia, mes_key)
 
@@ -2469,6 +2491,8 @@ def datos_cmms():
                 {'fecha': r['fecha'], 'dia': int(r['fecha'][8:10]), 'proceso': r['proceso'],
                  'causa': r['causa'], 'detalle': r.get('detalle'), 'horas': float(r['horas']),
                  'codigo_noc': r.get('codigo_noc'),
+                 # T-Winch: sus horas se traslapan con la máquina que ancla (ver sheet())
+                 'apoyo': bool(r.get('apoyo')),
                  # proceso que CAUSÓ la detención (eslabón anterior); None si no aplica
                  'causante': r.get('proceso_causante')})
     except Exception as e:
