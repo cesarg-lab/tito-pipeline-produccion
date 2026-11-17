@@ -37,7 +37,7 @@ ORDEN = ['Millalemu 1.1','Millalemu 1.2','Millalemu 1.3','Millalemu 1.4',
          'Millalemu 5','Millalemu 7','Millalemu 9','Millalemu 11']
 METAS_DEFAULT = {'Millalemu 1.1':8000,'Millalemu 1.2':6200,'Millalemu 1.3':6200,
                  'Millalemu 1.4':6000,'Millalemu 5':6000,'Millalemu 7':8000,
-                 'Millalemu 9':3800,'Millalemu 11':6000}
+                 'Millalemu 9':7000,'Millalemu 11':6000}
 MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
          "Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 TM_HIST_CSV = BASE_DIR / "historico_tm_mensual.csv"
