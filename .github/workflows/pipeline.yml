@@ -71,6 +71,7 @@ jobs:
             grilla_produccion_aereo.png
             grilla_produccion_terrestre.png
             resumen_diario*.txt
+            Informe_Zona_*.pdf
           retention-days: 3
           if-no-files-found: warn
 
