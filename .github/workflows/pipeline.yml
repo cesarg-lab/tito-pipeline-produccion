@@ -6,7 +6,10 @@ name: Pipeline Producción Diaria
 # ══════════════════════════════════════════════════════════════════════════════
 #
 # Triggers:
-#   - cron diario 02:47 UTC = 22:47 Chile (invierno) / 23:47 Chile (verano)
+#   - PRINCIPAL: el Mac lo lanza a las 23:47 (launchd com.millalemu.produccion-nube → gh workflow run).
+#     El cron de GitHub llega con 7–8 h de atraso (02:47 UTC programado → corre ~10:15 UTC), por eso no manda él.
+#   - RESPALDO: cron diario 02:47 UTC; si ya hubo una corrida exitosa en las últimas 14 h, no hace nada
+#     (así Telegram no llega dos veces).
 #   - manual desde la UI de GitHub Actions (botón "Run workflow")
 #
 # Secrets requeridos (Settings → Secrets and variables → Actions):
@@ -21,8 +24,28 @@ on:
   workflow_dispatch:        # botón manual "Run workflow" en la UI de GitHub
 
 jobs:
+  control:
+    name: ¿Ya corrió hoy?
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      correr: ${{ steps.c.outputs.correr }}
+    steps:
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then echo "correr=true" >> $GITHUB_OUTPUT; exit 0; fi
+          desde=$(date -u -d '-14 hours' +%Y-%m-%dT%H:%M:%SZ)
+          n=$(gh run list --repo "${{ github.repository }}" --workflow pipeline.yml --status success --created ">=$desde" --json databaseId -q 'length')
+          echo "corridas exitosas desde $desde: $n"
+          if [ "$n" -gt 0 ]; then echo "correr=false" >> $GITHUB_OUTPUT; else echo "correr=true" >> $GITHUB_OUTPUT; fi
+
   run-pipeline:
     name: Descarga + HTML + FTP + Telegram
+    needs: control
+    if: needs.control.outputs.correr == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
