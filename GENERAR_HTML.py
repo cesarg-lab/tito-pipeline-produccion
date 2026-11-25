@@ -1510,7 +1510,7 @@ html = f"""<!DOCTYPE html>
     <h3>Diésel L/m³ por Equipo y Mes</h3>
     <div id="histLm3Kpis" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div id="histTablaLm3" style="overflow-x:auto"></div>
-    <div style="font-size:11px;color:#55606c;margin-top:8px">Por faena: litros cargados a las máquinas (SGTC) ÷ m³ SSC del NOC del mismo mes. <b>Compras Shell</b>: todo el diésel comprado con Shell Card (aljibes + camionetas) ÷ m³ totales. <b>Camionetas</b>: Shell por patente, sin aljibes ÷ m³ totales. Colores: cada faena contra su propio promedio (verde ≤ promedio, ámbar hasta +15 %, rojo sobre +15 %). Mes en curso = acumulado a la fecha. Sin SGTC antes de may-26 (mayo incompleto).</div>
+    <div style="font-size:11px;color:#55606c;margin-top:8px">Por faena: litros cargados a las máquinas (SGTC) ÷ m³ SSC del NOC del mismo mes. <b>Compras Shell</b>: todo el diésel comprado con Shell Card (aljibes + camionetas) ÷ m³ totales. <b>Camionetas</b>: Shell por patente, sin aljibes ÷ m³ totales. Colores: cada faena contra su propio promedio (verde ≤ promedio, ámbar hasta +15 %, rojo sobre +15 %). Mes en curso = acumulado a la fecha. Por faena desde jun-26 (SGTC partió a mitad de mayo). Promedio y colores = meses cerrados; el mes en curso se compara contra ese promedio.</div>
   </div>
   <div class="chart-card">
     <h3>Tendencia por Equipo (m³ mensuales)</h3>
@@ -3294,9 +3294,11 @@ const dspEl = document.getElementById('diasSinProdTable');
     }}
     const ratio = (l, v) => (l > 0 && v > 50) ? l / v : null;
     const fmt2 = v => v == null ? '—' : v.toLocaleString('es-CL', {{minimumFractionDigits:2, maximumFractionDigits:2}});
-    const filas = equiposSet.map(eq => ({{ eq, vals: cols.map(c => ratio(lit[c.k+'|'+eq], c.vol(eq))) }}));
+    // SGTC por faena desde JUNIO-26: mayo está incompleto (el sistema partió a mitad de mes) y daba L/m³ falsamente bajos
+    const K_SGTC = 202606;
+    const filas = equiposSet.map(eq => ({{ eq, vals: cols.map(c => c.k < K_SGTC ? null : ratio(lit[c.k+'|'+eq], c.vol(eq))) }}));
     filas.push({{ eq: 'TOTAL FAENAS (SGTC)', tot: true, vals: cols.map(c => {{
-      const l = equiposSet.reduce((s, eq) => s + (lit[c.k+'|'+eq] || 0), 0); return ratio(l, c.volTot); }}) }});
+      if (c.k < K_SGTC) return null; const l = equiposSet.reduce((s, eq) => s + (lit[c.k+'|'+eq] || 0), 0); return ratio(l, c.volTot); }}) }});
     filas.push({{ eq: 'COMPRAS SHELL', tot: true, vals: cols.map(c => ratio(lit[c.k+'|COMPRAS'], c.volTot)) }});
     const color = (v, prom) => {{
       if (v == null || !prom) return 'transparent';
@@ -3307,9 +3309,10 @@ const dspEl = document.getElementById('diasSinProdTable');
     cols.forEach(c => h += `<th style="padding:8px;text-align:right">${{c.label}}</th>`);
     h += '<th style="padding:8px;text-align:right;background:#0F3D5E">Promedio</th></tr></thead><tbody>';
     filas.forEach((f, i) => {{
-      const ok = f.vals.filter(v => v != null); const prom = ok.length ? ok.reduce((a,b)=>a+b,0)/ok.length : null;
+      // Promedio y colores contra los MESES CERRADOS (el mes en curso es parcial y no entra al promedio)
+      const ok = f.vals.filter((v, j) => v != null && cols[j].k !== k0); const prom = ok.length ? ok.reduce((a,b)=>a+b,0)/ok.length : null;
       const st = f.tot ? 'background:#417505;color:white;font-weight:700' : `background:${{i%2?'#eef1f6':'#FFFFFF'}}`;
-      h += `<tr style="${{st}}"><td style="padding:6px 10px;font-weight:600;${{f.tot?'':'color:#417505'}}">${{f.eq}}</td>`;
+      h += `<tr style="${{st}}"><td style="padding:6px 10px;font-weight:700;${{f.tot?'color:#FFFFFF':'color:#417505'}}">${{f.eq}}</td>`;
       f.vals.forEach(v => h += `<td style="padding:6px 10px;text-align:right;${{f.tot?'':'background:'+color(v, prom)}}">${{fmt2(v)}}</td>`);
       h += `<td style="padding:6px 10px;text-align:right;font-weight:700;${{f.tot?'background:#0F3D5E':'background:#EBF5FB'}}">${{fmt2(prom)}}</td></tr>`;
     }});
@@ -3319,9 +3322,9 @@ const dspEl = document.getElementById('diasSinProdTable');
     const ult = arr => {{ for (let i = arr.length-1; i >= 0; i--) if (arr[i] != null) return [arr[i], cols[i].label]; return [null, '—']; }};
     const [vc, lc] = ult(filas[filas.length-1].vals), [vs, ls] = ult(filas[filas.length-2].vals);
     const camV = cols.map(c => ratio(lit[c.k+'|CAMIONETAS'], c.volTot));
-    const [vcam, lcam] = ult(camV); const okCam = camV.filter(v => v != null);
+    const [vcam, lcam] = ult(camV); const okCam = camV.filter((v, j) => v != null && cols[j].k !== k0);
     const promCam = okCam.length ? okCam.reduce((a,b)=>a+b,0)/okCam.length : null;
-    const okc = filas[filas.length-1].vals.filter(v => v != null), promC = okc.length ? okc.reduce((a,b)=>a+b,0)/okc.length : null;
+    const okc = filas[filas.length-1].vals.filter((v, j) => v != null && cols[j].k !== k0), promC = okc.length ? okc.reduce((a,b)=>a+b,0)/okc.length : null;
     const k = [
       {{label:'Compras Shell L/m³', val: fmt2(vc), sub: lc + (promC ? ' · prom. ' + fmt2(promC) : ''), color: (vc && promC && vc > promC*1.05) ? '#d8392b' : '#417505'}},
       {{label:'Faenas (SGTC) L/m³', val: fmt2(vs), sub: ls + ' · máquinas', color:'#2980B9'}},
