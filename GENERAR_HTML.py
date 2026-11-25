@@ -153,7 +153,7 @@ def _cargar_litros():
     with urllib.request.urlopen(req, timeout=60) as r:
         filas = json.loads(r.read())
     return [{'anio': int(x['anio']), 'mes': int(x['mes']),
-             'equipo': 'COMPRAS' if x['faena'] == 'COMPRAS' else 'Millalemu ' + x['faena'][1:],
+             'equipo': x['faena'] if x['faena'] in ('COMPRAS', 'CAMIONETAS') else 'Millalemu ' + x['faena'][1:],
              'litros': float(x['litros'] or 0), 'dias': int(x['dias'] or 0)} for x in filas]
 try:
     litros_list = _cargar_litros()
@@ -1508,7 +1508,7 @@ html = f"""<!DOCTYPE html>
     <h3>Diésel L/m³ por Equipo y Mes</h3>
     <div id="histLm3Kpis" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div id="histTablaLm3" style="overflow-x:auto"></div>
-    <div style="font-size:11px;color:#55606c;margin-top:8px">Por faena: litros cargados a las máquinas (SGTC) ÷ m³ SSC del NOC del mismo mes. <b>Compras Shell</b>: todo el diésel comprado con Shell Card (aljibes + camionetas) ÷ m³ totales. Colores: cada faena contra su propio promedio (verde ≤ promedio, ámbar hasta +15 %, rojo sobre +15 %). Mes en curso = acumulado a la fecha. Sin SGTC antes de may-26 (mayo incompleto).</div>
+    <div style="font-size:11px;color:#55606c;margin-top:8px">Por faena: litros cargados a las máquinas (SGTC) ÷ m³ SSC del NOC del mismo mes. <b>Compras Shell</b>: todo el diésel comprado con Shell Card (aljibes + camionetas) ÷ m³ totales. <b>Camionetas</b>: Shell por patente, sin aljibes ÷ m³ totales. Colores: cada faena contra su propio promedio (verde ≤ promedio, ámbar hasta +15 %, rojo sobre +15 %). Mes en curso = acumulado a la fecha. Sin SGTC antes de may-26 (mayo incompleto).</div>
   </div>
   <div class="chart-card">
     <h3>Tendencia por Equipo (m³ mensuales)</h3>
@@ -3306,10 +3306,14 @@ const dspEl = document.getElementById('diasSinProdTable');
     // KPIs: último mes con dato de compras y de SGTC
     const ult = arr => {{ for (let i = arr.length-1; i >= 0; i--) if (arr[i] != null) return [arr[i], cols[i].label]; return [null, '—']; }};
     const [vc, lc] = ult(filas[filas.length-1].vals), [vs, ls] = ult(filas[filas.length-2].vals);
+    const camV = cols.map(c => ratio(lit[c.k+'|CAMIONETAS'], c.volTot));
+    const [vcam, lcam] = ult(camV); const okCam = camV.filter(v => v != null);
+    const promCam = okCam.length ? okCam.reduce((a,b)=>a+b,0)/okCam.length : null;
     const okc = filas[filas.length-1].vals.filter(v => v != null), promC = okc.length ? okc.reduce((a,b)=>a+b,0)/okc.length : null;
     const k = [
       {{label:'Compras Shell L/m³', val: fmt2(vc), sub: lc + (promC ? ' · prom. ' + fmt2(promC) : ''), color: (vc && promC && vc > promC*1.05) ? '#d8392b' : '#417505'}},
       {{label:'Faenas (SGTC) L/m³', val: fmt2(vs), sub: ls + ' · máquinas', color:'#2980B9'}},
+      {{label:'Camionetas L/m³', val: fmt2(vcam), sub: lcam + (promCam ? ' · prom. ' + fmt2(promCam) : '') + ' · Shell por patente', color: (vcam && promCam && vcam > promCam*1.05) ? '#d8392b' : '#8E44AD'}},
     ];
     document.getElementById('histLm3Kpis').innerHTML = k.map(x =>
       `<div style="flex:1;min-width:160px;background:#eef1f6;border-left:4px solid ${{x.color}};padding:10px 14px;border-radius:6px">
