@@ -141,6 +141,26 @@ if os.path.exists(HIST_CSV):
     except Exception as e:
         print(f"⚠️  No se pudo cargar histórico: {e}")
 
+# ── Litros diésel por faena y mes (CMMS: SGTC por faena + COMPRAS Shell Card) → L/m³ del Comparativo ──
+litros_list = []
+def _cargar_litros():
+    import urllib.request
+    url = os.environ.get('SUPABASE_URL'); key = os.environ.get('SUPABASE_KEY')
+    if not url or not key:
+        print("   ⚠️  Sin SUPABASE_URL/KEY: el Comparativo sale sin L/m³."); return []
+    req = urllib.request.Request(url.rstrip('/') + '/rest/v1/rpc/informe_litros_mes', data=b'{}', method='POST',
+                                 headers={'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        filas = json.loads(r.read())
+    return [{'anio': int(x['anio']), 'mes': int(x['mes']),
+             'equipo': 'COMPRAS' if x['faena'] == 'COMPRAS' else 'Millalemu ' + x['faena'][1:],
+             'litros': float(x['litros'] or 0), 'dias': int(x['dias'] or 0)} for x in filas]
+try:
+    litros_list = _cargar_litros()
+    print(f"⛽ Litros diésel cargados: {len(litros_list)} filas faena×mes")
+except Exception as e:
+    print(f"⚠️  No se pudieron cargar litros (L/m³ queda vacío): {e}")
+
 # ── Histórico de tiempos perdidos por mes ──
 TM_HIST_CSV = os.path.join(BASE_DIR, "historico_tm_mensual.csv")
 tm_mensual_list = []
@@ -1003,6 +1023,10 @@ if os.path.isdir(_sd):
                                  and os.path.exists(os.path.join(_sd, d, 'data_diario.csv')))
 snapshots_disponibles = sorted(snapshots_disponibles)
 
+def _vol_mes_team():
+    try: return {t: round(float(v), 1) for t, v in daily.groupby('Team')['Vol'].sum().items()}
+    except Exception: return {}
+
 data_json = json.dumps({
     # 'fer' = días del mes que son feriado irrenunciable. El JS los necesita para no
     # repartir meta sobre ellos ni pintarlos en rojo por no producir.
@@ -1036,6 +1060,8 @@ data_json = json.dumps({
     'mtbfMttr': mtbf_mttr,
     'compMes': comp_mes,
     'historico': historico_list,
+    'litros': litros_list,
+    'volMesTeam': _vol_mes_team(),
     'tmMensual': tm_mensual_list,
     'snapshotsDisponibles': snapshots_disponibles,
     'obsAnalisis': obs_analisis,
@@ -1477,6 +1503,12 @@ html = f"""<!DOCTYPE html>
   <div class="chart-card" style="margin-bottom:16px">
     <h3>Cumplimiento % por Equipo y Mes</h3>
     <div id="histTablaCumpl" style="overflow-x:auto"></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:16px">
+    <h3>Diésel L/m³ por Equipo y Mes</h3>
+    <div id="histLm3Kpis" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div id="histTablaLm3" style="overflow-x:auto"></div>
+    <div style="font-size:11px;color:#55606c;margin-top:8px">Por faena: litros cargados a las máquinas (SGTC) ÷ m³ SSC del NOC del mismo mes. <b>Compras Shell</b>: todo el diésel comprado con Shell Card (aljibes + camionetas) ÷ m³ totales. Colores: cada faena contra su propio promedio (verde ≤ promedio, ámbar hasta +15 %, rojo sobre +15 %). Mes en curso = acumulado a la fecha. Sin SGTC antes de may-26 (mayo incompleto).</div>
   </div>
   <div class="chart-card">
     <h3>Tendencia por Equipo (m³ mensuales)</h3>
@@ -3235,6 +3267,56 @@ const dspEl = document.getElementById('diasSinProdTable');
   hPct += `<td style="padding:8px 10px;text-align:right;background:#0F3D5E">${{avgFaena}}%</td>`;
   hPct += '</tr></tbody></table>';
   document.getElementById('histTablaCumpl').innerHTML = hPct;
+
+  // ── L/m³ diésel por equipo y mes (+ mes en curso) ──────
+  try {{ (() => {{
+    const L = D.litros || [];
+    const box = document.getElementById('histTablaLm3');
+    if (!L.length) {{ box.innerHTML = '<div style="padding:12px;color:#55606c">Sin datos de litros (CMMS no respondió en esta corrida).</div>'; return; }}
+    const lit = {{}}; L.forEach(x => lit[(x.anio*100+x.mes)+'|'+x.equipo] = x.litros);
+    const cols = mesesArr.map(m => ({{ k: m.anio*100+m.mes, label: m.label, vol: eq => m.equipos[eq] ? m.equipos[eq].vol : 0, volTot: m.vol }}));
+    const k0 = D.cfg.anio*100 + D.cfg.mes;
+    if (!cols.some(c => c.k === k0)) {{
+      const vm = D.volMesTeam || {{}};
+      cols.push({{ k: k0, label: MESES_ABBR[D.cfg.mes]+' '+String(D.cfg.anio).slice(2)+'*', vol: eq => vm[eq] || 0, volTot: Object.values(vm).reduce((a,b)=>a+b,0) }});
+    }}
+    const ratio = (l, v) => (l > 0 && v > 50) ? l / v : null;
+    const fmt2 = v => v == null ? '—' : v.toLocaleString('es-CL', {{minimumFractionDigits:2, maximumFractionDigits:2}});
+    const filas = equiposSet.map(eq => ({{ eq, vals: cols.map(c => ratio(lit[c.k+'|'+eq], c.vol(eq))) }}));
+    filas.push({{ eq: 'TOTAL FAENAS (SGTC)', tot: true, vals: cols.map(c => {{
+      const l = equiposSet.reduce((s, eq) => s + (lit[c.k+'|'+eq] || 0), 0); return ratio(l, c.volTot); }}) }});
+    filas.push({{ eq: 'COMPRAS SHELL', tot: true, vals: cols.map(c => ratio(lit[c.k+'|COMPRAS'], c.volTot)) }});
+    const color = (v, prom) => {{
+      if (v == null || !prom) return 'transparent';
+      const d = v / prom - 1; return d <= 0 ? '#e6f4e8' : d <= 0.15 ? '#fcf3da' : '#fbe6e4';
+    }};
+    let h = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#417505;color:white">';
+    h += '<th style="padding:8px;text-align:left">Equipo</th>';
+    cols.forEach(c => h += `<th style="padding:8px;text-align:right">${{c.label}}</th>`);
+    h += '<th style="padding:8px;text-align:right;background:#0F3D5E">Promedio</th></tr></thead><tbody>';
+    filas.forEach((f, i) => {{
+      const ok = f.vals.filter(v => v != null); const prom = ok.length ? ok.reduce((a,b)=>a+b,0)/ok.length : null;
+      const st = f.tot ? 'background:#417505;color:white;font-weight:700' : `background:${{i%2?'#eef1f6':'#FFFFFF'}}`;
+      h += `<tr style="${{st}}"><td style="padding:6px 10px;font-weight:600;${{f.tot?'':'color:#417505'}}">${{f.eq}}</td>`;
+      f.vals.forEach(v => h += `<td style="padding:6px 10px;text-align:right;${{f.tot?'':'background:'+color(v, prom)}}">${{fmt2(v)}}</td>`);
+      h += `<td style="padding:6px 10px;text-align:right;font-weight:700;${{f.tot?'background:#0F3D5E':'background:#EBF5FB'}}">${{fmt2(prom)}}</td></tr>`;
+    }});
+    h += '</tbody></table><div style="font-size:11px;color:#8a949f;margin-top:4px">* mes en curso, acumulado a la fecha.</div>';
+    box.innerHTML = h;
+    // KPIs: último mes con dato de compras y de SGTC
+    const ult = arr => {{ for (let i = arr.length-1; i >= 0; i--) if (arr[i] != null) return [arr[i], cols[i].label]; return [null, '—']; }};
+    const [vc, lc] = ult(filas[filas.length-1].vals), [vs, ls] = ult(filas[filas.length-2].vals);
+    const okc = filas[filas.length-1].vals.filter(v => v != null), promC = okc.length ? okc.reduce((a,b)=>a+b,0)/okc.length : null;
+    const k = [
+      {{label:'Compras Shell L/m³', val: fmt2(vc), sub: lc + (promC ? ' · prom. ' + fmt2(promC) : ''), color: (vc && promC && vc > promC*1.05) ? '#d8392b' : '#417505'}},
+      {{label:'Faenas (SGTC) L/m³', val: fmt2(vs), sub: ls + ' · máquinas', color:'#2980B9'}},
+    ];
+    document.getElementById('histLm3Kpis').innerHTML = k.map(x =>
+      `<div style="flex:1;min-width:160px;background:#eef1f6;border-left:4px solid ${{x.color}};padding:10px 14px;border-radius:6px">
+         <div style="font-size:11px;color:#55606c;text-transform:uppercase;letter-spacing:.5px">${{x.label}}</div>
+         <div style="font-size:22px;font-weight:800;color:${{x.color}};line-height:1.2;margin:2px 0">${{x.val}}</div>
+         <div style="font-size:11px;color:#8a949f">${{x.sub}}</div></div>`).join('');
+  }})(); }} catch (e) {{ console.error('L/m3', e); }}
 
   // ── Gráfico líneas: tendencia por equipo ────────────────
   const ctx2 = document.getElementById('chartHistEquipos').getContext('2d');
