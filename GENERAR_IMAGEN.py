@@ -335,6 +335,32 @@ def generate():
     lm3_total = lit_total / total_acum if lit_total > 0 and total_acum > 50 else None
     proy_litros = lm3_total * proy_total if lm3_total else None
     f2 = lambda v: '—' if v is None else f"{v:.2f}".replace('.', ',')
+    # Semáforo L/m³ = mismo criterio que la tabla del Comparativo: ROJO si supera en más de 15 % el promedio
+    # de los MESES CERRADOS de esa faena (desde jun-26, mayo SGTC incompleto); si no, negro.
+    prom_lm3 = {}
+    try:
+        _lit_hist = {}
+        for x in _js.load(open(BASE_DIR / 'litros_mes.json', encoding='utf-8')):
+            _lit_hist[(x['anio'] * 100 + x['mes'], x['equipo'])] = float(x['litros'] or 0)
+        _h = pd.read_csv(BASE_DIR / 'historico_cierres_mensuales.csv', sep=';', encoding='utf-8-sig')
+        _h['k'] = _h['anio'] * 100 + _h['mes']
+        _h = _h[(_h['k'] >= 202606) & (_h['k'] < ANIO * 100 + MES)]
+        _vals = {}
+        for _, r in _h.iterrows():
+            l, v = _lit_hist.get((int(r['k']), r['equipo']), 0), float(r['vol_total'] or 0)
+            if l > 0 and v > 50: _vals.setdefault(r['equipo'], []).append(l / v)
+        _tot = {}
+        for k in sorted(set(_h['k'])):
+            v = float(_h[_h['k'] == k]['vol_total'].sum())
+            l = _lit_hist.get((int(k), 'COMPRAS'), 0) if GRUPO == 'general' else sum(_lit_hist.get((int(k), t), 0) for t in TEAMS)
+            if l > 0 and v > 50: _tot.setdefault('_TOTAL', []).append(l / v)
+        _vals.update(_tot)
+        prom_lm3 = {k: sum(v) / len(v) for k, v in _vals.items() if v}
+    except Exception as e:
+        log(f"   ⚠️  Sin promedio histórico L/m³ ({e}): la fila sale en negro")
+    def lm3_color(v, clave):
+        p = prom_lm3.get(clave)
+        return RED if (v is not None and p and v > p * 1.15) else TXT
 
     grid = {}; grid_tm = {}
     for _, r in daily.iterrows():
@@ -521,7 +547,7 @@ def generate():
         ('Ritmo',      lambda tm: fmt(team_data[tm]['ritmo']),            fmt(ritmo_total),          '#F5F7FA', lambda tm: RED if team_data[tm]['ritmo']>team_data[tm]['prom'] else TXT, 'red_bold', RED if ritmo_total>prom_total else TXT),
         ('m³/hr',      lambda tm: f"{team_data[tm]['rendimiento']:.1f}",  f"{rend_total:.1f}",       '#EBF0F5', lambda tm: RED if team_data[tm]['rendimiento']<15 else TXT, 'red_bold', RED if rend_total<15 else TXT),
         ('TM(h)',      lambda tm: f"{team_data[tm]['tm_mant_hrs']:.1f}",  f"{total_tm_mant/60:.1f}", '#F5F7FA', lambda tm: RED if team_data[tm]['tm_mant_hrs']>33 else TXT, 'red_bold', RED if total_tm_mant/60>33 else TXT),
-        ('L/m³',       lambda tm: f2(lm3_team(tm)),                         f2(lm3_total),             '#EEF6E8', None, False, TXT),
+        ('L/m³',       lambda tm: f2(lm3_team(tm)),                         f2(lm3_total),             '#EEF6E8', lambda tm: lm3_color(lm3_team(tm), tm), 'red_bold', lm3_color(lm3_total, '_TOTAL')),
         (LBL_PROY,     lambda tm: fmt(team_data[tm]['proy']),             fmt(proy_total),           '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
     ]
 
