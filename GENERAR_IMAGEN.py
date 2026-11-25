@@ -318,6 +318,24 @@ def generate():
     else:
         delta_pct = 0
 
+    # ── Diésel: litros del mes (litros_mes.json lo deja GENERAR_HTML desde el CMMS) ──
+    lit_mes = {}
+    try:
+        import json as _js
+        for x in _js.load(open(BASE_DIR / 'litros_mes.json', encoding='utf-8')):
+            if x['anio'] == ANIO and x['mes'] == MES:
+                lit_mes[x['equipo']] = float(x['litros'] or 0)
+    except Exception as e:
+        log(f"   ⚠️  Sin litros del mes ({e}): la fila L/m³ sale vacía")
+    def lm3_team(tm):
+        l, v = lit_mes.get(tm, 0), team_data[tm]['acum']
+        return l / v if l > 0 and v > 50 else None
+    # Total: en la general = diésel COMPRADO (Shell) ÷ m³; en aéreo/terrestre = litros SGTC del grupo ÷ m³
+    lit_total = lit_mes.get('COMPRAS', 0) if GRUPO == 'general' else sum(lit_mes.get(t, 0) for t in TEAMS)
+    lm3_total = lit_total / total_acum if lit_total > 0 and total_acum > 50 else None
+    proy_litros = lm3_total * proy_total if lm3_total else None
+    f2 = lambda v: '—' if v is None else f"{v:.2f}".replace('.', ',')
+
     grid = {}; grid_tm = {}
     for _, r in daily.iterrows():
         d = int(r['Dia']); t = r['Team']
@@ -328,7 +346,7 @@ def generate():
     # DIBUJAR — Fuentes MUY GRANDES para celular
     # ════════════════════════════════════════════════════════════
     n_teams = len(TEAMS)
-    n_kpi = 10
+    n_kpi = 11
     # Mostrar hasta el último día con datos en Base2NOC (Selenium ya depura).
     # Manual.csv solo se usa como cruce para depurar fantasmas, no para limitar el rango.
     ultimo_dia = int(prod['Dia'].max())
@@ -418,7 +436,7 @@ def generate():
       f"Forestal Millalemu · {MESES[MES]} {ANIO} · {DD}/{DM} días",
       fs=F_SUB + 1, c='#B0C4DE', ha='left')
     t(P + 0.02, y - 0.68,
-      f"Datos al: {datetime.now().strftime('%d-%b-%Y')}", fs=F_SUB, c='#7B9DBF', ha='left')
+      f"Datos al: {datetime.now().strftime('%d-%b-%Y')}" + (f" · Diésel proy. {fmt(proy_litros)} L" if proy_litros else ""), fs=F_SUB, c='#7B9DBF', ha='left')
 
     # --- Lado derecho: KPIs grandes ---
     brecha = proy_total - meta_total
@@ -503,6 +521,7 @@ def generate():
         ('Ritmo',      lambda tm: fmt(team_data[tm]['ritmo']),            fmt(ritmo_total),          '#F5F7FA', lambda tm: RED if team_data[tm]['ritmo']>team_data[tm]['prom'] else TXT, 'red_bold', RED if ritmo_total>prom_total else TXT),
         ('m³/hr',      lambda tm: f"{team_data[tm]['rendimiento']:.1f}",  f"{rend_total:.1f}",       '#EBF0F5', lambda tm: RED if team_data[tm]['rendimiento']<15 else TXT, 'red_bold', RED if rend_total<15 else TXT),
         ('TM(h)',      lambda tm: f"{team_data[tm]['tm_mant_hrs']:.1f}",  f"{total_tm_mant/60:.1f}", '#F5F7FA', lambda tm: RED if team_data[tm]['tm_mant_hrs']>33 else TXT, 'red_bold', RED if total_tm_mant/60>33 else TXT),
+        ('L/m³',       lambda tm: f2(lm3_team(tm)),                         f2(lm3_total),             '#EEF6E8', None, False, TXT),
         (LBL_PROY,     lambda tm: fmt(team_data[tm]['proy']),             fmt(proy_total),           '#EBF0F5', lambda tm: '#059669' if (team_data[tm]['proy']/METAS[tm]*100)>=90 else '#D97706' if (team_data[tm]['proy']/METAS[tm]*100)>=60 else RED, True, '#059669' if pct_total>=90 else '#D97706' if pct_total>=60 else RED),
     ]
 

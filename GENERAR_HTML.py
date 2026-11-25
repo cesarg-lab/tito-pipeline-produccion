@@ -158,6 +158,8 @@ def _cargar_litros():
 try:
     litros_list = _cargar_litros()
     print(f"⛽ Litros diésel cargados: {len(litros_list)} filas faena×mes")
+    with open(os.path.join(BASE_DIR, 'litros_mes.json'), 'w', encoding='utf-8') as _f:
+        json.dump(litros_list, _f)   # lo lee GENERAR_IMAGEN.py (fila L/m³ de la grilla)
 except Exception as e:
     print(f"⚠️  No se pudieron cargar litros (L/m³ queda vacío): {e}")
 
@@ -1551,7 +1553,17 @@ document.getElementById('headerKpis').innerHTML = `
   <div class="kpi" style="min-width:100px"><div class="kpi-label">Meta</div><div class="kpi-value" style="font-size:22px">${{fmt(cfg.tm)}}</div><div class="kpi-unit">m³ SSC</div></div>
   <div class="kpi" style="min-width:170px"><div class="kpi-label" style="font-weight:700">${{tituloKpi}}</div><div class="kpi-value" style="color:${{cierreColor}};font-size:52px;line-height:1;font-weight:900">${{cumplTotal}}%</div></div>
   <div class="kpi" style="min-width:150px"><div class="kpi-label" style="font-weight:700">${{tituloProy}}</div><div class="kpi-value" style="color:${{cierreColor}};font-size:38px;line-height:1;font-weight:800">${{fmt(Math.round(proyTotal))}}</div><div class="kpi-unit" style="color:${{brechaColor}};font-weight:700">${{sufijoBrecha}}</div></div>
-`;
+` + (() => {{
+  // Diésel comprado (Shell Card) del mes ÷ m³ acumulados; proyección de litros = L/m³ × proyección de m³
+  try {{
+    const r = (D.litros || []).find(x => x.anio === cfg.anio && x.mes === cfg.mes && x.equipo === 'COMPRAS');
+    if (!r || !cfg.ta) return '';
+    const lm3 = r.litros / cfg.ta, proyL = lm3 * proyTotal;
+    const f2 = v => v.toLocaleString('es-CL', {{minimumFractionDigits:2, maximumFractionDigits:2}});
+    return `<div class="kpi" style="min-width:100px"><div class="kpi-label">Diésel L/m³</div><div class="kpi-value" style="font-size:22px">${{f2(lm3)}}</div><div class="kpi-unit">${{fmt(Math.round(r.litros))}} L comprados</div></div>
+  <div class="kpi" style="min-width:110px"><div class="kpi-label">Proy. Litros</div><div class="kpi-value" style="font-size:22px">${{fmt(Math.round(proyL))}}</div><div class="kpi-unit">L al cierre</div></div>`;
+  }} catch (e) {{ return ''; }}
+}})();
 
 // Navigation
 const sections = ['resumen','kpis','informe','grid','tiempos','analisis','comparativo'];
